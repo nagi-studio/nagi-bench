@@ -1,4 +1,6 @@
+import { Moon, Sun } from 'lucide-react'
 import { useLang, type Lang } from '../i18n'
+import { useTheme } from '../theme'
 import { REPO_URL } from '../data/cases'
 
 function GithubMark({ className }: { className?: string }) {
@@ -11,13 +13,14 @@ function GithubMark({ className }: { className?: string }) {
 
 export default function TopBar() {
   const { lang, setLang } = useLang()
+  const { theme, setTheme } = useTheme()
 
   const LangButton = ({ target, label }: { target: Lang; label: string }) => (
     <button
       onClick={() => setLang(target)}
       aria-pressed={lang === target}
       className={`px-1 transition-colors ${
-        lang === target ? 'text-acid' : 'text-dim hover:text-paper'
+        lang === target ? 'text-accent' : 'text-dim hover:text-paper'
       }`}
     >
       {label}
@@ -25,7 +28,7 @@ export default function TopBar() {
   )
 
   return (
-    <header className="border-line bg-ink/80 fixed inset-x-0 top-0 z-40 border-b backdrop-blur-md">
+    <header className="border-line bg-ink/80 fixed inset-x-0 top-0 z-40 border-b backdrop-blur-md transition-colors duration-500">
       <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4">
         <a href="#top" className="flex items-center gap-2.5 font-mono text-sm font-bold tracking-[0.2em]">
           <span className="bg-acid inline-block size-3" />
@@ -37,6 +40,13 @@ export default function TopBar() {
             <span className="text-dim select-none">/</span>
             <LangButton target="en" label="EN" />
           </nav>
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="text-dim hover:text-paper transition-colors"
+          >
+            {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </button>
           <a
             href={REPO_URL}
             target="_blank"

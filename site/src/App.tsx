@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { LangProvider, useLang } from './i18n'
+import { ThemeProvider } from './theme'
 import { CASES } from './data/cases'
 import { ScrollTrigger } from './lib/gsap'
 import TopBar from './components/TopBar'
@@ -7,6 +8,7 @@ import Hero from './components/Hero'
 import ModelMarquee from './components/ModelMarquee'
 import CaseSection from './components/CaseSection'
 import Footer from './components/Footer'
+import CursorGlow from './components/CursorGlow'
 
 function Shell() {
   const { lang } = useLang()
@@ -29,14 +31,17 @@ function Shell() {
         </div>
       </main>
       <Footer />
+      <CursorGlow />
     </div>
   )
 }
 
 export default function App() {
   return (
-    <LangProvider>
-      <Shell />
-    </LangProvider>
+    <ThemeProvider>
+      <LangProvider>
+        <Shell />
+      </LangProvider>
+    </ThemeProvider>
   )
 }

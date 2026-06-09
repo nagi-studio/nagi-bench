@@ -4,6 +4,7 @@ import puppeteer from 'puppeteer-core'
 
 const url = process.argv[2] ?? 'http://localhost:4173/nagi-bench/'
 const shot = process.argv[3] ?? '/tmp/nagi-bench-live.png'
+const theme = process.argv[4] // optional: 'light' | 'dark'
 
 const browser = await puppeteer.launch({
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -11,6 +12,11 @@ const browser = await puppeteer.launch({
 })
 const page = await browser.newPage()
 await page.setViewport({ width: 1440, height: 2200 })
+if (theme === 'light' || theme === 'dark') {
+  await page.evaluateOnNewDocument((t: string) => {
+    localStorage.setItem('nagi-bench-theme', t)
+  }, theme)
+}
 
 const errors: string[] = []
 page.on('console', (msg) => {

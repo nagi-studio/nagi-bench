@@ -1,9 +1,13 @@
 import { memo, useMemo, useRef } from 'react'
-import { gsap, useGSAP, prefersReducedMotion } from '../lib/gsap'
+import { gsap, useGSAP, SplitText, prefersReducedMotion } from '../lib/gsap'
 import { useLang } from '../i18n'
 import { CASES, MODELS } from '../data/cases'
 
+const truncate = (s: string, max: number) =>
+  s.length > max ? `${s.slice(0, max).trimEnd()} …` : s
+
 // Perpetual animation, isolated and memoized so it never re-renders the hero.
+// The parent reserves a fixed-height box, so typing never reflows the page.
 const Typewriter = memo(function Typewriter({ lines }: { lines: string[] }) {
   const scope = useRef<HTMLSpanElement>(null)
   const textRef = useRef<HTMLSpanElement>(null)
@@ -40,12 +44,12 @@ const Typewriter = memo(function Typewriter({ lines }: { lines: string[] }) {
   )
 
   return (
-    <span ref={scope} className="text-paper/90 min-h-[1.6em] leading-relaxed">
+    <span ref={scope} className="text-paper/90 leading-relaxed">
       <span ref={textRef} />
       <span
         ref={cursorRef}
         aria-hidden
-        className="bg-acid ml-0.5 inline-block h-[1.05em] w-[0.55em] translate-y-[0.18em]"
+        className="bg-accent ml-0.5 inline-block h-[1.05em] w-[0.55em] translate-y-[0.18em]"
       />
     </span>
   )
@@ -55,7 +59,13 @@ export default function Hero() {
   const { t, lang } = useLang()
   const scope = useRef<HTMLElement>(null)
 
-  const promptLines = useMemo(() => CASES.map((c) => c.prompt[lang]), [lang])
+  const promptLines = useMemo(
+    () =>
+      CASES.map((c) =>
+        truncate(c.prompt[lang].replace(/\s+/g, ' '), lang === 'zh' ? 80 : 140),
+      ),
+    [lang],
+  )
 
   const ranCount = MODELS.filter((m) => m.status === 'ran').length
   const pendingCount = MODELS.length - ranCount
@@ -64,15 +74,17 @@ export default function Hero() {
   useGSAP(
     () => {
       if (prefersReducedMotion()) return
+      const split = SplitText.create('[data-hero-title]', { type: 'chars', mask: 'chars' })
       gsap
-        .timeline({ defaults: { ease: 'power3.out' } })
-        .from('[data-hero-line]', { yPercent: 110, duration: 0.9, stagger: 0.12 })
+        .timeline({ defaults: { ease: 'power4.out' } })
+        .from(split.chars, { yPercent: 120, duration: 1, stagger: 0.04 })
         .from(
           '[data-hero-badge]',
-          { scale: 0, rotation: -16, duration: 0.6, ease: 'back.out(1.7)' },
-          '-=0.35',
+          { scale: 0, rotation: -14, duration: 0.6, ease: 'back.out(1.7)' },
+          '-=0.55',
         )
-        .from('[data-hero-fade]', { y: 24, autoAlpha: 0, duration: 0.7, stagger: 0.1 }, '-=0.3')
+        .from('[data-hero-fade]', { y: 24, autoAlpha: 0, duration: 0.7, stagger: 0.1 }, '-=0.35')
+      return () => split.revert()
     },
     { scope },
   )
@@ -85,20 +97,18 @@ export default function Hero() {
         </p>
 
         <h1 className="mt-8 leading-[0.92] font-bold tracking-tight uppercase">
-          <span className="block overflow-hidden pb-1">
-            <span data-hero-line className="block text-[clamp(4rem,14vw,10.5rem)]">
-              NAGI
-            </span>
+          <span data-hero-title className="block text-[clamp(4rem,14vw,10.5rem)]">
+            NAGI
           </span>
-          <span className="block overflow-hidden pb-2">
-            <span data-hero-line className="text-outline relative inline-block text-[clamp(4rem,14vw,10.5rem)]">
+          <span className="mt-1 flex flex-wrap items-center gap-x-7 gap-y-5">
+            <span data-hero-title className="text-outline block text-[clamp(4rem,14vw,10.5rem)]">
               BENCH
-              <span
-                data-hero-badge
-                className="bg-acid text-ink absolute -top-1 -right-4 origin-center translate-x-full rotate-[7deg] px-3 py-1.5 font-mono text-[10px] font-bold tracking-[0.15em] whitespace-nowrap normal-case [-webkit-text-stroke:0] md:text-xs"
-              >
-                {t('hero.badge')}
-              </span>
+            </span>
+            <span
+              data-hero-badge
+              className="bg-acid text-night inline-block -rotate-3 px-3.5 py-2 font-mono text-[10px] font-bold tracking-[0.15em] whitespace-nowrap normal-case md:text-xs"
+            >
+              {t('hero.badge')}
             </span>
           </span>
         </h1>
@@ -107,16 +117,17 @@ export default function Hero() {
           {t('hero.sub')}
         </p>
 
-        <div data-hero-fade className="mt-10 flex items-baseline gap-3 font-mono text-sm md:text-base">
-          <span className="text-acid shrink-0 select-none">
-            {t('hero.stdin')} &gt;
-          </span>
+        <div
+          data-hero-fade
+          className="mt-10 flex h-32 items-start gap-3 overflow-hidden font-mono text-sm sm:h-24 md:h-20 md:text-base"
+        >
+          <span className="text-accent shrink-0 select-none">{t('hero.stdin')} &gt;</span>
           <Typewriter lines={promptLines} />
         </div>
 
         <dl
           data-hero-fade
-          className="border-line text-dim mt-16 flex flex-wrap gap-x-14 gap-y-6 border-t pt-6 font-mono text-[11px] tracking-[0.25em] uppercase"
+          className="border-line text-dim mt-12 flex flex-wrap gap-x-14 gap-y-6 border-t pt-6 font-mono text-[11px] tracking-[0.25em] uppercase"
         >
           <div>
             <dt>{t('meta.cases')}</dt>

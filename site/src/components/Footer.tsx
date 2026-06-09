@@ -6,7 +6,7 @@ export default function Footer() {
   return (
     <footer className="border-line border-t">
       <div className="mx-auto w-full max-w-7xl px-4 py-16 md:py-20">
-        <p className="text-acid font-mono text-xs tracking-[0.35em] uppercase">
+        <p className="text-accent font-mono text-xs tracking-[0.35em] uppercase">
           {t('footer.tagline')}
         </p>
         <div className="mt-8 flex flex-col justify-between gap-8 md:flex-row md:items-end">
@@ -19,7 +19,7 @@ export default function Footer() {
             NAGI STUDIO
           </a>
           <div className="text-dim font-mono text-xs leading-relaxed">
-            <a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-acid transition-colors">
+            <a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-accent transition-colors">
               github.com/nagi-studio/nagi-bench
             </a>
             <p className="mt-2">{t('footer.built')}</p>
