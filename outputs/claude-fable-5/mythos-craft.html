@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MYTHOS CRAFT · 神话境界</title>
+<style>
+:root{
+  --gold:#d9b45c; --gold-dim:#9a7d3c; --ink:#0b0e1c; --ink2:#161233; --mist:#aab3d6; --paper:#e9e4d4;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+canvas#game{display:block;position:fixed;inset:0}
+
+/* ---------- Overlay (title / pause) ---------- */
+#overlay{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(120% 90% at 50% 0%, #1d1742 0%, #0c0f22 55%, #070812 100%);
+  color:var(--paper);text-align:center;padding:24px;overflow-y:auto}
+#overlay .frame{max-width:860px;width:100%}
+#overlay h1{font-family:Georgia,"Times New Roman","Noto Serif SC",serif;color:var(--gold);
+  font-size:clamp(34px,6vw,58px);letter-spacing:.14em;font-weight:700;line-height:1.1;
+  text-shadow:0 0 28px rgba(217,180,92,.35)}
+#overlay .sub{margin-top:8px;color:var(--mist);font-size:14px;letter-spacing:.45em;text-transform:uppercase;font-family:ui-monospace,Menlo,Consolas,monospace}
+#overlay .lore{margin:18px auto 0;max-width:560px;color:#cfd4ec;font-size:14px;line-height:1.75}
+#wonders{margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;max-width:780px;text-align:left}
+#wonders .w{border:1px solid rgba(217,180,92,.22);background:rgba(13,16,36,.55);border-radius:6px;padding:8px 10px}
+#wonders .w b{color:var(--gold);font-family:Georgia,"Noto Serif SC",serif;font-size:14px;letter-spacing:.06em}
+#wonders .w span{display:block;color:#9aa2c8;font-size:12px;margin-top:2px;line-height:1.5}
+#controls{margin:22px auto 0;color:#aab1d4;font-size:13px;line-height:2;max-width:640px}
+#controls k{display:inline-block;border:1px solid #3a3f63;border-bottom-width:2px;border-radius:4px;padding:0 7px;margin:0 3px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--paper);background:#191d38;font-size:12px}
+#loadwrap{margin:26px auto 0;width:min(420px,80%)}
+#loadbar{height:6px;border:1px solid var(--gold-dim);border-radius:3px;overflow:hidden;background:rgba(0,0,0,.4)}
+#loadfill{height:100%;width:0%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));transition:width .15s}
+#loadtext{margin-top:8px;color:#8d94bb;font-size:12px;letter-spacing:.2em;font-family:ui-monospace,Menlo,Consolas,monospace}
+#startbtn{margin-top:22px;padding:13px 46px;font-size:17px;letter-spacing:.3em;cursor:pointer;
+  font-family:Georgia,"Noto Serif SC",serif;color:var(--gold);background:transparent;
+  border:1px solid var(--gold);border-radius:4px;transition:all .2s}
+#startbtn:disabled{opacity:.35;cursor:default}
+#startbtn:not(:disabled):hover{background:rgba(217,180,92,.12);box-shadow:0 0 24px rgba(217,180,92,.35)}
+#mobilenote{margin-top:14px;color:#c7793f;font-size:12px;display:none}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;z-index:10;pointer-events:none;display:none}
+#cross{position:absolute;left:50%;top:50%;width:18px;height:18px;transform:translate(-50%,-50%)}
+#cross::before,#cross::after{content:"";position:absolute;background:rgba(255,255,255,.85);mix-blend-mode:difference}
+#cross::before{left:8px;top:0;width:2px;height:18px}
+#cross::after{left:0;top:8px;width:18px;height:2px}
+#info{position:absolute;left:12px;top:10px;color:#e8ebff;font:12px/1.7 ui-monospace,Menlo,Consolas,monospace;
+  background:rgba(8,10,24,.55);border:1px solid rgba(217,180,92,.25);border-radius:6px;padding:8px 12px;white-space:pre}
+#info .gold{color:var(--gold)}
+#toast{position:absolute;left:50%;top:64px;transform:translateX(-50%);max-width:520px;text-align:center;
+  background:rgba(10,12,28,.82);border:1px solid var(--gold);border-radius:8px;padding:12px 22px;
+  opacity:0;transition:opacity .4s}
+#toast b{display:block;color:var(--gold);font-family:Georgia,"Noto Serif SC",serif;font-size:18px;letter-spacing:.12em}
+#toast span{display:block;color:#ccd2ef;font-size:13px;margin-top:4px;line-height:1.6}
+#hotbar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:5px;
+  background:rgba(8,10,24,.55);padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,.12)}
+#hotbar .slot{width:48px;height:48px;border:2px solid rgba(255,255,255,.22);border-radius:5px;position:relative;
+  background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}
+#hotbar .slot.sel{border-color:var(--gold);box-shadow:0 0 12px rgba(217,180,92,.55)}
+#hotbar .slot canvas{image-rendering:pixelated;width:36px;height:36px}
+#hotbar .slot i{position:absolute;left:3px;top:1px;font-style:normal;font-size:10px;color:#cfd3ea;font-family:ui-monospace,monospace}
+#hotbar .slot u{position:absolute;left:0;right:0;bottom:-17px;text-decoration:none;text-align:center;font-size:10px;color:#cfd3ea;opacity:0;transition:opacity .2s}
+#hotbar .slot.sel u{opacity:1}
+#hint{position:absolute;right:12px;bottom:12px;color:#9aa1c6;font:11px/1.8 ui-monospace,Menlo,Consolas,monospace;text-align:right;
+  background:rgba(8,10,24,.45);border-radius:6px;padding:7px 11px}
+#watermark{position:absolute;right:14px;top:12px;color:rgba(217,180,92,.88);font:600 15px/1.2 ui-monospace,Menlo,Consolas,monospace;
+  letter-spacing:.06em;pointer-events:none;-webkit-font-smoothing:antialiased;
+  text-shadow:0 0 1px rgba(0,0,0,.9),0 1px 2px rgba(0,0,0,.75)}
+#langswitch{position:absolute;top:14px;right:14px;display:flex;gap:4px;z-index:30}
+#langswitch button{padding:5px 11px;font:11px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;cursor:pointer;
+  color:var(--mist);background:rgba(8,10,24,.65);border:1px solid rgba(217,180,92,.28);border-radius:4px;transition:all .2s}
+#langswitch button.on{color:var(--gold);border-color:var(--gold);background:rgba(217,180,92,.1)}
+#langswitch button:hover:not(.on){color:var(--paper);border-color:rgba(217,180,92,.5)}
+#author{margin-top:20px;color:#7d84a8;font-size:12px;line-height:1.8}
+#author a{color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(217,180,92,.35)}
+#author a:hover{color:var(--paper);border-bottom-color:var(--gold)}
+</style>
+</head>
+<body>
+
+<div id="langswitch">
+  <button id="langzh" type="button">中文</button>
+  <button id="langen" type="button">EN</button>
+</div>
+
+<div id="overlay">
+  <div class="frame">
+    <h1 id="title">神话境界</h1>
+    <div class="sub">MYTHOS · CRAFT</div>
+    <p class="lore" id="lore"></p>
+    <div id="wonders"></div>
+    <div id="controls"></div>
+    <div id="loadwrap">
+      <div id="loadbar"><div id="loadfill"></div></div>
+      <div id="loadtext">铸造世界中 … 0%</div>
+    </div>
+    <button id="startbtn" disabled>进入神话境界</button>
+    <div id="mobilenote"></div>
+    <div id="author"></div>
+  </div>
+</div>
+
+<div id="hud">
+  <div id="cross"></div>
+  <div id="watermark">X: @Nag1ovo</div>
+  <div id="info"></div>
+  <div id="toast"><b></b><span></span></div>
+  <div id="hotbar"></div>
+  <div id="hint"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script id="gamecode">
+"use strict";
+/* ============================================================
+   MYTHOS CRAFT —— 体素引擎 + 神话奇观生成器
+   CORE 段（纯逻辑，可在 Node 中独立测试）
+   ============================================================ */
+
+const SEED=2026, CS=16, CH=100, SEA=26;
+
+/* ---------- 国际化 ---------- */
+let LANG=localStorage.getItem('mythos-lang')||(navigator.language.startsWith('zh')?'zh':'en');
+const STR={
+  zh:{
+    pageTitle:'MYTHOS CRAFT · 神话境界',
+    title:'神话境界',
+    lore:'柏林噪声铸成的无垠大地之上，散落着十一处来自诸神话的奇观。<br>破坏与建造皆由你手 —— 按 <b style="color:var(--gold)">G</b> 可在奇观之间巡游。',
+    controls:'<k>W</k><k>A</k><k>S</k><k>D</k> 移动 · <k>鼠标</k> 环视 · <k>空格</k> 跳跃 · <k>Ctrl</k> 疾跑 · <k>F</k> 飞行（空格升 / Shift 降）<br><k>左键</k> 破坏方块 · <k>右键</k> 放置方块 · <k>1-9 / 滚轮</k> 选择方块 · <k>G</k> 传送至下一处奇观 · <k>[ ]</k> 视距 · <k>Esc</k> 暂停',
+    hint:'左键 破坏 · 右键 放置 · G 巡游奇观<br>F 飞行 · [ ] 视距 · Esc 暂停',
+    start:'进入神话境界',
+    continue:'继 续 探 索',
+    loading:'铸造世界中 … ',
+    paused:'已暂停 · 点击按钮重返世界',
+    ready:'世界已铸成 · 11 处奇观静候探索',
+    mobile:'⚠ 检测到触屏设备：本作需要键鼠操作，建议使用桌面版 Chrome 体验。',
+    author:'作者 <a href="https://github.com/Nagi-ovo" target="_blank" rel="noopener">Nagi-ovo</a> · X <a href="https://x.com/Nag1ovo" target="_blank" rel="noopener">@Nag1ovo</a>',
+    respawnTitle:'✦ 回到出生地',
+    respawnBody:'虚空之下没有神话。',
+    bedrockTitle:'基岩',
+    bedrockBody:'世界的根基，凡力不可摧。',
+    flyOn:'✦ 飞行模式',
+    flyOff:'✦ 步行模式',
+    flyHint:'空格上升 · Shift 下降',
+    renderDist:'视距 ',
+    renderDistUnit:' 区块',
+    dragTitle:'已启用拖拽视角',
+    dragBody:'按住左键拖动转向 · 点按左键破坏 · 右键放置',
+    flyEnabled:'（飞行模式已开启）',
+    discover:'✦ 发现奇观 · ',
+    nearest:'\n◈ 最近奇观 ',
+    distUnit:'m ',
+    hudDist:'视距 ',
+    hudHold:'手持 ',
+    hudFlying:' · 飞行中',
+    hudFps:'FPS ',
+  },
+  en:{
+    pageTitle:'MYTHOS CRAFT · Mythos Realm',
+    title:'Mythos Realm',
+    lore:'Across an endless land forged by Perlin noise lie eleven wonders drawn from myth.<br>Break and build as you will — press <b style="color:var(--gold)">G</b> to tour between wonders.',
+    controls:'<k>W</k><k>A</k><k>S</k><k>D</k> Move · <k>Mouse</k> Look · <k>Space</k> Jump · <k>Ctrl</k> Sprint · <k>F</k> Fly (Space up / Shift down)<br><k>LMB</k> Break · <k>RMB</k> Place · <k>1-9 / Wheel</k> Select block · <k>G</k> Teleport to next wonder · <k>[ ]</k> Render distance · <k>Esc</k> Pause',
+    hint:'LMB Break · RMB Place · G Tour wonders<br>F Fly · [ ] Render dist · Esc Pause',
+    start:'Enter Mythos Realm',
+    continue:'Continue Exploring',
+    loading:'Forging world … ',
+    paused:'Paused · Click to return',
+    ready:'World forged · 11 wonders await',
+    mobile:'⚠ Touch device detected: keyboard & mouse required. Desktop Chrome recommended.',
+    author:'By <a href="https://github.com/Nagi-ovo" target="_blank" rel="noopener">Nagi-ovo</a> · X <a href="https://x.com/Nag1ovo" target="_blank" rel="noopener">@Nag1ovo</a>',
+    respawnTitle:'✦ Returned to spawn',
+    respawnBody:'No myth lies beneath the void.',
+    bedrockTitle:'Bedrock',
+    bedrockBody:'The foundation of the world — beyond mortal strength.',
+    flyOn:'✦ Flight mode',
+    flyOff:'✦ Walk mode',
+    flyHint:'Space up · Shift down',
+    renderDist:'Render distance ',
+    renderDistUnit:' chunks',
+    dragTitle:'Drag-look enabled',
+    dragBody:'Hold LMB to turn · Tap LMB to break · RMB to place',
+    flyEnabled:' (flight mode on)',
+    discover:'✦ Wonder found · ',
+    nearest:'\n◈ Nearest wonder ',
+    distUnit:'m ',
+    hudDist:'Dist ',
+    hudHold:'Holding ',
+    hudFlying:' · Flying',
+    hudFps:'FPS ',
+  }
+};
+function S(k){return STR[LANG][k];}
+function wName(w){return LANG==='en'?w.nameEn:w.name;}
+function wLore(w){return LANG==='en'?w.loreEn:w.lore;}
+function bName(id){const b=BLOCKS[id];return LANG==='en'?(b.nEn||b.n):b.n;}
+function setLang(lang){
+  LANG=lang;
+  localStorage.setItem('mythos-lang',lang);
+  applyLang();
+}
+function applyLang(){
+  document.documentElement.lang=LANG==='zh'?'zh-CN':'en';
+  document.title=S('pageTitle');
+  document.getElementById('title').textContent=S('title');
+  document.getElementById('lore').innerHTML=S('lore');
+  document.getElementById('controls').innerHTML=S('controls');
+  document.getElementById('hint').innerHTML=S('hint');
+  document.getElementById('mobilenote').textContent=S('mobile');
+  document.getElementById('author').innerHTML=S('author');
+  document.getElementById('langzh').classList.toggle('on',LANG==='zh');
+  document.getElementById('langen').classList.toggle('on',LANG==='en');
+  fillWonders();
+  updateHotbarNames();
+  if(typeof state==='undefined')return;
+  if(state==='ready'){
+    document.getElementById('startbtn').textContent=S('start');
+    document.getElementById('loadtext').textContent=S('ready');
+  }else if(state==='paused'){
+    document.getElementById('startbtn').textContent=S('continue');
+    document.getElementById('loadtext').textContent=S('paused');
+  }else if(state==='loading'){
+    const pct=loadList.length?Math.round(100*loadIdx/loadList.length):0;
+    document.getElementById('loadtext').textContent=S('loading')+pct+'%';
+  }
+}
+
+/* ---------- 基础工具 ---------- */
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function smoothstep(a,b,x){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hash2(x,z){let h=Math.imul(x,374761393)+Math.imul(z,668265263)+Math.imul(SEED,144665);h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return(h>>>0)/4294967296;}
+function hash3(x,y,z){let h=Math.imul(x,374761393)+Math.imul(y,1103515245)+Math.imul(z,668265263)+SEED;h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return(h>>>0)/4294967296;}
+
+/* ---------- 种子化柏林噪声（2D / 3D） ---------- */
+function makeNoise(seed){
+  const rand=mulberry32(seed);
+  const perm=new Array(256);for(let i=0;i<256;i++)perm[i]=i;
+  for(let i=255;i>0;i--){const j=Math.floor(rand()*(i+1));const t=perm[i];perm[i]=perm[j];perm[j]=t;}
+  const p=new Uint8Array(512);for(let i=0;i<512;i++)p[i]=perm[i&255];
+  const fade=t=>t*t*t*(t*(t*6-15)+10);
+  function g2(h,x,y){switch(h&7){case 0:return x+y;case 1:return -x+y;case 2:return x-y;case 3:return -x-y;case 4:return x;case 5:return -x;case 6:return y;default:return -y;}}
+  function g3(h,x,y,z){const g=h&15;const u=g<8?x:y;const v=g<4?y:(g===12||g===14?x:z);return((g&1)===0?u:-u)+((g&2)===0?v:-v);}
+  function n2(x,y){
+    const X=Math.floor(x)&255,Y=Math.floor(y)&255;
+    x-=Math.floor(x);y-=Math.floor(y);
+    const u=fade(x),v=fade(y);
+    const A=p[X]+Y,Bx=p[X+1]+Y;
+    return lerp(lerp(g2(p[A],x,y),g2(p[Bx],x-1,y),u),
+                lerp(g2(p[A+1],x,y-1),g2(p[Bx+1],x-1,y-1),u),v);
+  }
+  function n3(x,y,z){
+    const X=Math.floor(x)&255,Y=Math.floor(y)&255,Z=Math.floor(z)&255;
+    x-=Math.floor(x);y-=Math.floor(y);z-=Math.floor(z);
+    const u=fade(x),v=fade(y),w=fade(z);
+    const A=p[X]+Y,AA=p[A]+Z,AB=p[A+1]+Z,Bx=p[X+1]+Y,BA=p[Bx]+Z,BB=p[Bx+1]+Z;
+    return lerp(
+      lerp(lerp(g3(p[AA],x,y,z),g3(p[BA],x-1,y,z),u),
+           lerp(g3(p[AB],x,y-1,z),g3(p[BB],x-1,y-1,z),u),v),
+      lerp(lerp(g3(p[AA+1],x,y,z-1),g3(p[BA+1],x-1,y,z-1),u),
+           lerp(g3(p[AB+1],x,y-1,z-1),g3(p[BB+1],x-1,y-1,z-1),u),v),w);
+  }
+  return{n2,n3};
+}
+const NZ=makeNoise(SEED);
+function fbm2(x,y,oct,lac,gain){let a=1,f=1,s=0,n=0;for(let i=0;i<oct;i++){s+=a*NZ.n2(x*f,y*f);n+=a;a*=gain;f*=lac;}return s/n;}
+
+/* ---------- 方块注册表 ---------- */
+const B={AIR:0,GRASS:1,DIRT:2,STONE:3,SAND:4,LOG:5,LEAF:6,MYTHLEAF:7,SNOW:8,WATER:9,
+  QUARTZ:10,PILLAR:11,GOLD:12,BRICK:13,MOSSY:14,SANDSTONE:15,OBSIDIAN:16,GLOW:17,
+  CRYSTAL:18,BONE:19,RED:20,SLATE:21,PLANK:22,BEDROCK:23,GOLDORE:24};
+
+/* 纹理图集 tile 编号（8 列 × 4 行，每格 16px） */
+const T={grassTop:0,grassSide:1,dirt:2,stone:3,sand:4,logSide:5,logTop:6,leaf:7,
+  mythLeaf:8,snow:9,water:10,quartz:11,pillarSide:12,pillarTop:13,gold:14,goldOre:15,
+  brick:16,mossy:17,sandstone:18,obsidian:19,glow:20,crystal:21,bone:22,red:23,
+  slate:24,plank:25,bedrock:26};
+
+const BLOCKS=[];
+BLOCKS[B.GRASS]    ={n:"草方块",  nEn:"Grass",      t:T.grassTop, s:T.grassSide, b:T.dirt};
+BLOCKS[B.DIRT]     ={n:"泥土",    nEn:"Dirt",       t:T.dirt,     s:T.dirt,      b:T.dirt};
+BLOCKS[B.STONE]    ={n:"石头",    nEn:"Stone",      t:T.stone,    s:T.stone,     b:T.stone};
+BLOCKS[B.SAND]     ={n:"沙子",    nEn:"Sand",       t:T.sand,     s:T.sand,      b:T.sand};
+BLOCKS[B.LOG]      ={n:"原木",    nEn:"Log",        t:T.logTop,   s:T.logSide,   b:T.logTop};
+BLOCKS[B.LEAF]     ={n:"树叶",    nEn:"Leaves",     t:T.leaf,     s:T.leaf,      b:T.leaf};
+BLOCKS[B.MYTHLEAF] ={n:"神木树冠",nEn:"Myth Leaves",t:T.mythLeaf, s:T.mythLeaf,  b:T.mythLeaf};
+BLOCKS[B.SNOW]     ={n:"雪",      nEn:"Snow",       t:T.snow,     s:T.snow,      b:T.snow};
+BLOCKS[B.WATER]    ={n:"水",      nEn:"Water",      t:T.water,    s:T.water,     b:T.water,water:true};
+BLOCKS[B.QUARTZ]   ={n:"白石英",  nEn:"Quartz",     t:T.quartz,   s:T.quartz,    b:T.quartz};
+BLOCKS[B.PILLAR]   ={n:"石英柱",  nEn:"Pillar",     t:T.pillarTop,s:T.pillarSide,b:T.pillarTop};
+BLOCKS[B.GOLD]     ={n:"黄金块",  nEn:"Gold",       t:T.gold,     s:T.gold,      b:T.gold};
+BLOCKS[B.BRICK]    ={n:"石砖",    nEn:"Brick",      t:T.brick,    s:T.brick,     b:T.brick};
+BLOCKS[B.MOSSY]    ={n:"苔石砖",  nEn:"Mossy Brick",t:T.mossy,    s:T.mossy,     b:T.mossy};
+BLOCKS[B.SANDSTONE]={n:"砂岩",    nEn:"Sandstone",  t:T.sandstone,s:T.sandstone, b:T.sandstone};
+BLOCKS[B.OBSIDIAN] ={n:"黑曜石",  nEn:"Obsidian",   t:T.obsidian, s:T.obsidian,  b:T.obsidian};
+BLOCKS[B.GLOW]     ={n:"萤石",    nEn:"Glowstone",  t:T.glow,     s:T.glow,      b:T.glow,glow:true};
+BLOCKS[B.CRYSTAL]  ={n:"秘晶",    nEn:"Crystal",    t:T.crystal,  s:T.crystal,   b:T.crystal,glow:true};
+BLOCKS[B.BONE]     ={n:"龙骨",    nEn:"Bone",       t:T.bone,     s:T.bone,      b:T.bone};
+BLOCKS[B.RED]      ={n:"朱红木",  nEn:"Red Wood",   t:T.red,      s:T.red,       b:T.red};
+BLOCKS[B.SLATE]    ={n:"玄岩",    nEn:"Slate",      t:T.slate,    s:T.slate,     b:T.slate};
+BLOCKS[B.PLANK]    ={n:"木板",    nEn:"Planks",     t:T.plank,    s:T.plank,     b:T.plank};
+BLOCKS[B.BEDROCK]  ={n:"基岩",    nEn:"Bedrock",    t:T.bedrock,  s:T.bedrock,   b:T.bedrock};
+BLOCKS[B.GOLDORE]  ={n:"金矿石",  nEn:"Gold Ore",   t:T.goldOre,  s:T.goldOre,   b:T.goldOre};
+
+const HOTBAR=[B.GRASS,B.STONE,B.LOG,B.PLANK,B.BRICK,B.QUARTZ,B.GLOW,B.GOLD,B.CRYSTAL];
+
+/* ============================================================
+   地形生成
+   ============================================================ */
+const BIO={PLAINS:0,FOREST:1,DESERT:2};
+
+function heightAt(x,z){
+  const cont =fbm2(x*0.0022+100, z*0.0022-60, 4,2,0.5);
+  const hills=fbm2(x*0.012 -40,  z*0.012 +90, 4,2,0.5);
+  let ridge=1-Math.abs(NZ.n2(x*0.004+500, z*0.004+500)); ridge*=ridge;
+  const mMask=smoothstep(0.25,0.75,(fbm2(x*0.0035-200, z*0.0035+300, 3,2,0.5)+1)/2);
+  let h=30+cont*14+hills*6+ridge*34*mMask;
+  const d=Math.sqrt(x*x+z*z);
+  const ocean=smoothstep(-0.06,-0.34,cont)*smoothstep(175,215,d); // 展示区外：大陆噪声强负 → 海盆
+  h=lerp(h, 13.5+hills*2.0, ocean);
+  if(d<160){ h=lerp(33+hills*2.0, h, smoothstep(60,160,d)); }     // 出生地高原：展示区平整且不被淹没
+  return clamp(Math.floor(h),4,CH-10);
+}
+
+function biomeAt(x,z){
+  const t=fbm2(x*0.003+900, z*0.003-700, 3,2,0.5);
+  const m=fbm2(x*0.003-300, z*0.003+800, 3,2,0.5);
+  if(t>0.25&&m<-0.05)return BIO.DESERT;
+  if(m>0.12)return BIO.FOREST;
+  return BIO.PLAINS;
+}
+
+function caveAt(x,y,z){
+  const a=NZ.n3(x*0.05, y*0.085, z*0.05);
+  const b=NZ.n3(x*0.022+400, y*0.045+100, z*0.022-400);
+  return a>0.46&&b>0.18;
+}
+
+/* 天空浮岛（距出生点 170 格外的高空） */
+function skyIslandColumn(x,z){
+  if(x*x+z*z<170*170)return null;
+  const m=(fbm2(x*0.0085+5000, z*0.0085-5000, 3,2,0.5)+1)/2;
+  if(m<0.73)return null;
+  const t=(m-0.73)/0.27;
+  const base=72+Math.floor(fbm2(x*0.02-3000, z*0.02+3000, 2,2,0.5)*5);
+  return{top:Math.min(base+Math.floor(t*7),CH-4), depth:2+Math.floor(t*9)};
+}
+
+/* ---------- 区块守护写入器 ---------- */
+function makeSetter(data,cx,cz){
+  const x0=cx*CS,z0=cz*CS;
+  return function set(x,y,z,id,soft){
+    x=Math.round(x);y=Math.round(y);z=Math.round(z);
+    if(y<0||y>=CH)return;
+    const lx=x-x0,lz=z-z0;
+    if(lx<0||lx>=CS||lz<0||lz>=CS)return;
+    const i=(y*CS+lz)*CS+lx;
+    if(soft&&data[i]!==B.AIR)return;
+    data[i]=id;
+  };
+}
+
+/* ---------- 树木 ---------- */
+function stampTree(set,x,gy,z,r01){
+  const th=4+Math.floor(r01*3);
+  for(let i=1;i<=th;i++)set(x,gy+i,z,B.LOG);
+  const ty=gy+th;
+  for(let dy=-2;dy<=2;dy++)for(let dz=-2;dz<=2;dz++)for(let dx=-2;dx<=2;dx++){
+    const ad=Math.abs(dx)+Math.abs(dz)+Math.abs(dy)*1.5;
+    if(ad>3.6)continue;
+    if(dx===0&&dz===0&&dy<=0)continue;
+    if(hash3(x+dx,ty+dy,z+dz)<0.12)continue;
+    set(x+dx,ty+dy,z+dz,B.LEAF,true);
+  }
+}
+
+/* ============================================================
+   神话奇观 —— 十一座固定地标 + 程序化网格播种
+   ============================================================ */
+const WONDERS=[
+ {t:"temple",   x:55,  z:-35,  name:"奥林匹斯神殿", nameEn:"Temple of Olympus", lore:"白石与黄金筑成的众神居所，圣火长明不熄。", loreEn:"White stone and gold halls of the gods, sacred flame eternal."},
+ {t:"tree",     x:-62, z:-48,  name:"世界之树",     nameEn:"World Tree",         lore:"根系贯穿九界，枝头垂着发光的智慧之果。", loreEn:"Roots span nine realms; luminous fruits of wisdom hang from its branches."},
+ {t:"ziggurat", x:-18, z:-118, name:"通天巴别塔",   nameEn:"Tower of Babel",     lore:"七层高台直指苍穹，顶端的圣坛彻夜燃烧。", loreEn:"Seven tiers reach skyward; the altar atop burns through the night."},
+ {t:"pyramid",  x:96,  z:62,   name:"法老金字塔",   nameEn:"Pharaoh's Pyramid",  lore:"黄金顶冠之下，沉睡着装满宝藏的密室。", loreEn:"Beneath the golden cap sleeps a treasure-filled chamber."},
+ {t:"henge",    x:-72, z:42,   name:"德鲁伊巨石阵", nameEn:"Druid Stone Henge",  lore:"环形巨石在月光下低声吟唱古老咒文。", loreEn:"Standing stones whisper ancient spells beneath the moon."},
+ {t:"dragon",   x:132, z:-8,   name:"巨龙遗骸",     nameEn:"Dragon Remains",     lore:"上古巨龙陨落于此，眼窝中余烬未熄。", loreEn:"An ancient dragon fell here; embers still glow in its eye sockets."},
+ {t:"wizard",   x:26,  z:78,   name:"贤者之塔",     nameEn:"Wizard's Tower",       lore:"塔顶星辉永不熄灭，碎石环绕悬浮。", loreEn:"Starlight never fades atop the tower; stones orbit in suspension."},
+ {t:"torii",    x:-15, z:100,  name:"千本鸟居",     nameEn:"Thousand Torii",       lore:"朱红门廊连成参道，通往神明栖居之地。", loreEn:"Crimson gates form a path to where spirits dwell."},
+ {t:"portal",   x:14,  z:-58,  name:"黑曜石遗门",   nameEn:"Obsidian Gate",        lore:"破碎的门框里残留着另一个世界的回声。", loreEn:"A shattered frame echoes remnants of another world."},
+ {t:"crystal",  x:-110,z:-6,   name:"水晶秘境",     nameEn:"Crystal Cavern",       lore:"大地裂隙中生出会发光的巨大晶簇。", loreEn:"Giant luminous crystals grow from a rift in the earth."},
+ {t:"skyshrine",x:34,  z:-86,  name:"浮空圣殿",     nameEn:"Sky Shrine",           lore:"悬于云端的孤岛圣殿，水晶如瀑布垂落。", loreEn:"An island sanctuary in the clouds; crystals cascade like waterfalls.", y:78}
+];
+const STRUCT_R={temple:26,tree:18,ziggurat:24,pyramid:22,henge:16,dragon:24,wizard:14,torii:18,portal:11,crystal:14,skyshrine:16};
+const GRID_POOL=["tree","tree","tree","henge","henge","wizard","wizard","torii","portal","crystal","crystal","ziggurat","temple","pyramid","dragon"];
+
+function collectStructures(cx,cz){
+  const out=[];
+  const x0=cx*CS, z0=cz*CS, x1=x0+CS-1, z1=z0+CS-1;
+  for(const w of WONDERS){
+    const r=STRUCT_R[w.t];
+    if(w.x+r>=x0&&w.x-r<=x1&&w.z+r>=z0&&w.z-r<=z1)
+      out.push({t:w.t,x:w.x,z:w.z,y:w.y,seed:(Math.imul(w.x,73856093)^Math.imul(w.z,19349663))>>>0});
+  }
+  const G=112,M=34;
+  const gx0=Math.floor((x0-48)/G), gx1=Math.floor((x1+48)/G);
+  const gz0=Math.floor((z0-48)/G), gz1=Math.floor((z1+48)/G);
+  for(let gz=gz0;gz<=gz1;gz++)for(let gx=gx0;gx<=gx1;gx++){
+    if(hash2(gx*7349+13,gz*9157+71)<0.42)continue;
+    const t=GRID_POOL[Math.floor(hash2(gx*131+7,gz*177+3)*GRID_POOL.length)%GRID_POOL.length];
+    const px=gx*G+M+Math.floor(hash2(gx*31+1,gz*57+9)*(G-2*M));
+    const pz=gz*G+M+Math.floor(hash2(gx*91+5,gz*113+2)*(G-2*M));
+    if(px*px+pz*pz<190*190)continue;            // 展示区净空
+    if(heightAt(px,pz)<=SEA+1)continue;          // 不在水里播种
+    const r=STRUCT_R[t];
+    if(px+r<x0||px-r>x1||pz+r<z0||pz-r>z1)continue;
+    out.push({t,x:px,z:pz,seed:(Math.imul(px,73856093)^Math.imul(pz,19349663))>>>0});
+  }
+  return out;
+}
+
+/* ---------- 建造上下文 ---------- */
+function makeCtx(set,s){
+  const gy=(s.y!==undefined)?s.y:heightAt(s.x,s.z);
+  const c={
+    x:s.x, z:s.z, gy, set,
+    rng:mulberry32((s.seed||1)+7),
+    fill(x0,y0,z0,x1,y1,z1,id,soft){
+      if(x1<x0){const t=x0;x0=x1;x1=t;} if(y1<y0){const t=y0;y0=y1;y1=t;} if(z1<z0){const t=z0;z0=z1;z1=t;}
+      y0=Math.max(0,y0); y1=Math.min(CH-1,y1);
+      for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++)for(let x=x0;x<=x1;x++)set(x,y,z,id,soft);
+    },
+    disc(cx,y,cz,r,id,ring){
+      const r2=r*r, ir2=ring?(r-1.3)*(r-1.3):-1;
+      for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){
+        const d2=dx*dx+dz*dz;
+        if(d2<=r2&&d2>ir2)set(cx+dx,y,cz+dz,id);
+      }
+    },
+    sphere(cx,cy,cz,r,id,holeP){
+      for(let dy=-r;dy<=r;dy++)for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){
+        if(dx*dx+dy*dy+dz*dz>r*r+0.5)continue;
+        if(holeP&&hash3(cx+dx,cy+dy,cz+dz)<holeP)continue;
+        set(cx+dx,cy+dy,cz+dz,id,true);
+      }
+    },
+    col(x,z,y0,y1,id){for(let y=y0;y<=y1;y++)set(x,y,z,id);},
+    pile(x,z,yTop,id){const g=heightAt(x,z);for(let y=Math.max(1,g-4);y<=yTop;y++)set(x,y,z,id);}
+  };
+  return c;
+}
+
+/* ---------- 十一位建造者 ---------- */
+const BUILDERS={
+
+temple(c){ // 奥林匹斯神殿
+  const{x,z,gy,set}=c;
+  c.fill(x-15,gy+1,z-11,x+15,gy+20,z+11,B.AIR);
+  c.fill(x-13,gy-5,z-9,x+13,gy,z+9,B.BRICK);
+  c.fill(x-12,gy+1,z-8,x+12,gy+1,z+8,B.QUARTZ);
+  c.fill(x-11,gy+2,z-7,x+11,gy+2,z+7,B.QUARTZ);
+  c.fill(x-10,gy+3,z-6,x+10,gy+3,z+6,B.QUARTZ);
+  const fy=gy+4;
+  for(let k=-9;k<=9;k+=3){ c.col(x+k,z-5,fy,fy+4,B.PILLAR); c.col(x+k,z+5,fy,fy+4,B.PILLAR); }
+  for(let k=-3;k<=3;k+=2){ c.col(x-9,z+k,fy,fy+4,B.PILLAR); c.col(x+9,z+k,fy,fy+4,B.PILLAR); }
+  c.fill(x-10,fy+5,z-6,x+10,fy+5,z+6,B.QUARTZ);             // 檐板
+  for(let k=0;k<=3;k++){                                     // 双坡屋顶
+    const zz=6-k*2;
+    if(zz<0)break;
+    for(const sg of[-1,1])for(let q=0;q<2;q++){
+      if(zz-q<0)continue;
+      c.fill(x-10,fy+6+k,z+sg*(zz-q),x+10,fy+6+k,z+sg*(zz-q),B.QUARTZ);
+    }
+    c.fill(x-10,fy+6+k,z-(6-2*k),x-10,fy+6+k,z+(6-2*k),B.QUARTZ); // 山形墙
+    c.fill(x+10,fy+6+k,z-(6-2*k),x+10,fy+6+k,z+(6-2*k),B.QUARTZ);
+  }
+  c.fill(x-10,fy+9,z,x+10,fy+9,z,B.GOLD);                    // 金脊
+  set(x-10,fy+10,z,B.GOLD); set(x+10,fy+10,z,B.GOLD);
+  c.fill(x-1,fy,z-1,x+1,fy,z+1,B.GOLD);                      // 圣坛
+  set(x,fy+1,z,B.QUARTZ); set(x,fy+2,z,B.GLOW);
+  for(const sg of[-1,1]){                                    // 入口火盆
+    set(x-12,gy+3,z+sg*6,B.SLATE); set(x-12,gy+4,z+sg*6,B.GLOW);
+    set(x+12,gy+3,z+sg*6,B.SLATE); set(x+12,gy+4,z+sg*6,B.GLOW);
+  }
+},
+
+tree(c){ // 世界之树
+  const{x,z,gy,set,rng}=c;
+  const H=30;
+  c.fill(x-10,gy+1,z-10,x+10,gy+H+11,z+10,B.AIR);
+  for(let i=0;i<5;i++){                                      // 盘根
+    const ang=i/5*Math.PI*2+rng()*0.5;
+    for(let d=2;d<=6;d++){
+      const rx=Math.round(x+Math.cos(ang)*d), rz=Math.round(z+Math.sin(ang)*d);
+      const ry=gy+Math.max(0,3-Math.floor(d/2));
+      c.col(rx,rz,Math.max(1,ry-5),ry,B.LOG);
+    }
+  }
+  for(let h=0;h<=H;h++){                                     // 渐细树干
+    const r=Math.max(1,Math.round(3.2-(h/H)*2.2));
+    const wob=Math.round(Math.sin(h*0.4)*0.8);
+    c.disc(x+wob,gy+h,z,r,B.LOG);
+  }
+  for(let i=0;i<6;i++){                                      // 黄金角度分枝
+    const ang=i/6*Math.PI*2+rng()*0.6;
+    const by=gy+16+Math.floor(rng()*9);
+    const len=5+Math.floor(rng()*3);
+    let bx=x,bz=z,byy=by;
+    for(let d=1;d<=len;d++){
+      bx=x+Math.cos(ang)*d; bz=z+Math.sin(ang)*d; byy=by+Math.floor(d*0.5);
+      set(Math.round(bx),byy,Math.round(bz),B.LOG);
+    }
+    c.sphere(Math.round(bx),byy+1,Math.round(bz),3,B.MYTHLEAF,0.15);
+  }
+  c.sphere(x,gy+H+2,z,8,B.MYTHLEAF,0.13);                    // 主树冠
+  c.sphere(x,gy+H+5,z,5,B.MYTHLEAF,0.13);
+  for(let i=0;i<14;i++){                                     // 发光果实
+    const a=rng()*Math.PI*2, rr=3+rng()*5;
+    set(Math.round(x+Math.cos(a)*rr),gy+H-1+Math.floor(rng()*6),Math.round(z+Math.sin(a)*rr),B.GLOW,true);
+  }
+  c.disc(x,gy+1,z,5,B.MOSSY,true);                           // 苔石根环
+},
+
+ziggurat(c){ // 通天巴别塔
+  const{x,z,gy,set}=c;
+  c.fill(x-14,gy+1,z-14,x+14,gy+40,z+14,B.AIR);
+  c.fill(x-13,gy-5,z-13,x+13,gy,z+13,B.SANDSTONE);
+  let half=12, y=gy+1;
+  for(let tier=0;tier<7;tier++){
+    c.fill(x-half,y,z-half,x+half,y+3,z+half,B.SANDSTONE);
+    for(let k=-half;k<=half;k++){
+      set(x+k,y+3,z-half,B.BRICK); set(x+k,y+3,z+half,B.BRICK);
+      set(x-half,y+3,z+k,B.BRICK); set(x+half,y+3,z+k,B.BRICK);
+    }
+    c.fill(x-1,y,z-half,x+1,y+1,z-half,B.SLATE);             // 各面壁龛
+    c.fill(x-1,y,z+half,x+1,y+1,z+half,B.SLATE);
+    c.fill(x-half,y,z-1,x-half,y+1,z+1,B.SLATE);
+    c.fill(x+half,y,z-1,x+half,y+1,z+1,B.SLATE);
+    y+=4; half=Math.max(2,half-2);
+  }
+  for(const[dx,dz]of[[-2,-2],[-2,2],[2,-2],[2,2]])c.col(x+dx,z+dz,y,y+3,B.PILLAR);
+  c.fill(x-2,y+4,z-2,x+2,y+4,z+2,B.QUARTZ);
+  set(x,y,z,B.GOLD); set(x,y+1,z,B.GLOW); set(x,y+5,z,B.GLOW);
+},
+
+pyramid(c){ // 法老金字塔
+  const{x,z,gy,set}=c;
+  const half=12;
+  c.fill(x-half-2,gy+1,z-half-2,x+half+2,gy+18,z+half+2,B.AIR);
+  c.fill(x-half,gy-5,z-half,x+half,gy,z+half,B.SANDSTONE);
+  let y=gy+1, hh=half;
+  while(hh>=0){ c.fill(x-hh,y,z-hh,x+hh,y,z+hh,B.SANDSTONE); y++; hh--; }
+  const apex=y-1;
+  c.fill(x-1,apex-1,z-1,x+1,apex-1,z+1,B.GOLD);              // 黄金顶冠
+  set(x,apex,z,B.GOLD);
+  c.fill(x-3,gy+2,z-3,x+3,gy+5,z+3,B.AIR);                   // 宝藏密室
+  c.fill(x-3,gy+1,z-3,x+3,gy+1,z+3,B.GOLD);
+  set(x,gy+2,z,B.GOLD); set(x,gy+3,z,B.GLOW);
+  for(const[dx,dz]of[[-3,-3],[-3,3],[3,-3],[3,3]])set(x+dx,gy+2,z+dz,B.GLOW);
+  c.fill(x-1,gy+2,z-half-1,x+1,gy+3,z-3,B.AIR);              // 北侧走廊
+  c.fill(x-1,gy+1,z-half-1,x+1,gy+1,z-4,B.SANDSTONE);
+},
+
+henge(c){ // 德鲁伊巨石阵
+  const{x,z,gy,set,rng}=c;
+  c.fill(x-13,gy+1,z-13,x+13,gy+9,z+13,B.AIR);
+  for(let yy=gy-3;yy<gy;yy++)c.disc(x,yy,z,12,B.DIRT);
+  c.disc(x,gy,z,12,B.GRASS);
+  for(let i=0;i<8;i++){
+    const a=i/8*Math.PI*2;
+    const px=Math.round(x+Math.cos(a)*9), pz=Math.round(z+Math.sin(a)*9);
+    const horiz=Math.abs(Math.cos(a))>Math.abs(Math.sin(a));
+    const ox=horiz?0:1, oz=horiz?1:0;
+    c.col(px-ox,pz-oz,gy+1,gy+4,B.STONE);
+    c.col(px+ox,pz+oz,gy+1,gy+4,B.STONE);
+    for(let k=-1;k<=1;k++)set(px+ox*k,gy+5,pz+oz*k,B.STONE);
+  }
+  for(let i=0;i<5;i++){
+    const a=i/5*Math.PI*2+0.4;
+    const px=Math.round(x+Math.cos(a)*4.5), pz=Math.round(z+Math.sin(a)*4.5);
+    c.col(px,pz,gy+1,gy+2+Math.floor(rng()*2),B.MOSSY);
+  }
+  set(x,gy+1,z,B.SLATE); set(x,gy+2,z,B.CRYSTAL);
+},
+
+dragon(c){ // 巨龙遗骸
+  const{x,z,gy,set}=c;
+  c.fill(x-16,gy+1,z-7,x+19,gy+12,z+7,B.AIR);
+  const L=26;
+  for(let i=0;i<=L;i++){                                     // 脊椎抛物线
+    const sx=x-13+i;
+    const sy=Math.max(gy,heightAt(sx,z))+1+Math.round(Math.sin(i/L*Math.PI)*6);
+    set(sx,sy,z,B.BONE);
+    if(i>=4&&i<=20&&i%3===0){                                // 肋骨
+      for(const sg of[-1,1])for(let r=1;r<=4;r++){
+        const drop=[0,0,1,3][r-1];
+        set(sx,sy-drop,z+sg*r,B.BONE);
+      }
+    }
+  }
+  const hx=x+13, hy=gy+2;                                    // 头骨
+  c.fill(hx,hy,z-2,hx+4,hy+3,z+2,B.BONE);
+  c.fill(hx+1,hy+1,z-1,hx+5,hy+1,z+1,B.AIR);                 // 咧开的颌骨
+  set(hx+2,hy+2,z-1,B.GLOW); set(hx+2,hy+2,z+1,B.GLOW);      // 余烬之眼
+},
+
+wizard(c){ // 贤者之塔
+  const{x,z,gy,set,rng}=c;
+  c.fill(x-8,gy+1,z-8,x+8,gy+26,z+8,B.AIR);
+  c.fill(x-4,gy-4,z-4,x+4,gy,z+4,B.BRICK);
+  const H=16;
+  for(let h=1;h<=H;h++)c.disc(x,gy+h,z,4,B.BRICK,true);      // 圆塔壁
+  c.disc(x,gy+H+1,z,5,B.SLATE);                              // 出挑檐
+  for(let k=0;k<=4;k++)c.disc(x,gy+H+2+k,z,4-k,B.SLATE);     // 锥顶
+  set(x,gy+H+7,z,B.GLOW);
+  c.fill(x-1,gy+1,z-4,x+1,gy+3,z-4,B.AIR);                   // 塔门
+  for(let h=4;h<H;h+=4){set(x+4,gy+h,z,B.GLOW);set(x-4,gy+h,z,B.GLOW);}
+  for(let i=0;i<7;i++){                                      // 悬浮碎石
+    const a=rng()*Math.PI*2, rr=6+rng()*2.5, hh=gy+8+rng()*12;
+    set(Math.round(x+Math.cos(a)*rr),Math.round(hh),Math.round(z+Math.sin(a)*rr),B.STONE,true);
+  }
+},
+
+torii(c){ // 千本鸟居
+  const{x,z,gy,set}=c;
+  c.fill(x-6,gy+1,z-14,x+6,gy+10,z+14,B.AIR);
+  c.fill(x-2,gy-2,z-13,x+2,gy-1,z+13,B.DIRT);
+  c.fill(x-2,gy,z-13,x+2,gy,z+13,B.SANDSTONE);               // 参道
+  for(let g=0;g<4;g++){
+    const gz=z-12+g*8;
+    for(const sg of[-1,1]){
+      const g0=heightAt(x+sg*3,gz);
+      for(let y=Math.max(1,g0-2);y<=gy;y++)set(x+sg*3,y,gz,B.STONE);
+      c.col(x+sg*3,gz,gy+1,gy+6,B.RED);
+    }
+    c.fill(x-3,gy+5,gz,x+3,gy+5,gz,B.RED);                   // 贯
+    c.fill(x-4,gy+7,gz,x+4,gy+7,gz,B.RED);                   // 笠木
+    c.fill(x-4,gy+8,gz,x+4,gy+8,gz,B.SLATE);
+  }
+  for(let g=0;g<3;g++){                                      // 石灯笼
+    const lz=z-8+g*8;
+    for(const sg of[-1,1]){
+      set(x+sg*5,gy+1,lz,B.STONE);
+      set(x+sg*5,gy+2,lz,B.GLOW);
+      set(x+sg*5,gy+3,lz,B.SLATE);
+    }
+  }
+},
+
+portal(c){ // 黑曜石遗门
+  const{x,z,gy,set,rng}=c;
+  c.fill(x-7,gy+1,z-5,x+7,gy+8,z+5,B.AIR);
+  c.fill(x-5,gy-3,z-2,x+5,gy,z+2,B.MOSSY);
+  for(let k=-2;k<=2;k++){
+    if(k!==1)set(x+k,gy+1,z,B.OBSIDIAN);
+    if(k!==-1&&k!==0)set(x+k,gy+6,z,B.OBSIDIAN);
+  }
+  for(let h=2;h<=5;h++){
+    set(x-2,gy+h,z,B.OBSIDIAN);
+    if(h<4)set(x+2,gy+h,z,B.OBSIDIAN);                       // 右上残破
+  }
+  for(let i=0;i<10;i++){                                     // 碎砾
+    const dx=Math.round((rng()-0.5)*10), dz=Math.round((rng()-0.5)*6);
+    set(x+dx,gy+1,z+dz,rng()<0.5?B.OBSIDIAN:B.MOSSY,true);
+  }
+  set(x,gy,z,B.GLOW);                                        // 地底幽光
+},
+
+crystal(c){ // 水晶秘境
+  const{x,z,gy,set,rng}=c;
+  c.fill(x-9,gy+1,z-9,x+9,gy+16,z+9,B.AIR);
+  c.disc(x,gy-1,z,8,B.SLATE);
+  c.disc(x,gy,z,8,B.SLATE);
+  c.disc(x,gy,z,8,B.OBSIDIAN,true);
+  for(let i=0;i<8;i++){
+    const a=rng()*Math.PI*2, rr=rng()*6;
+    const px=x+Math.cos(a)*rr, pz=z+Math.sin(a)*rr;
+    const h=4+Math.floor(rng()*9);
+    const tx=(rng()-0.5)*0.35, tz=(rng()-0.5)*0.35;
+    for(let k=0;k<=h;k++){
+      const bx=Math.round(px+tx*k), bz=Math.round(pz+tz*k);
+      set(bx,gy+1+k,bz,B.CRYSTAL);
+      if(k<h*0.5){
+        set(bx+1,gy+1+k,bz,B.CRYSTAL,true); set(bx-1,gy+1+k,bz,B.CRYSTAL,true);
+        set(bx,gy+1+k,bz+1,B.CRYSTAL,true); set(bx,gy+1+k,bz-1,B.CRYSTAL,true);
+      }
+    }
+  }
+},
+
+skyshrine(c){ // 浮空圣殿（y 固定于云端）
+  const{x,z,gy,set,rng}=c;
+  const ty=gy, R=9;
+  for(let dz=-R;dz<=R;dz++)for(let dx=-R;dx<=R;dx++){        // 泪滴形浮岛
+    const d=Math.sqrt(dx*dx+dz*dz);
+    const edge=R-1.5+NZ.n2((x+dx)*0.3,(z+dz)*0.3)*1.8;
+    if(d>edge)continue;
+    const depth=Math.max(1,Math.round((1-d/Math.max(edge,0.01))*7+1));
+    set(x+dx,ty,z+dz,B.GRASS);
+    for(let k=1;k<=depth;k++)set(x+dx,ty-k,z+dz,k<=2?B.DIRT:B.STONE);
+  }
+  for(let i=0;i<6;i++){                                      // 环柱
+    const a=i/6*Math.PI*2;
+    c.col(Math.round(x+Math.cos(a)*4),Math.round(z+Math.sin(a)*4),ty+1,ty+4,B.PILLAR);
+  }
+  c.disc(x,ty+5,z,4,B.QUARTZ);                               // 顶环
+  set(x,ty+6,z,B.GOLD); set(x,ty+7,z,B.GLOW);
+  set(x,ty+1,z,B.SLATE); set(x,ty+2,z,B.CRYSTAL);            // 圣坛
+  for(let i=0;i<5;i++){                                      // 悬垂水晶
+    const a=rng()*Math.PI*2, rr=2+rng()*4;
+    const px=Math.round(x+Math.cos(a)*rr), pz=Math.round(z+Math.sin(a)*rr);
+    const len=2+Math.floor(rng()*4);
+    for(let k=0;k<len;k++)set(px,ty-7-k,pz,B.CRYSTAL,true);
+  }
+  for(let i=0;i<8;i++){                                      // 神木藤蔓
+    const a=rng()*Math.PI*2;
+    const px=Math.round(x+Math.cos(a)*(R-2)), pz=Math.round(z+Math.sin(a)*(R-2));
+    const len=2+Math.floor(rng()*3);
+    for(let k=1;k<=len;k++)set(px,ty-k,pz,B.MYTHLEAF,true);
+  }
+}
+};
+
+/* ============================================================
+   区块数据生成
+   ============================================================ */
+function genChunkData(cx,cz){
+  const data=new Uint8Array(CS*CH*CS);
+  const x0=cx*CS, z0=cz*CS;
+  for(let lz=0;lz<CS;lz++)for(let lx=0;lx<CS;lx++){
+    const wx=x0+lx, wz=z0+lz;
+    const h=heightAt(wx,wz);
+    const bio=biomeAt(wx,wz);
+    const beach=h<=SEA+1;
+    for(let y=0;y<CH;y++){
+      let id=B.AIR;
+      if(y===0)id=B.BEDROCK;
+      else if(y<=h){
+        if(y===h){
+          if(h>=63)id=B.SNOW;
+          else if(h>=57)id=B.STONE;
+          else if(bio===BIO.DESERT||beach)id=B.SAND;
+          else id=B.GRASS;
+        }else if(y>=h-3){
+          if(h>=57)id=B.STONE;
+          else if(bio===BIO.DESERT||beach)id=(y>=h-2)?B.SAND:B.SANDSTONE;
+          else id=B.DIRT;
+        }else{
+          id=B.STONE;
+          const hv=hash3(wx,y,wz);
+          if(y<34&&hv<0.012)id=B.GOLDORE;
+          else if(y<20&&hv>0.996)id=B.CRYSTAL;
+        }
+        if(id!==B.BEDROCK&&h>SEA+2&&y>4&&y<h-3&&caveAt(wx,y,wz))id=B.AIR;
+      }else if(y<=SEA){
+        id=B.WATER;
+      }
+      if(id!==B.AIR)data[(y*CS+lz)*CS+lx]=id;
+    }
+    const isl=skyIslandColumn(wx,wz);
+    if(isl&&isl.top>Math.max(h,SEA)+6){
+      for(let k=0;k<isl.depth;k++){
+        const y=isl.top-k;
+        if(y<1||y>=CH)continue;
+        data[(y*CS+lz)*CS+lx]=(k===0)?B.GRASS:(k<=2?B.DIRT:B.STONE);
+      }
+      const r=hash2(wx,wz);
+      if(isl.top+1<CH){
+        if(r<0.02)data[((isl.top+1)*CS+lz)*CS+lx]=B.CRYSTAL;
+        else if(r>0.99)data[((isl.top+1)*CS+lz)*CS+lx]=B.GLOW;
+      }
+    }
+  }
+  const set=makeSetter(data,cx,cz);
+  for(let dz=-3;dz<CS+3;dz++)for(let dx=-3;dx<CS+3;dx++){     // 树木（带边缘余量，跨区块一致）
+    const wx=x0+dx, wz=z0+dz;
+    if(biomeAt(wx,wz)!==BIO.FOREST)continue;
+    const h=heightAt(wx,wz);
+    if(h<=SEA+1||h>=56)continue;
+    if(hash2(wx,wz)>=0.035)continue;
+    stampTree(set,wx,h,wz,hash2(wx+999,wz-999));
+  }
+  for(const s of collectStructures(cx,cz)){                  // 奇观（确定性播种）
+    BUILDERS[s.t](makeCtx(set,s));
+  }
+  return data;
+}
+
+/* ============================================================
+   区块缓存与世界方块访问
+   ============================================================ */
+const chunkMap=new Map();
+const ck=(cx,cz)=>cx+','+cz;
+
+function ensureData(cx,cz){                                    // 惰性生成（确定性，可随时重建）
+  const k=ck(cx,cz);
+  let c=chunkMap.get(k);
+  if(!c){c={cx,cz,data:genChunkData(cx,cz),meshes:null,meshed:false};chunkMap.set(k,c);}
+  return c;
+}
+function getBlockWorld(x,y,z){
+  if(y<0)return B.BEDROCK;
+  if(y>=CH)return B.AIR;
+  return ensureData(x>>4,z>>4).data[(y*CS+(z&15))*CS+(x&15)];
+}
+function setBlockWorld(x,y,z,id){
+  if(y<1||y>=CH)return false;                                  // 最底层基岩不可改写
+  ensureData(x>>4,z>>4).data[(y*CS+(z&15))*CS+(x&15)]=id;
+  return true;
+}
+
+/* ============================================================
+   面表 / 环境光遮蔽 / 区块网格化
+   ============================================================ */
+// 面顺序：-x,+x,-y,+y,-z,+z；c=[x,y,z,u,v]×4；d=法向；sh=面基础明暗
+// t1/t2 = 面内两条切向轴（0=x,1=y,2=z），用于 AO 采样
+const FACES=[
+  {d:[-1,0,0],t1:1,t2:2,sh:0.76,c:[[0,1,0,0,1],[0,0,0,0,0],[0,1,1,1,1],[0,0,1,1,0]]},
+  {d:[ 1,0,0],t1:1,t2:2,sh:0.76,c:[[1,1,1,0,1],[1,0,1,0,0],[1,1,0,1,1],[1,0,0,1,0]]},
+  {d:[0,-1,0],t1:0,t2:2,sh:0.50,c:[[1,0,1,1,0],[0,0,1,0,0],[1,0,0,1,1],[0,0,0,0,1]]},
+  {d:[0, 1,0],t1:0,t2:2,sh:1.00,c:[[0,1,1,1,1],[1,1,1,0,1],[0,1,0,1,0],[1,1,0,0,0]]},
+  {d:[0,0,-1],t1:0,t2:1,sh:0.62,c:[[1,0,0,0,0],[0,0,0,1,0],[1,1,0,0,1],[0,1,0,1,1]]},
+  {d:[0,0, 1],t1:0,t2:1,sh:0.62,c:[[0,0,1,0,0],[1,0,1,1,0],[0,1,1,0,1],[1,1,1,1,1]]}
+];
+const AOL=[0.42,0.62,0.80,1.00];                               // AO 等级 0..3 → 亮度
+
+// 构建一个区块的几何数组：sol=不透明 glo=发光（夜间不变暗） wat=水
+function buildChunkArrays(cx,cz){
+  for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++)ensureData(cx+dx,cz+dz); // 先备齐 3×3 邻居，跨界剔除/AO 才正确
+  const data=ensureData(cx,cz).data;
+  const x0=cx*CS, z0=cz*CS;
+  const sol={pos:[],uv:[],col:[],idx:[]};
+  const glo={pos:[],uv:[],col:[],idx:[]};
+  const wat={pos:[],uv:[],col:[],idx:[]};
+  const gb=(x,y,z)=>{                                          // 局部坐标读方块（可越界 ±1）
+    if(y<0)return B.BEDROCK;
+    if(y>=CH)return B.AIR;
+    if(x>=0&&x<CS&&z>=0&&z<CS)return data[(y*CS+z)*CS+x];
+    return getBlockWorld(x0+x,y,z0+z);
+  };
+  const solidAt=(x,y,z)=>{const i=gb(x,y,z);return i!==B.AIR&&i!==B.WATER;};
+  const uvPush=(arr,tile,ul,vl)=>{arr.push((tile%8+ul)/8, 1-(((tile/8)|0)+(1-vl))/4);};
+
+  function emit(tg,x,y,z,f,tile,noAO){
+    const fa=FACES[f], base=tg.pos.length/3, aos=[3,3,3,3];
+    for(let i=0;i<4;i++){
+      const cr=fa.c[i];
+      tg.pos.push(x+cr[0],y+cr[1],z+cr[2]);
+      uvPush(tg.uv,tile,cr[3],cr[4]);
+      if(!noAO){                                               // 经典 0fps AO：side1/side2/corner
+        const nx=x+fa.d[0],ny=y+fa.d[1],nz=z+fa.d[2];
+        const o1=[0,0,0],o2=[0,0,0];
+        o1[fa.t1]=cr[fa.t1]?1:-1;
+        o2[fa.t2]=cr[fa.t2]?1:-1;
+        const s1=solidAt(nx+o1[0],ny+o1[1],nz+o1[2])?1:0;
+        const s2=solidAt(nx+o2[0],ny+o2[1],nz+o2[2])?1:0;
+        const sc=solidAt(nx+o1[0]+o2[0],ny+o1[1]+o2[1],nz+o1[2]+o2[2])?1:0;
+        aos[i]=(s1&&s2)?0:3-(s1+s2+sc);
+      }
+      const l=fa.sh*AOL[aos[i]];
+      tg.col.push(l,l,l);
+    }
+    if(aos[0]+aos[3]>aos[1]+aos[2])                            // 翻转对角线，消除 AO 各向异性
+         tg.idx.push(base,base+1,base+3, base,base+3,base+2);
+    else tg.idx.push(base,base+1,base+2, base+2,base+1,base+3);
+  }
+
+  for(let y=0;y<CH;y++)for(let lz=0;lz<CS;lz++)for(let lx=0;lx<CS;lx++){
+    const id=data[(y*CS+lz)*CS+lx];
+    if(id===B.AIR)continue;
+    const def=BLOCKS[id];
+
+    if(def.water){                                             // 水：仅对空气出面，水面下沉 0.12
+      const capped=gb(lx,y+1,lz)===B.WATER;
+      for(let f=0;f<6;f++){
+        const fa=FACES[f];
+        if(gb(lx+fa.d[0],y+fa.d[1],lz+fa.d[2])!==B.AIR)continue;
+        const base=wat.pos.length/3;
+        const lum=f===3?0.95:(f===2?0.62:0.80);
+        for(let i=0;i<4;i++){
+          const cr=fa.c[i];
+          const yy=(cr[1]===1&&!capped)?y+0.88:y+cr[1];        // 上方还是水则连成整体
+          wat.pos.push(lx+cr[0],yy,lz+cr[2]);
+          uvPush(wat.uv,T.water,cr[3],cr[4]);
+          wat.col.push(lum,lum,lum);
+        }
+        wat.idx.push(base,base+1,base+2, base+2,base+1,base+3);
+      }
+      continue;
+    }
+
+    const tg=def.glow?glo:sol;
+    for(let f=0;f<6;f++){
+      const fa=FACES[f];
+      const nid=gb(lx+fa.d[0],y+fa.d[1],lz+fa.d[2]);
+      if(nid!==B.AIR&&nid!==B.WATER)continue;                  // 被实体遮挡则剔除
+      const tile=f===3?def.t:(f===2?def.b:def.s);
+      emit(tg,lx,y,lz,f,tile,!!def.glow);                      // 发光方块跳过 AO，保持满亮
+    }
+  }
+  return {sol,glo,wat};
+}
+
+/* ============================================================
+   体素射线投射（Amanatides & Woo DDA）
+   ============================================================ */
+// 返回命中方块的世界坐标 + 进入面法向（放置用），未命中返回 null
+function raycastVoxel(ox,oy,oz,dx,dy,dz,maxDist){
+  let x=Math.floor(ox),y=Math.floor(oy),z=Math.floor(oz);
+  const stx=dx>0?1:-1, sty=dy>0?1:-1, stz=dz>0?1:-1;
+  const tdx=dx!==0?Math.abs(1/dx):Infinity;
+  const tdy=dy!==0?Math.abs(1/dy):Infinity;
+  const tdz=dz!==0?Math.abs(1/dz):Infinity;
+  let tmx=dx!==0?(dx>0?(x+1-ox):(ox-x))*tdx:Infinity;
+  let tmy=dy!==0?(dy>0?(y+1-oy):(oy-y))*tdy:Infinity;
+  let tmz=dz!==0?(dz>0?(z+1-oz):(oz-z))*tdz:Infinity;
+  let t=0,nx=0,ny=0,nz=0;
+  for(let i=0;i<256;i++){                                      // 先步进后检查：跳过起点所在格
+    if(tmx<tmy&&tmx<tmz){x+=stx;t=tmx;tmx+=tdx;nx=-stx;ny=0;nz=0;}
+    else if(tmy<=tmz)   {y+=sty;t=tmy;tmy+=tdy;nx=0;ny=-sty;nz=0;}
+    else                {z+=stz;t=tmz;tmz+=tdz;nx=0;ny=0;nz=-stz;}
+    if(t>maxDist)return null;
+    const id=getBlockWorld(x,y,z);
+    if(id!==B.AIR&&id!==B.WATER)return{x,y,z,id,nx,ny,nz};
+  }
+  return null;
+}
+// ===== CORE END =====
+
+/* ============================================================
+   RUNTIME · 程序化像素纹理图集（8×4 tile，每格 16px）
+   ============================================================ */
+const TILE=16, ACOLS=8;
+const atlas=document.createElement('canvas');
+atlas.width=ACOLS*TILE; atlas.height=4*TILE;
+const actx=atlas.getContext('2d');
+
+function paintTile(t,fn){
+  const ox=(t%ACOLS)*TILE, oy=((t/ACOLS)|0)*TILE;
+  const rng=mulberry32(1000+t);
+  const hsl=(h,s,l)=>'hsl('+h+','+s+'%,'+l+'%)';
+  const px=(x,y,c)=>{actx.fillStyle=c;actx.fillRect(ox+x,oy+y,1,1);};
+  const rect=(x,y,w,h,c)=>{actx.fillStyle=c;actx.fillRect(ox+x,oy+y,w,h);};
+  const noise=(h,s,l,jit)=>{for(let y=0;y<TILE;y++)for(let x=0;x<TILE;x++)px(x,y,hsl(h+(rng()-0.5)*8,s,l+(rng()-0.5)*jit));};
+  const speck=(n,h,s,l,sz)=>{for(let i=0;i<n;i++)rect((rng()*(TILE-1))|0,(rng()*(TILE-1))|0,sz||1,sz||1,hsl(h,s,l));};
+  fn({px,rect,noise,speck,rng,hsl});
+}
+function buildAtlas(){
+  paintTile(T.grassTop ,a=>{a.noise(105,45,38,12);a.speck(10,108,50,30);a.speck(6,100,42,48);});
+  paintTile(T.grassSide,a=>{a.noise(28,38,34,10);a.speck(8,26,40,26);
+    for(let x=0;x<TILE;x++){const d=2+((a.rng()*3)|0);for(let y=0;y<d;y++)a.px(x,y,a.hsl(105+(a.rng()-0.5)*10,46,36+(a.rng()-0.5)*10));}});
+  paintTile(T.dirt     ,a=>{a.noise(28,38,34,10);a.speck(9,26,42,24);a.speck(5,30,35,44);});
+  paintTile(T.stone    ,a=>{a.noise(0,0,48,9);a.speck(6,0,0,40,2);a.speck(4,0,0,56,2);});
+  paintTile(T.sand     ,a=>{a.noise(48,52,72,7);a.speck(8,46,55,63);});
+  paintTile(T.logSide  ,a=>{for(let x=0;x<TILE;x++){const base=26+(a.rng()-0.5)*9;
+    for(let y=0;y<TILE;y++)a.px(x,y,a.hsl(25,42,base+(a.rng()-0.5)*5));}
+    for(let i=0;i<4;i++){const x=(a.rng()*TILE)|0;a.rect(x,(a.rng()*10)|0,1,3+(a.rng()*4|0),a.hsl(25,40,18));}});
+  paintTile(T.logTop   ,a=>{a.noise(25,42,24,6);
+    for(let y=2;y<14;y++)for(let x=2;x<14;x++){const r=Math.max(Math.abs(x-7.5),Math.abs(y-7.5))|0;
+      a.px(x,y,a.hsl(33,40,(r%2?46:38)+(a.rng()-0.5)*5));}});
+  paintTile(T.leaf     ,a=>{a.noise(110,45,30,14);a.speck(12,112,48,16);a.speck(6,108,46,42);});
+  paintTile(T.mythLeaf ,a=>{a.noise(165,55,44,14);a.speck(10,168,60,28);a.speck(7,160,30,90);});
+  paintTile(T.snow     ,a=>{a.noise(0,0,93,4);a.speck(5,210,20,86);});
+  paintTile(T.water    ,a=>{a.noise(208,70,48,8);
+    for(let i=0;i<5;i++){const y=(a.rng()*TILE)|0,x=(a.rng()*10)|0;a.rect(x,y,3+(a.rng()*4|0),1,a.hsl(204,72,60));}});
+  paintTile(T.quartz   ,a=>{a.noise(40,18,88,4);
+    for(let y=0;y<TILE;y++)for(let x=0;x<TILE;x++)if((x+y)%6===0)a.px(x,y,a.hsl(40,16,83));});
+  paintTile(T.pillarSide,a=>{for(let x=0;x<TILE;x++){const m=x%4,l=m===0?72:(m===2?92:86);
+    for(let y=0;y<TILE;y++)a.px(x,y,a.hsl(42,18,l+(a.rng()-0.5)*4));}
+    a.rect(0,0,TILE,2,a.hsl(43,25,80));a.rect(0,14,TILE,2,a.hsl(43,25,78));a.rect(0,2,TILE,1,a.hsl(40,18,66));a.rect(0,13,TILE,1,a.hsl(40,18,66));});
+  paintTile(T.pillarTop,a=>{a.noise(40,18,88,4);
+    for(let i=0;i<TILE;i++){a.px(i,0,a.hsl(40,18,70));a.px(i,15,a.hsl(40,18,70));a.px(0,i,a.hsl(40,18,70));a.px(15,i,a.hsl(40,18,70));}
+    for(let i=2;i<14;i++){a.px(i,2,a.hsl(40,18,78));a.px(i,13,a.hsl(40,18,78));a.px(2,i,a.hsl(40,18,78));a.px(13,i,a.hsl(40,18,78));}});
+  paintTile(T.gold     ,a=>{a.noise(46,85,55,8);a.speck(5,48,95,75,2);a.speck(4,44,80,42);});
+  paintTile(T.goldOre  ,a=>{a.noise(0,0,48,9);
+    for(let i=0;i<4;i++){const x=1+(a.rng()*12)|0,y=1+(a.rng()*12)|0;a.rect(x,y,2,2,a.hsl(47,90,58));a.px(x,y,a.hsl(50,95,72));}});
+  paintTile(T.brick    ,a=>{a.noise(0,0,52,6);
+    for(let y=0;y<TILE;y++)for(let x=0;x<TILE;x++){const row=(y/4)|0,off=(row%2)*4;
+      if(y%4===3||((x+off)%8===0))a.px(x,y,a.hsl(0,0,38));}});
+  paintTile(T.mossy    ,a=>{a.noise(0,0,52,6);
+    for(let y=0;y<TILE;y++)for(let x=0;x<TILE;x++){const row=(y/4)|0,off=(row%2)*4;
+      if(y%4===3||((x+off)%8===0))a.px(x,y,a.hsl(0,0,38));}
+    a.speck(14,110,40,32,2);a.speck(6,112,45,40);});
+  paintTile(T.sandstone,a=>{a.noise(45,40,68,5);
+    for(let y=0;y<TILE;y+=5)for(let x=0;x<TILE;x++)a.px(x,y,a.hsl(44,38,61));});
+  paintTile(T.obsidian ,a=>{a.noise(265,30,10,5);a.speck(8,275,60,28);a.speck(4,280,50,18,2);});
+  paintTile(T.glow     ,a=>{a.noise(42,95,60,12);a.speck(8,45,100,78,2);a.speck(5,40,90,50);});
+  paintTile(T.crystal  ,a=>{a.noise(174,80,62,10);
+    for(let y=0;y<TILE;y++)for(let x=0;x<TILE;x++)if((x+y)%5===0)a.px(x,y,a.hsl(172,85,82));});
+  paintTile(T.bone     ,a=>{a.noise(45,15,82,5);
+    for(let i=0;i<3;i++){const x=2+(a.rng()*12)|0,y=(a.rng()*8)|0;a.rect(x,y,1,3+(a.rng()*4|0),a.hsl(42,14,64));}});
+  paintTile(T.red      ,a=>{for(let x=0;x<TILE;x++){const base=40+(a.rng()-0.5)*10;
+    for(let y=0;y<TILE;y++)a.px(x,y,a.hsl(8,68,base+(a.rng()-0.5)*5));}
+    for(let i=0;i<3;i++)a.rect((a.rng()*TILE)|0,(a.rng()*10)|0,1,4,a.hsl(6,65,26));});
+  paintTile(T.slate    ,a=>{a.noise(225,12,22,6);a.speck(6,225,14,32);});
+  paintTile(T.plank    ,a=>{for(let y=0;y<TILE;y++){const band=((y/4)|0)%2,l=46+band*5;
+    for(let x=0;x<TILE;x++)a.px(x,y,a.hsl(30,42,l+(a.rng()-0.5)*5));}
+    for(let y=3;y<TILE;y+=4)a.rect(0,y,TILE,1,a.hsl(28,40,32));
+    for(let r=0;r<4;r++)a.px(3+((r*5)%13),r*4+1,a.hsl(28,40,30));});
+  paintTile(T.bedrock  ,a=>{a.noise(0,0,30,26);a.speck(6,0,0,12,2);});
+}
+
+/* ============================================================
+   THREE 场景 / 材质 / 天空
+   ============================================================ */
+let renderer,camera,scene,tex,matSolid,matGlow,matWater,sun,moon,clouds=[],hl;
+let RD=5;
+const SKY_DAY=0x8ec8f0, SKY_SET=0xe7935c, SKY_NIGHT=0x0b1126;
+
+function setupThree(){
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  renderer.domElement.id='game';
+  document.body.insertBefore(renderer.domElement,document.body.firstChild);
+
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,1000);
+  camera.rotation.order='YXZ';
+  scene.fog=new THREE.Fog(SKY_DAY,40,RD*16*0.95);
+
+  tex=new THREE.CanvasTexture(atlas);
+  tex.magFilter=THREE.NearestFilter; tex.minFilter=THREE.NearestFilter; tex.generateMipmaps=false;
+  matSolid=new THREE.MeshBasicMaterial({map:tex,vertexColors:true});
+  matGlow =new THREE.MeshBasicMaterial({map:tex,vertexColors:true});
+  matWater=new THREE.MeshBasicMaterial({map:tex,vertexColors:true,transparent:true,opacity:0.72,side:THREE.DoubleSide,depthWrite:false});
+
+  sun=new THREE.Mesh(new THREE.CircleGeometry(22,20),new THREE.MeshBasicMaterial({color:0xffe9a8,fog:false}));
+  moon=new THREE.Mesh(new THREE.CircleGeometry(15,20),new THREE.MeshBasicMaterial({color:0xdfe8ff,fog:false}));
+  scene.add(sun);scene.add(moon);
+
+  const cmat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.5});
+  const crng=mulberry32(SEED+99);
+  for(let i=0;i<14;i++){
+    const c=new THREE.Mesh(new THREE.BoxGeometry(18+crng()*22,2,12+crng()*14),cmat);
+    c.userData={ox:(crng()-0.5)*480,oz:(crng()-0.5)*480,sp:1.2+crng()*1.4};
+    c.position.y=86+crng()*7;
+    scene.add(c);clouds.push(c);
+  }
+
+  hl=new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002,1.002,1.002)),
+    new THREE.LineBasicMaterial({color:0x000000}));
+  hl.visible=false;scene.add(hl);
+
+  window.addEventListener('resize',()=>{
+    camera.aspect=window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth,window.innerHeight);
+  });
+}
+function updateFog(){scene.fog.far=RD*16*0.95;scene.fog.near=Math.min(40,scene.fog.far*0.45);}
+
+/* ============================================================
+   区块网格管理
+   ============================================================ */
+function disposeMeshes(c){
+  if(c.meshes){for(const m of c.meshes){scene.remove(m);m.geometry.dispose();}}
+  c.meshes=null;c.meshed=false;
+}
+function buildChunkMeshes(cx,cz){
+  const c=ensureData(cx,cz);
+  if(c.meshes)disposeMeshes(c);
+  const arr=buildChunkArrays(cx,cz);
+  const meshes=[];
+  const mk=(g,mat,ro)=>{
+    if(!g.pos.length)return;
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(g.pos,3));
+    geo.setAttribute('uv',new THREE.Float32BufferAttribute(g.uv,2));
+    geo.setAttribute('color',new THREE.Float32BufferAttribute(g.col,3));
+    geo.setIndex(g.idx);
+    const m=new THREE.Mesh(geo,mat);
+    m.position.set(cx*CS,0,cz*CS);
+    m.matrixAutoUpdate=false;m.updateMatrix();
+    if(ro)m.renderOrder=ro;
+    scene.add(m);meshes.push(m);
+  };
+  mk(arr.sol,matSolid,0); mk(arr.glo,matGlow,1); mk(arr.wat,matWater,2);
+  c.meshes=meshes;c.meshed=true;
+}
+// 编辑后重建：本块 + 紧贴边界的邻块（含角落）
+function rebuildAt(wx,wz){
+  const cx=wx>>4,cz=wz>>4,lx=wx&15,lz=wz&15;
+  const set=new Set([ck(cx,cz)]);
+  if(lx===0)set.add(ck(cx-1,cz)); if(lx===15)set.add(ck(cx+1,cz));
+  if(lz===0)set.add(ck(cx,cz-1)); if(lz===15)set.add(ck(cx,cz+1));
+  if(lx===0&&lz===0)set.add(ck(cx-1,cz-1));   if(lx===15&&lz===0)set.add(ck(cx+1,cz-1));
+  if(lx===0&&lz===15)set.add(ck(cx-1,cz+1));  if(lx===15&&lz===15)set.add(ck(cx+1,cz+1));
+  for(const k of set){
+    const c=chunkMap.get(k);
+    if(c&&c.meshed){const p=k.split(',');buildChunkMeshes(+p[0],+p[1]);}
+  }
+}
+// 由近及远的偏移表
+const OFFS=[];
+for(let dz=-8;dz<=8;dz++)for(let dx=-8;dx<=8;dx++)OFFS.push([dx,dz,dx*dx+dz*dz]);
+OFFS.sort((a,b)=>a[2]-b[2]);
+
+let frameNo=0;
+function chunkTick(pcx,pcz,budget){
+  let built=0;
+  for(const o of OFFS){
+    if(o[2]>RD*RD)break;
+    const cx=pcx+o[0],cz=pcz+o[1];
+    const c=chunkMap.get(ck(cx,cz));
+    if(!c||!c.meshed){buildChunkMeshes(cx,cz);if(++built>=budget)break;}
+  }
+  if(frameNo%120===60){                                        // 周期性卸载远处网格（保留数据）
+    for(const c of chunkMap.values()){
+      if(c.meshed&&Math.max(Math.abs(c.cx-pcx),Math.abs(c.cz-pcz))>RD+2)disposeMeshes(c);
+    }
+  }
+}
+
+/* ============================================================
+   音效（WebAudio 合成，无外部资源）
+   ============================================================ */
+let AC=null;
+function sfx(kind){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+    const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;
+    o.connect(g);g.connect(AC.destination);
+    if(kind==='break'){o.type='square';o.frequency.setValueAtTime(170,t);o.frequency.exponentialRampToValueAtTime(50,t+0.12);g.gain.setValueAtTime(0.11,t);}
+    else{o.type='triangle';o.frequency.setValueAtTime(330,t);o.frequency.exponentialRampToValueAtTime(190,t+0.09);g.gain.setValueAtTime(0.09,t);}
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.14);
+    o.start(t);o.stop(t+0.15);
+  }catch(e){}
+}
+
+/* ============================================================
+   玩家与物理（AABB 0.6×1.8，眼高 1.62）
+   ============================================================ */
+const player={x:2.5,y:40,z:26.5,vx:0,vy:0,vz:0,yaw:-0.72,pitch:-0.06,fly:false,onGround:false,sel:0,sprint:false};
+function respawn(){player.x=2.5;player.z=26.5;player.y=heightAt(2,26)+3;player.vx=player.vy=player.vz=0;}
+
+function solidWorld(x,y,z){const id=getBlockWorld(x,y,z);return id!==B.AIR&&id!==B.WATER;}
+function boxHits(px,py,pz){
+  const e=1e-4;
+  const x0=Math.floor(px-0.3+e),x1=Math.floor(px+0.3-e);
+  const y0=Math.floor(py+e),    y1=Math.floor(py+1.8-e);
+  const z0=Math.floor(pz-0.3+e),z1=Math.floor(pz+0.3-e);
+  for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++)for(let x=x0;x<=x1;x++)
+    if(solidWorld(x,y,z))return true;
+  return false;
+}
+function moveAxis(ax,amt){                                     // 逐轴推进，碰撞则小步贴墙
+  if(!amt)return;
+  player[ax]+=amt;
+  if(!boxHits(player.x,player.y,player.z))return;
+  player[ax]-=amt;
+  const st=Math.sign(amt)*0.04;let moved=0;
+  while(Math.abs(moved)+0.04<=Math.abs(amt)){
+    player[ax]+=st;
+    if(boxHits(player.x,player.y,player.z)){player[ax]-=st;break;}
+    moved+=st;
+  }
+  if(ax==='y'){if(amt<0)player.onGround=true;player.vy=0;}
+  else if(ax==='x')player.vx=0;else player.vz=0;
+}
+const bodyInWater=()=>getBlockWorld(Math.floor(player.x),Math.floor(player.y+0.6),Math.floor(player.z))===B.WATER;
+
+function updatePlayer(dt){
+  const inW=bodyInWater();
+  let f=0,s=0;
+  if(keys.has('KeyW'))f+=1; if(keys.has('KeyS'))f-=1;
+  if(keys.has('KeyD'))s+=1; if(keys.has('KeyA'))s-=1;
+  player.sprint=(keys.has('ControlLeft')||keys.has('ControlRight'))&&f>0&&!inW;
+  const sp=player.fly?(player.sprint?14:9):(inW?3.2:(player.sprint?7.0:4.5));
+  const fx=-Math.sin(player.yaw),fz=-Math.cos(player.yaw);
+  const rx= Math.cos(player.yaw),rz=-Math.sin(player.yaw);
+  if(f||s){
+    let mx=fx*f+rx*s, mz=fz*f+rz*s;
+    const ml=Math.hypot(mx,mz)||1;
+    player.vx=mx/ml*sp; player.vz=mz/ml*sp;
+  }else{
+    const dmp=Math.pow(0.0001,dt);
+    player.vx*=dmp;player.vz*=dmp;
+    if(Math.abs(player.vx)<0.01)player.vx=0;
+    if(Math.abs(player.vz)<0.01)player.vz=0;
+  }
+  if(player.fly){
+    let ty=0;
+    if(keys.has('Space'))ty=9;
+    if(keys.has('ShiftLeft')||keys.has('ShiftRight'))ty=-9;
+    player.vy=lerp(player.vy,ty,Math.min(1,dt*10));
+  }else if(inW){
+    player.vy+=-26*0.3*dt;
+    if(keys.has('Space'))player.vy=4;                          // 浮力划水
+    player.vy*=Math.pow(0.4,dt);
+    player.vy=clamp(player.vy,-6,6);
+  }else{
+    player.vy-=26*dt;
+    if(player.vy<-50)player.vy=-50;
+    if(keys.has('Space')&&player.onGround){player.vy=8.2;player.onGround=false;}
+  }
+  player.onGround=false;
+  moveAxis('x',player.vx*dt);
+  moveAxis('z',player.vz*dt);
+  moveAxis('y',player.vy*dt);
+  if(player.y<-30){respawn();toast(S('respawnTitle'),S('respawnBody'),2.2);}
+}
+
+/* ============================================================
+   输入：键盘 / 指针锁定（含拖拽回退）/ 鼠标交互
+   ============================================================ */
+const keys=new Set();
+let state='boot',usingFallback=false,lockWanted=false;
+let holdTimer=null,dragInfo=null;
+
+function camDir(){
+  const cp=Math.cos(player.pitch);
+  return [-Math.sin(player.yaw)*cp, Math.sin(player.pitch), -Math.cos(player.yaw)*cp];
+}
+function aim(){
+  const d=camDir();
+  return raycastVoxel(camera.position.x,camera.position.y,camera.position.z,d[0],d[1],d[2],7);
+}
+function doBreak(){
+  const h=aim();if(!h)return;
+  if(h.id===B.BEDROCK){toast(S('bedrockTitle'),S('bedrockBody'),1.4);return;}
+  setBlockWorld(h.x,h.y,h.z,B.AIR);sfx('break');rebuildAt(h.x,h.z);
+}
+function doPlace(){
+  const h=aim();if(!h)return;
+  const tx=h.x+h.nx,ty=h.y+h.ny,tz=h.z+h.nz;
+  const cur=getBlockWorld(tx,ty,tz);
+  if(cur!==B.AIR&&cur!==B.WATER)return;
+  if(!(tx+1<=player.x-0.3||tx>=player.x+0.3||ty+1<=player.y||ty>=player.y+1.8||tz+1<=player.z-0.3||tz>=player.z+0.3))return; // 不能放进自己身体
+  if(setBlockWorld(tx,ty,tz,HOTBAR[player.sel])){sfx('place');rebuildAt(tx,tz);}
+}
+function startHold(btn){
+  stopHold();
+  if(btn===0)doBreak();else doPlace();
+  holdTimer=setInterval(()=>{btn===0?doBreak():doPlace();},240);
+}
+function stopHold(){if(holdTimer){clearInterval(holdTimer);holdTimer=null;}}
+
+window.addEventListener('keydown',e=>{
+  if(state!=='playing'){
+    if((state==='ready'||state==='paused')&&(e.code==='Enter'))startGame();
+    return;
+  }
+  keys.add(e.code);
+  if(e.code==='Space')e.preventDefault();
+  if(e.code.indexOf('Digit')===0){const n=+e.code.slice(5);if(n>=1&&n<=9)selectSlot(n-1);}
+  else if(e.code==='KeyF'){player.fly=!player.fly;player.vy=0;toast(player.fly?S('flyOn'):S('flyOff'),player.fly?S('flyHint'):'',1.6);}
+  else if(e.code==='KeyG')teleportNext();
+  else if(e.code==='BracketLeft'){RD=Math.max(3,RD-1);updateFog();toast(S('renderDist')+RD+S('renderDistUnit'),'',1.2);}
+  else if(e.code==='BracketRight'){RD=Math.min(7,RD+1);updateFog();toast(S('renderDist')+RD+S('renderDistUnit'),'',1.2);}
+  else if(e.code==='Escape'&&usingFallback)pauseGame();
+});
+window.addEventListener('keyup',e=>keys.delete(e.code));
+window.addEventListener('blur',()=>{keys.clear();stopHold();});
+
+window.addEventListener('contextmenu',e=>{if(state==='playing')e.preventDefault();});
+window.addEventListener('mousedown',e=>{
+  if(state!=='playing')return;
+  if(document.pointerLockElement)startHold(e.button===2?2:0);
+  else if(usingFallback){
+    if(e.button===0)dragInfo={x:e.clientX,y:e.clientY,moved:false};
+    else if(e.button===2)doPlace();
+  }
+});
+window.addEventListener('mousemove',e=>{
+  if(state!=='playing')return;
+  if(document.pointerLockElement){
+    player.yaw-=e.movementX*0.0024;
+    player.pitch=clamp(player.pitch-e.movementY*0.0024,-1.55,1.55);
+  }else if(usingFallback&&dragInfo){
+    const dx=e.clientX-dragInfo.x,dy=e.clientY-dragInfo.y;
+    if(Math.abs(dx)+Math.abs(dy)>5)dragInfo.moved=true;
+    player.yaw-=dx*0.006;
+    player.pitch=clamp(player.pitch-dy*0.006,-1.55,1.55);
+    dragInfo.x=e.clientX;dragInfo.y=e.clientY;
+  }
+});
+window.addEventListener('mouseup',e=>{
+  stopHold();
+  if(usingFallback&&dragInfo&&e.button===0){if(!dragInfo.moved)doBreak();dragInfo=null;}
+});
+window.addEventListener('wheel',e=>{
+  if(state!=='playing')return;
+  selectSlot((player.sel+(e.deltaY>0?1:-1)+9)%9);
+},{passive:true});
+
+document.addEventListener('pointerlockchange',()=>{
+  if(document.pointerLockElement){usingFallback=false;}
+  else if(state==='playing'&&!usingFallback)pauseGame();
+});
+function tryLock(){
+  lockWanted=true;
+  const el=renderer.domElement;
+  try{if(el.requestPointerLock)el.requestPointerLock();}catch(e){}
+  setTimeout(()=>{
+    if(lockWanted&&!document.pointerLockElement&&state==='playing'){
+      usingFallback=true;
+      toast(S('dragTitle'),S('dragBody'),3.2);
+    }
+  },350);
+}
+
+/* ============================================================
+   传送 / 提示 / HUD
+   ============================================================ */
+let wIdx=-1;const discovered=new Set();
+function teleportNext(){
+  wIdx=(wIdx+1)%WONDERS.length;
+  const w=WONDERS[wIdx];
+  player.x=w.x+16.5;player.z=w.z+16.5;
+  player.y=(w.y!=null?w.y:heightAt(w.x,w.z))+16;
+  player.vx=player.vy=player.vz=0;player.fly=true;
+  player.yaw=Math.atan2(-(w.x-player.x),-(w.z-player.z));
+  player.pitch=-0.34;
+  discovered.add(w.t);
+  toast('✦ '+wName(w),wLore(w)+S('flyEnabled'),3.6);
+}
+let toastTimer=null;
+function toast(title,body,sec){
+  const t=document.getElementById('toast');
+  t.querySelector('b').textContent=title;
+  const sp=t.querySelector('span');
+  sp.textContent=body||'';sp.style.display=body?'block':'none';
+  t.style.opacity='1';
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{t.style.opacity='0';},(sec||2.5)*1000);
+}
+function selectSlot(i){
+  player.sel=i;
+  const slots=document.querySelectorAll('#hotbar .slot');
+  for(let j=0;j<slots.length;j++)slots[j].classList.toggle('sel',j===i);
+}
+function buildHotbar(){
+  const bar=document.getElementById('hotbar');
+  for(let i=0;i<HOTBAR.length;i++){
+    const id=HOTBAR[i],def=BLOCKS[id];
+    const slot=document.createElement('div');slot.className='slot'+(i===0?' sel':'');
+    const c=document.createElement('canvas');c.width=32;c.height=32;
+    const g=c.getContext('2d');g.imageSmoothingEnabled=false;
+    const tile=(id===B.GRASS)?T.grassSide:def.t;
+    g.drawImage(atlas,(tile%ACOLS)*TILE,((tile/ACOLS)|0)*TILE,TILE,TILE,0,0,32,32);
+    const num=document.createElement('i');num.textContent=i+1;
+    const nm=document.createElement('u');nm.dataset.block=String(id);nm.textContent=bName(id);
+    slot.appendChild(c);slot.appendChild(num);slot.appendChild(nm);
+    bar.appendChild(slot);
+  }
+}
+function updateHotbarNames(){
+  document.querySelectorAll('#hotbar .slot u').forEach(el=>{
+    const id=+el.dataset.block;
+    if(BLOCKS[id])el.textContent=bName(id);
+  });
+}
+function fillWonders(){
+  let html='';
+  for(const o of WONDERS)html+='<div class="w"><b>'+wName(o)+'</b><span>'+wLore(o)+'</span></div>';
+  document.getElementById('wonders').innerHTML=html;
+}
+let fpsAvg=60;
+const ARROWS='↑↗→↘↓↙←↖';
+function updateHUD(dt){
+  fpsAvg=lerp(fpsAvg,1/Math.max(dt,1e-3),0.06);
+  if(frameNo%10===0){
+    let best=null,bd=1e9;
+    for(const w of WONDERS){const d=Math.hypot(w.x-player.x,w.z-player.z);if(d<bd){bd=d;best=w;}}
+    let comp='';
+    if(best){
+      const wy=Math.atan2(-(best.x-player.x),-(best.z-player.z));
+      let rel=wy-player.yaw;
+      rel=((rel%(Math.PI*2))+Math.PI*3)%(Math.PI*2)-Math.PI;
+      const ai=((Math.round(-rel/(Math.PI/4)))%8+8)%8;
+      comp=S('nearest')+wName(best)+' · '+(bd|0)+S('distUnit')+ARROWS.charAt(ai);
+    }
+    document.getElementById('info').textContent=
+      S('hudFps')+(fpsAvg|0)+' · XYZ '+Math.floor(player.x)+' '+Math.floor(player.y)+' '+Math.floor(player.z)+
+      '\n'+S('hudDist')+RD+' · '+S('hudHold')+bName(HOTBAR[player.sel])+(player.fly?S('hudFlying'):'')+comp;
+  }
+  if(frameNo%30===5){
+    for(const w of WONDERS){
+      if(discovered.has(w.t))continue;
+      if(Math.hypot(w.x-player.x,w.z-player.z)<30){
+        discovered.add(w.t);
+        toast(S('discover')+wName(w),wLore(w),4.2);
+        break;
+      }
+    }
+  }
+}
+function updateHL(){
+  const h=(state==='playing')?aim():null;
+  if(h){hl.position.set(h.x+0.5,h.y+0.5,h.z+0.5);hl.visible=true;}
+  else hl.visible=false;
+}
+
+/* ============================================================
+   昼夜循环 / 天空
+   ============================================================ */
+const DAY_LEN=240, TOD0=0.32;
+let elapsed=0;
+const cDay=new THREE.Color(SKY_DAY),cSet=new THREE.Color(SKY_SET),cNight=new THREE.Color(SKY_NIGHT);
+const skyCol=new THREE.Color();
+function updateSky(dt){
+  elapsed+=dt;
+  const tod=(TOD0+elapsed/DAY_LEN)%1;
+  const ang=tod*Math.PI*2-Math.PI/2;
+  const el=Math.sin(ang);
+  const b=clamp(0.34+0.66*smoothstep(-0.18,0.25,el),0.34,1);   // 夜间整体压暗（发光方块除外）
+  matSolid.color.setScalar(b);
+  matWater.color.setScalar(b);
+  if(el>0.25)skyCol.copy(cDay);
+  else if(el>-0.05)skyCol.copy(cSet).lerp(cDay,(el+0.05)/0.30);
+  else skyCol.copy(cNight).lerp(cSet,clamp((el+0.45)/0.40,0,1));
+  scene.fog.color.copy(skyCol);
+  renderer.setClearColor(skyCol);
+  const R=380;
+  sun.position.set(player.x+Math.cos(ang)*R, player.y+Math.sin(ang)*R, player.z-110);
+  moon.position.set(player.x-Math.cos(ang)*R, player.y-Math.sin(ang)*R, player.z+110);
+  sun.lookAt(camera.position);moon.lookAt(camera.position);
+  for(const c of clouds){
+    const rel=((c.userData.ox+elapsed*c.userData.sp+240)%480+480)%480-240;
+    c.position.x=player.x+rel;
+    c.position.z=player.z+c.userData.oz;
+  }
+}
+
+/* ============================================================
+   开始 / 暂停 / 加载流程 / 主循环
+   ============================================================ */
+function startGame(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('langswitch').style.display='none';
+  document.getElementById('hud').style.display='block';
+  state='playing';
+  if(AC&&AC.state==='suspended')AC.resume();
+  tryLock();
+}
+function pauseGame(){
+  if(state!=='playing')return;
+  state='paused';lockWanted=false;
+  keys.clear();stopHold();dragInfo=null;
+  const b=document.getElementById('startbtn');
+  b.textContent=S('continue');b.disabled=false;
+  document.getElementById('loadtext').textContent=S('paused');
+  document.getElementById('overlay').style.display='flex';
+  document.getElementById('langswitch').style.display='flex';
+}
+document.getElementById('startbtn').addEventListener('click',()=>{
+  if(state==='ready'||state==='paused')startGame();
+});
+
+let loadList=[],loadIdx=0,last=0;
+function finishLoading(){
+  state='ready';
+  document.getElementById('loadfill').style.width='100%';
+  document.getElementById('loadtext').textContent=S('ready');
+  document.getElementById('startbtn').textContent=S('start');
+  document.getElementById('startbtn').disabled=false;
+}
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=clamp((now-(last||now))/1000,0,0.05);last=now;
+  frameNo++;
+  const pcx=Math.floor(player.x)>>4, pcz=Math.floor(player.z)>>4;
+  if(state==='loading'){
+    for(let i=0;i<6&&loadIdx<loadList.length;i++,loadIdx++){
+      const o=loadList[loadIdx];
+      buildChunkMeshes(pcx+o[0],pcz+o[1]);
+    }
+    const pct=loadList.length?Math.round(100*loadIdx/loadList.length):100;
+    document.getElementById('loadfill').style.width=pct+'%';
+    document.getElementById('loadtext').textContent=S('loading')+pct+'%';
+    if(loadIdx>=loadList.length)finishLoading();
+  }else if(state==='playing'){
+    updatePlayer(dt);
+    chunkTick(pcx,pcz,2);
+    updateHUD(dt);
+  }
+  updateHL();
+  camera.position.set(player.x,player.y+1.62,player.z);
+  camera.rotation.set(player.pitch,player.yaw,0);
+  const tf=player.sprint?82:75;
+  if(Math.abs(camera.fov-tf)>0.05){camera.fov+=(tf-camera.fov)*Math.min(1,dt*8);camera.updateProjectionMatrix();}
+  updateSky(state==='playing'?dt:0);
+  renderer.render(scene,camera);
+}
+function init(){
+  document.getElementById('langzh').addEventListener('click',()=>setLang('zh'));
+  document.getElementById('langen').addEventListener('click',()=>setLang('en'));
+  buildAtlas();
+  setupThree();
+  buildHotbar();
+  applyLang();
+  respawn();
+  if('ontouchstart' in window)document.getElementById('mobilenote').style.display='block';
+  loadList=OFFS.filter(o=>o[2]<=RD*RD);
+  state='loading';
+  requestAnimationFrame(loop);
+}
+init();
+</script>
+</body>
+</html>
