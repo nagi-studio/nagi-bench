@@ -180,6 +180,9 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
   const { t, pick, lang } = useLang()
   const scope = useRef<HTMLElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
+  const preRef = useRef<HTMLPreElement>(null)
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const inkRef = useRef<HTMLDivElement>(null)
   // Deep link: #<case-id> anchors the case, #<case-id>:<model-id> also
   // preselects the model tab.
   const [activeModelId, setActiveModelId] = useState(() => {
@@ -202,6 +205,22 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
     return () => window.clearTimeout(timer)
   }, [copied])
 
+  // Magic-ink underline that glides to the active model tab.
+  useEffect(() => {
+    const tabs = tabsRef.current
+    const ink = inkRef.current
+    const active = tabs?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (!tabs || !ink || !active) return
+    gsap.to(ink, {
+      x: active.offsetLeft,
+      y: active.offsetTop + active.offsetHeight - 1,
+      width: active.offsetWidth,
+      autoAlpha: 1,
+      duration: prefersReducedMotion() ? 0 : 0.45,
+      ease: 'power3.out',
+    })
+  }, [activeModelId, lang])
+
   useGSAP(
     () => {
       if (prefersReducedMotion()) return
@@ -212,6 +231,14 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
         ease: 'power3.out',
         stagger: 0.12,
         scrollTrigger: { trigger: scope.current, start: 'top 70%', once: true },
+      })
+      gsap.from('[data-prompt-line]', {
+        autoAlpha: 0,
+        x: -16,
+        duration: 0.5,
+        ease: 'power2.out',
+        stagger: 0.07,
+        scrollTrigger: { trigger: preRef.current, start: 'top 82%', once: true },
       })
       gsap.fromTo(
         '[data-frame]',
@@ -250,6 +277,19 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
       )
     },
     { scope },
+  )
+
+  // Cross-fade the viewer when the active model changes.
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) return
+      gsap.fromTo(
+        '[data-viewer]',
+        { autoAlpha: 0, y: 16 },
+        { autoAlpha: 1, y: 0, duration: 0.45, ease: 'power3.out' },
+      )
+    },
+    { scope, dependencies: [activeModelId] },
   )
 
   // Per-character title reveal; re-split when the language swaps the text.
@@ -322,8 +362,15 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
               {copied ? t('case.copied') : t('case.copy')}
             </button>
           </div>
-          <pre className="border-accent text-paper/90 mt-6 border-l-2 pl-5 font-mono text-sm leading-loose whitespace-pre-wrap">
-            {prompt}
+          <pre
+            ref={preRef}
+            className="border-accent text-paper/90 mt-6 border-l-2 pl-5 font-mono text-sm leading-loose whitespace-pre-wrap"
+          >
+            {prompt.split('\n').map((line, i) => (
+              <span key={i} data-prompt-line className="block min-h-[1.6em]">
+                {line}
+              </span>
+            ))}
           </pre>
         </div>
 
@@ -335,7 +382,12 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
             <span className="text-dim font-mono text-[11px] tracking-[0.25em] uppercase">
               {t('case.output')}
             </span>
-            <div className="flex flex-wrap gap-1.5" role="tablist">
+            <div ref={tabsRef} className="relative flex flex-wrap gap-1.5" role="tablist">
+              <div
+                ref={inkRef}
+                aria-hidden
+                className="bg-accent invisible absolute top-0 left-0 h-[2px] w-8"
+              />
               {MODELS.map((m) => (
                 <button
                   key={m.id}
@@ -344,7 +396,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
                   onClick={() => selectModel(m.id)}
                   className={`inline-flex items-center gap-1.5 border px-2.5 py-1 font-mono text-[11px] transition-colors ${
                     m.id === activeModelId
-                      ? 'border-accent text-accent'
+                      ? 'border-line text-accent'
                       : 'text-dim hover:text-paper border-transparent'
                   }`}
                 >
@@ -360,7 +412,9 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
           </div>
 
           <div data-frame>
-            <Viewer key={`${caseDef.id}-${activeModelId}`} caseDef={caseDef} model={activeModel} run={run} />
+            <div data-viewer key={`${caseDef.id}-${activeModelId}`}>
+              <Viewer caseDef={caseDef} model={activeModel} run={run} />
+            </div>
           </div>
 
           {run?.note && (

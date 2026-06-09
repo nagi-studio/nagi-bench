@@ -10,25 +10,37 @@ const ModelMarquee = memo(function ModelMarquee() {
   useGSAP(
     () => {
       if (prefersReducedMotion()) return
+      const track = scope.current?.querySelector<HTMLElement>('[data-marquee-track]')
       const tween = gsap.to('[data-marquee-track]', {
         xPercent: -50,
         duration: 32,
         ease: 'none',
         repeat: -1,
       })
-      const proxy = { speed: 1 }
+      // Scroll velocity boosts the loop speed and skews the band; both decay
+      // back to rest once scrolling stops.
+      const proxy = { speed: 1, skew: 0 }
+      const skewSetter = track ? gsap.quickSetter(track, 'skewX', 'deg') : () => {}
       ScrollTrigger.create({
         onUpdate: (self) => {
-          const target = gsap.utils.clamp(1, 5, 1 + Math.abs(self.getVelocity()) / 350)
-          if (target > proxy.speed) {
-            proxy.speed = target
-            tween.timeScale(target)
+          const velocity = self.getVelocity()
+          const speed = gsap.utils.clamp(1, 5, 1 + Math.abs(velocity) / 350)
+          const skew = gsap.utils.clamp(-9, 9, velocity / -250)
+          if (speed > proxy.speed || Math.abs(skew) > Math.abs(proxy.skew)) {
+            proxy.speed = Math.max(speed, proxy.speed)
+            proxy.skew = Math.abs(skew) > Math.abs(proxy.skew) ? skew : proxy.skew
+            tween.timeScale(proxy.speed)
+            skewSetter(proxy.skew)
             gsap.to(proxy, {
               speed: 1,
-              duration: 1.6,
+              skew: 0,
+              duration: 1.4,
               ease: 'power3.out',
               overwrite: true,
-              onUpdate: () => tween.timeScale(proxy.speed),
+              onUpdate: () => {
+                tween.timeScale(proxy.speed)
+                skewSetter(proxy.skew)
+              },
             })
           }
         },

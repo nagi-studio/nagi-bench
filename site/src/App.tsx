@@ -9,6 +9,8 @@ import ModelMarquee from './components/ModelMarquee'
 import CaseSection from './components/CaseSection'
 import Footer from './components/Footer'
 import CursorGlow from './components/CursorGlow'
+import ScrollProgress from './components/ScrollProgress'
+import GridSpotlight from './components/GridSpotlight'
 
 function Shell() {
   const { lang } = useLang()
@@ -39,6 +41,8 @@ function Shell() {
         </div>
       </main>
       <Footer />
+      <GridSpotlight />
+      <ScrollProgress />
       <CursorGlow />
     </div>
   )
