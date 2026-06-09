@@ -96,22 +96,32 @@ export const RUNS: Record<string, Record<string, RunDef>> = {
     },
     'gpt-5-5-pro': {
       note: {
-        zh: '本页为修复版（仅改 1 行）。问题：14 张贴图排成 8×2 图集、第二行只画了 6 格，UV 按左上原点计算却未设 flipY=false，两行贴图上下互换采样。修复前：草地顶面显示成黑曜石（地面全黑），树叶、沙子采到未绘制的空格（大片纯黑），放置方块的贴图互相串行、颜色诡异似反色。原因：CanvasTexture 默认 flipY=true，与自上而下的图集布局不匹配。加上 flipY=false 后地形与方块颜色全部正常。',
-        en: 'Fixed build (1 line changed). Bug: 14 tiles in an 8x2 atlas with only 6 slots drawn in row two, UVs computed from a top-left origin without flipY=false, so the two rows swapped on sampling. Before the fix: grass tops rendered as obsidian (black ground), leaves and sand hit undrawn slots (large black patches), and placed blocks wore each other\'s textures with inverted-looking colors. Cause: CanvasTexture defaults to flipY=true, mismatching the top-down atlas layout. With flipY=false everything renders correctly.',
+        zh: '以 GPT-5.5 Pro（开启 Extended Pro）生成；本页为修复版（仅改 1 行）。问题：14 张贴图排成 8×2 图集、第二行只画了 6 格，UV 按左上原点计算却未设 flipY=false，两行贴图上下互换采样。修复前：草地顶面显示成黑曜石（地面全黑），树叶、沙子采到未绘制的空格（大片纯黑），放置方块的贴图互相串行、颜色诡异似反色。原因：CanvasTexture 默认 flipY=true，与自上而下的图集布局不匹配。加上 flipY=false 后地形与方块颜色全部正常。',
+        en: 'Generated with GPT-5.5 Pro (Extended Pro enabled); fixed build (1 line changed). Bug: 14 tiles in an 8x2 atlas with only 6 slots drawn in row two, UVs computed from a top-left origin without flipY=false, so the two rows swapped on sampling. Before the fix: grass tops rendered as obsidian (black ground), leaves and sand hit undrawn slots (large black patches), and placed blocks wore each other\'s textures with inverted-looking colors. Cause: CanvasTexture defaults to flipY=true, mismatching the top-down atlas layout. With flipY=false everything renders correctly.',
       },
     },
-    'gpt-5-5-xhigh': {},
+    'gpt-5-5-xhigh': {
+      note: {
+        zh: '全程在 Codex CLI 中生成（未使用任何 skill）；本页为修复版（仅改 1 行）。问题：移动向量的 Z 分量整体差一个负号（第 979 行，正确应为 -strafe*sin - forward*cos）。修复前：运动被沿 X 轴镜像——面朝 ±X 方向时按 A/D 左右颠倒，面朝 ±Z 时 W/S 前后颠倒，体感「左右移动方向不对」。原因：Three.js 相机在 yaw=0 时朝 -Z，推导前进/侧移向量时把这个约定弄反了。给 Z 分量取负后，任意朝向下八方向移动全部正确。',
+        en: 'Generated entirely in Codex CLI (no skills); fixed build (1 line changed). Bug: the movement vector\'s Z component had its sign flipped (line 979; correct form is -strafe*sin - forward*cos). Before the fix movement was mirrored across the X axis — A/D swapped when facing +-X, W/S swapped when facing +-Z, i.e. "strafing goes the wrong way". Cause: a Three.js camera faces -Z at yaw 0, and the forward/right derivation inverted that convention. Negating Z makes all eight directions correct at any heading.',
+      },
+    },
     'gemini-3-1-pro': {
       note: {
-        zh: '一次生成，未发现需要修复的问题，原样展示。',
-        en: 'One shot; no fixes needed — shown as-is.',
+        zh: '通过 AntiGravity 生成（thinking effort: high）；一次生成，未发现需要修复的问题，原样展示。',
+        en: 'Generated via AntiGravity (thinking effort: high); one shot, no fixes needed — shown as-is.',
       },
     },
-    'gemini-3-5-flash': {},
+    'gemini-3-5-flash': {
+      note: {
+        zh: '通过 AntiGravity 生成（thinking effort: high）；本页为修复版（仅改 1 行）。问题：16 张贴图按「上为原点」的行序画进 4×4 图集，UV 坐标表也按同一行序编写，但 CanvasTexture 默认 flipY=true 把采样行上下镜像（第 r 行实际采到第 3-r 行）。修复前：草地顶面显示成紫水晶、侧面采到带透明孔洞的传送门/树叶贴图，配合 alphaTest 出现大量「透明方块」，放置的方块贴图与名称完全对不上。原因：flipY 与图集行序约定不一致。加上 flipY=false 后行序对齐，地形与方块全部正常。',
+        en: 'Generated via AntiGravity (thinking effort: high); fixed build (1 line changed). Bug: 16 tiles drawn into a 4x4 atlas with top-origin rows, and the UV table uses the same convention, but CanvasTexture\'s default flipY=true mirrors the rows on sampling (row r actually reads row 3-r). Before the fix: grass tops rendered as purple crystal, sides sampled the portal/leaves tiles with alpha holes — hence the many "transparent blocks" — and placed blocks never matched their names. Cause: flipY disagreeing with the atlas row convention. With flipY=false everything lines up.',
+      },
+    },
     'grok-build': {
       note: {
-        zh: '本页为修复版（仅改 2 行）。问题一：第 82 行 const WORLD_SEED = 0xAETHER，T/H/R 不是十六进制字符，整段脚本解析即抛 SyntaxError。修复前：画面纯黑，只剩 HTML 文字。问题二：贴图集画在 canvas 顶部两行、UV 按左上原点计算，却未设 flipY=false，所有面采样到未绘制的黑色区域。修复前：进入世界后近处地形全黑。两处各改一行（合法种子 + flipY=false），其余保持 Grok 原样。',
-        en: 'Fixed build (2 lines changed). Bug 1: line 82 const WORLD_SEED = 0xAETHER — T/H/R are not hex digits, so the whole script threw a SyntaxError at parse time; before the fix the screen was pure black with only HTML text. Bug 2: the atlas is drawn in the top canvas rows with top-left-origin UVs but no flipY=false, so every face sampled the undrawn black region; before the fix nearby terrain rendered solid black. One line each (a valid seed + flipY=false); everything else is Grok as-is.',
+        zh: '在本地通过 Grok Build（TUI）开发实现；本页为修复版（仅改 2 行）。问题一：第 82 行 const WORLD_SEED = 0xAETHER，T/H/R 不是十六进制字符，整段脚本解析即抛 SyntaxError。修复前：画面纯黑，只剩 HTML 文字。问题二：贴图集画在 canvas 顶部两行、UV 按左上原点计算，却未设 flipY=false，所有面采样到未绘制的黑色区域。修复前：进入世界后近处地形全黑。两处各改一行（合法种子 + flipY=false），其余保持 Grok 原样。',
+        en: 'Built locally with the Grok Build TUI; fixed build (2 lines changed). Bug 1: line 82 const WORLD_SEED = 0xAETHER — T/H/R are not hex digits, so the whole script threw a SyntaxError at parse time; before the fix the screen was pure black with only HTML text. Bug 2: the atlas is drawn in the top canvas rows with top-left-origin UVs but no flipY=false, so every face sampled the undrawn black region; before the fix nearby terrain rendered solid black. One line each (a valid seed + flipY=false); everything else is Grok as-is.',
       },
     },
     'composer-2-5': {
