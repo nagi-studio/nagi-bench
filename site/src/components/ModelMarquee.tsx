@@ -51,7 +51,7 @@ const ModelMarquee = memo(function ModelMarquee() {
   )
 
   return (
-    <div ref={scope} aria-hidden className="relative z-10 -my-4 overflow-hidden">
+    <div ref={scope} aria-hidden className="pointer-events-none relative z-10 -my-4 overflow-hidden">
       <div className="bg-acid text-night -mx-[2%] w-[104%] -rotate-[1.1deg] overflow-hidden py-2.5">
         <div
           data-marquee-track

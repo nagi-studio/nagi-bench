@@ -5,7 +5,7 @@ export type Bilingual = { zh: string; en: string }
 
 const STRINGS = {
   zh: {
-    'nav.cases': '案例',
+    'doc.title': 'NAGI BENCH · LLM 测评案例',
     'hero.kicker': '由 NAGI STUDIO 维护的 LLM 测评案例集',
     'hero.badge': '一次性生成 · 可运行作品',
     'hero.sub': '同一段提示词，不同模型，一次生成、不许返工。这里收录它们交出的可运行作品，并排对比真实效果。',
@@ -32,7 +32,7 @@ const STRINGS = {
     'footer.built': '使用 React · GSAP · Tailwind · Bun 构建，部署于 GitHub Pages。',
   },
   en: {
-    'nav.cases': 'Cases',
+    'doc.title': 'NAGI BENCH · LLM eval cases',
     'hero.kicker': 'An LLM eval case collection by NAGI STUDIO',
     'hero.badge': 'One-shot · Runnable artifacts',
     'hero.sub': 'Same prompt, different models, one attempt and no retries. A side-by-side record of the runnable artifacts they ship.',
@@ -75,13 +75,22 @@ const STORAGE_KEY = 'nagi-bench-lang'
 
 export function LangProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved === 'en' || saved === 'zh' ? saved : 'zh'
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      return saved === 'en' || saved === 'zh' ? saved : 'zh'
+    } catch {
+      return 'zh'
+    }
   })
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, lang)
+    try {
+      localStorage.setItem(STORAGE_KEY, lang)
+    } catch {
+      // storage unavailable (private mode / embedded webview); language still works for the session
+    }
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
+    document.title = STRINGS[lang]['doc.title']
   }, [lang])
 
   const value: LangContextValue = {

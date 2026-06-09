@@ -8,13 +8,21 @@ const ThemeContext = createContext<{ theme: Theme; setTheme: (t: Theme) => void 
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'light' || saved === 'dark') return saved
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved === 'light' || saved === 'dark') return saved
+    } catch {
+      // fall through to the system preference
+    }
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
   })
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, theme)
+    try {
+      localStorage.setItem(STORAGE_KEY, theme)
+    } catch {
+      // storage unavailable; theme still works for the session
+    }
     document.documentElement.dataset.theme = theme
   }, [theme])
 

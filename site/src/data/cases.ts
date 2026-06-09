@@ -29,12 +29,21 @@ export type RunDef = {
 
 export const REPO_URL = 'https://github.com/nagi-studio/nagi-bench'
 
+// Flagship lineup verified 2026-06: GPT-5.5 (Apr 23), Gemini 3.1 Pro
+// (Feb 19, still the Pro flagship), Grok 4.3 (late Apr), Mistral Medium 3.5
+// (Apr 28), DeepSeek-V4-Pro (Apr 24), Kimi K2.6 (Apr 20; K2.7 does not
+// exist), MiniMax M3 (Jun 1), GLM-5.1 (Mar 27), Qwen3.7-Max (May 20).
 export const MODELS: ModelDef[] = [
   { id: 'claude-fable-5', label: 'Claude Fable 5', vendor: 'Anthropic', status: 'ran' },
-  { id: 'gpt-5.1', label: 'GPT-5.1', vendor: 'OpenAI', status: 'pending' },
-  { id: 'gemini-3-pro', label: 'Gemini 3 Pro', vendor: 'Google', status: 'pending' },
-  { id: 'deepseek-v3.2', label: 'DeepSeek V3.2', vendor: 'DeepSeek', status: 'pending' },
-  { id: 'qwen3-max', label: 'Qwen3 Max', vendor: 'Alibaba', status: 'pending' },
+  { id: 'gpt-5.5', label: 'GPT-5.5', vendor: 'OpenAI', status: 'pending' },
+  { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', vendor: 'Google', status: 'pending' },
+  { id: 'grok-4.3', label: 'Grok 4.3', vendor: 'xAI', status: 'pending' },
+  { id: 'mistral-medium-3.5', label: 'Mistral Medium 3.5', vendor: 'Mistral AI', status: 'pending' },
+  { id: 'deepseek-v4-pro', label: 'DeepSeek-V4-Pro', vendor: 'DeepSeek', status: 'pending' },
+  { id: 'kimi-k2.6', label: 'Kimi K2.6', vendor: 'Moonshot AI', status: 'pending' },
+  { id: 'minimax-m3', label: 'MiniMax M3', vendor: 'MiniMax', status: 'pending' },
+  { id: 'glm-5.1', label: 'GLM-5.1', vendor: 'Zhipu AI', status: 'pending' },
+  { id: 'qwen3.7-max', label: 'Qwen3.7-Max', vendor: 'Alibaba', status: 'pending' },
 ]
 
 export const CASES: CaseDef[] = [
