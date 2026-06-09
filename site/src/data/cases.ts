@@ -38,10 +38,12 @@ export const REPO_URL = 'https://github.com/nagi-studio/nagi-bench'
 // Ids are dash-only so they double as outputs/ folder names.
 export const MODELS: ModelDef[] = [
   { id: 'claude-fable-5', label: 'Claude Fable 5', vendor: 'Anthropic', status: 'ran' },
+  { id: 'gpt-5-5-pro', label: 'GPT-5.5 Pro', vendor: 'OpenAI', status: 'ran' },
+  { id: 'gpt-5-5-xhigh', label: 'GPT-5.5 xhigh', vendor: 'OpenAI', status: 'ran' },
   { id: 'gemini-3-1-pro', label: 'Gemini 3.1 Pro', vendor: 'Google', status: 'ran' },
+  { id: 'gemini-3-5-flash', label: 'Gemini 3.5 Flash', vendor: 'Google', status: 'ran' },
   { id: 'grok-build', label: 'Grok 4.3', vendor: 'xAI', status: 'ran' },
   { id: 'composer-2-5', label: 'Composer 2.5', vendor: 'Cursor', status: 'ran' },
-  { id: 'gpt-5-5', label: 'GPT-5.5', vendor: 'OpenAI', status: 'pending' },
   { id: 'mistral-medium-3-5', label: 'Mistral Medium 3.5', vendor: 'Mistral AI', status: 'pending' },
   { id: 'deepseek-v4-pro', label: 'DeepSeek-V4-Pro', vendor: 'DeepSeek', status: 'pending' },
   { id: 'kimi-k2-6', label: 'Kimi K2.6', vendor: 'Moonshot AI', status: 'pending' },
@@ -92,12 +94,30 @@ export const RUNS: Record<string, Record<string, RunDef>> = {
         en: 'Run in the Claude web app on Fable 5 Max (max thinking effort); hit one auto-compact and the tool-call limit mid-run, finished after a manual "continue". The ID watermark and English support were patched in afterwards with a single prompt via Composer 2.5 Fast in Cursor; everything else is one-shot.',
       },
     },
-    'gemini-3-1-pro': {},
-    'grok-build': {},
+    'gpt-5-5-pro': {
+      note: {
+        zh: '本页为修复版（仅改 1 行）。问题：14 张贴图排成 8×2 图集、第二行只画了 6 格，UV 按左上原点计算却未设 flipY=false，两行贴图上下互换采样。修复前：草地顶面显示成黑曜石（地面全黑），树叶、沙子采到未绘制的空格（大片纯黑），放置方块的贴图互相串行、颜色诡异似反色。原因：CanvasTexture 默认 flipY=true，与自上而下的图集布局不匹配。加上 flipY=false 后地形与方块颜色全部正常。',
+        en: 'Fixed build (1 line changed). Bug: 14 tiles in an 8x2 atlas with only 6 slots drawn in row two, UVs computed from a top-left origin without flipY=false, so the two rows swapped on sampling. Before the fix: grass tops rendered as obsidian (black ground), leaves and sand hit undrawn slots (large black patches), and placed blocks wore each other\'s textures with inverted-looking colors. Cause: CanvasTexture defaults to flipY=true, mismatching the top-down atlas layout. With flipY=false everything renders correctly.',
+      },
+    },
+    'gpt-5-5-xhigh': {},
+    'gemini-3-1-pro': {
+      note: {
+        zh: '一次生成，未发现需要修复的问题，原样展示。',
+        en: 'One shot; no fixes needed — shown as-is.',
+      },
+    },
+    'gemini-3-5-flash': {},
+    'grok-build': {
+      note: {
+        zh: '本页为修复版（仅改 2 行）。问题一：第 82 行 const WORLD_SEED = 0xAETHER，T/H/R 不是十六进制字符，整段脚本解析即抛 SyntaxError。修复前：画面纯黑，只剩 HTML 文字。问题二：贴图集画在 canvas 顶部两行、UV 按左上原点计算，却未设 flipY=false，所有面采样到未绘制的黑色区域。修复前：进入世界后近处地形全黑。两处各改一行（合法种子 + flipY=false），其余保持 Grok 原样。',
+        en: 'Fixed build (2 lines changed). Bug 1: line 82 const WORLD_SEED = 0xAETHER — T/H/R are not hex digits, so the whole script threw a SyntaxError at parse time; before the fix the screen was pure black with only HTML text. Bug 2: the atlas is drawn in the top canvas rows with top-left-origin UVs but no flipY=false, so every face sampled the undrawn black region; before the fix nearby terrain rendered solid black. One line each (a valid seed + flipY=false); everything else is Grok as-is.',
+      },
+    },
     'composer-2-5': {
       note: {
-        zh: '在 Cursor 中以 Composer 2.5 生成。',
-        en: 'Generated with Composer 2.5 in Cursor.',
+        zh: '在 Cursor 中以 Composer 2.5 生成；本页为修复版（仅改 1 行）。问题：第 1152 行水平速度先乘 speed*dt，位移时又乘一次 dt，实际步速只有设计值（5 格/秒）的约 1/60。修复前：走路如蜗牛、跳跃下落却正常；沙漠雪地等群系与神话建筑实际走不到，体感像「切换不了场景」——游戏本无传送功能，群系需步行抵达。原因：X/Z 轴把「每帧位移」当「每秒速度」存入 velocity，与 Y 轴语义不一致。去掉一次 dt 后步行恢复 5 格/秒，可正常走到其他群系。',
+        en: 'Generated with Composer 2.5 in Cursor; fixed build (1 line changed). Bug: line 1152 multiplied horizontal velocity by speed*dt, then displacement multiplied by dt again, leaving walking at ~1/60 of the designed 5 blocks/s. Before the fix: walking crawled while jumping/falling felt normal, and biomes or mythic structures were effectively unreachable — which read as "scene switching is broken" (there is no teleport; biomes are reached on foot). Cause: X/Z stored per-frame displacement in a per-second velocity field, inconsistent with the Y axis. With one dt removed, walking is back to 5 blocks/s and other biomes are reachable.',
       },
     },
   },

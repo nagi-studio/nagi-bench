@@ -1,0 +1,2735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MythicCraft - 3D Minecraft Clone</title>
+    <!-- Google Fonts for Retro and Modern look -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --primary: #ffd700;
+            --primary-glow: rgba(255, 215, 0, 0.4);
+            --bg-glass: rgba(15, 15, 25, 0.7);
+            --border-glass: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050510;
+            font-family: 'Outfit', sans-serif;
+            color: #ffffff;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* HUD Overlay */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            mix-blend-mode: difference;
+            z-index: 11;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: white;
+        }
+        #crosshair::before {
+            top: 7px;
+            left: 0;
+            width: 16px;
+            height: 2px;
+        }
+        #crosshair::after {
+            top: 0;
+            left: 7px;
+            width: 2px;
+            height: 16px;
+        }
+
+        /* Top Bar: Stats and Info */
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+        }
+
+        .info-panel {
+            background: var(--bg-glass);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 14px;
+            line-height: 1.6;
+            pointer-events: auto;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .info-panel h2 {
+            margin: 0 0 6px 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .stat-val {
+            font-weight: 600;
+            color: #00ffcc;
+        }
+
+        /* Bottom Bar: Hotbar & Selected Block Info */
+        .hud-bottom {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        #block-name {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
+            color: var(--primary);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+            letter-spacing: 1px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
+
+        .hotbar-container {
+            display: flex;
+            background: rgba(10, 10, 20, 0.8);
+            border: 2px solid #555;
+            border-radius: 4px;
+            padding: 2px;
+            pointer-events: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .hotbar-slot {
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            margin: 1px;
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+            transition: all 0.15s ease;
+        }
+
+        .hotbar-slot:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .hotbar-slot.active {
+            border-color: var(--primary);
+            background: rgba(255, 215, 0, 0.15);
+            box-shadow: inset 0 0 10px var(--primary-glow), 0 0 12px var(--primary-glow);
+            transform: scale(1.08);
+            z-index: 2;
+        }
+
+        .hotbar-slot canvas {
+            width: 38px;
+            height: 38px;
+            image-rendering: pixelated;
+        }
+
+        .slot-key {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 9px;
+            font-weight: 800;
+            color: #aaa;
+            font-family: monospace;
+        }
+
+        /* Screen Overlays (Pause, Creative Inventory, Main Menu) */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(5, 5, 15, 0.85);
+            backdrop-filter: blur(12px);
+            transition: opacity 0.3s ease;
+        }
+
+        .overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .menu-card {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 40px;
+            width: 90%;
+            max-width: 550px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            animation: floatIn 0.5s ease-out;
+        }
+
+        @keyframes floatIn {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        h1.game-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 28px;
+            color: var(--primary);
+            text-shadow: 0 4px 0 #b39700, 0 8px 20px rgba(255, 215, 0, 0.3);
+            margin: 0 0 25px 0;
+            letter-spacing: -1px;
+            line-height: 1.4;
+        }
+
+        .instructions {
+            text-align: left;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            color: #00ffcc;
+            font-weight: 600;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px 15px;
+        }
+
+        .key-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--primary);
+            text-align: center;
+            min-width: 28px;
+            display: inline-block;
+        }
+
+        .play-btn {
+            background: linear-gradient(135deg, #ffd700, #ffaa00);
+            color: #050510;
+            border: none;
+            border-radius: 12px;
+            padding: 16px 40px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(255, 170, 0, 0.4);
+            transition: all 0.2s;
+        }
+
+        .play-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(255, 170, 0, 0.6);
+        }
+
+        .play-btn:active {
+            transform: translateY(1px);
+        }
+
+        /* Creative Inventory Overlay */
+        #creative-inventory {
+            z-index: 110;
+        }
+
+        .inventory-card {
+            background: rgba(15, 15, 25, 0.95);
+            border: 2px solid var(--primary);
+            border-radius: 16px;
+            padding: 25px;
+            width: 90%;
+            max-width: 480px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 20px var(--primary-glow);
+        }
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .inventory-grid::-webkit-scrollbar {
+            width: 6px;
+        }
+        .inventory-grid::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+
+        .inventory-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 10px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .inventory-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .inventory-item canvas {
+            width: 44px;
+            height: 44px;
+            image-rendering: pixelated;
+        }
+
+        .inventory-item-name {
+            font-size: 10px;
+            text-align: center;
+            font-weight: 600;
+            color: #ddd;
+        }
+
+        .close-inv-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 8px 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+
+        .close-inv-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Biome Selection in main menu */
+        .biome-select {
+            margin: 15px 0 25px 0;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .biome-option {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .biome-option:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .biome-option.active {
+            border-color: var(--primary);
+            background: rgba(255, 215, 0, 0.15);
+            color: var(--primary);
+        }
+
+        #toast-notification {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-50px);
+            background: rgba(0, 255, 204, 0.2);
+            border: 1px solid #00ffcc;
+            color: #00ffcc;
+            padding: 10px 24px;
+            border-radius: 30px;
+            font-weight: 600;
+            z-index: 200;
+            pointer-events: none;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            opacity: 0;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+        }
+
+        #toast-notification.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Canvas Container for Three.js -->
+    <div id="canvas-container"></div>
+
+    <!-- Crosshair -->
+    <div id="crosshair"></div>
+
+    <!-- HUD Overlay -->
+    <div id="hud">
+        <div class="hud-top">
+            <div class="info-panel">
+                <h2>MythicCraft</h2>
+                <div class="stat-row">
+                    <div>Pos: <span id="pos-val" class="stat-val">0, 0, 0</span></div>
+                    <div>FPS: <span id="fps-val" class="stat-val">60</span></div>
+                </div>
+                <div class="stat-row" style="margin-top: 4px;">
+                    <div>Biome: <span id="biome-val" class="stat-val" style="color: #ffd700;">Mythic Valleys</span></div>
+                    <div>Fly: <span id="fly-val" class="stat-val" style="color: #ff3366;">OFF</span></div>
+                </div>
+            </div>
+            
+            <div class="info-panel" style="pointer-events: auto;">
+                <h2>Legendary Structures</h2>
+                <div style="font-size: 12px; color: #bbb;">
+                    Find structures generated in the seed:<br>
+                    • <span style="color: #ffffff; font-weight: 600;">Floating Temple of Aether</span> (Y: ~95)<br>
+                    • <span style="color: #8a2be2; font-weight: 600;">Ancient Portal Ruins</span> (On Surface)<br>
+                    • <span style="color: #00ffcc; font-weight: 600;">Yggdrasil World Tree</span> (On Surface)
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-bottom">
+            <div id="block-name">Grass Block</div>
+            <div class="hotbar-container" id="hotbar">
+                <!-- Slots populated dynamically by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast-notification">Fly Mode Enabled</div>
+
+    <!-- Main Menu Overlay -->
+    <div class="overlay" id="main-menu">
+        <div class="menu-card">
+            <h1 class="game-title">MYTHIC CRAFT</h1>
+            
+            <div class="instructions">
+                <h3>CONTROLS</h3>
+                <div class="control-grid">
+                    <div><span class="key-btn">W</span><span class="key-btn">A</span><span class="key-btn">S</span><span class="key-btn">D</span></div>
+                    <div>Move player</div>
+                    
+                    <div><span class="key-btn">SPACE</span></div>
+                    <div>Jump</div>
+
+                    <div><span class="key-btn">L-SHIFT</span></div>
+                    <div>Sprint / Fly Down</div>
+
+                    <div><span class="key-btn">F</span></div>
+                    <div>Toggle Fly Mode</div>
+
+                    <div><span class="key-btn">E</span></div>
+                    <div>Open Creative Inventory</div>
+
+                    <div><span class="key-btn">1</span> - <span class="key-btn">9</span> / Scroll</div>
+                    <div>Select active block slot</div>
+
+                    <div><span class="key-btn">L-Click</span></div>
+                    <div>Destroy block</div>
+
+                    <div><span class="key-btn">R-Click</span></div>
+                    <div>Place block</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 8px; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Select World Seed</div>
+            <div class="biome-select">
+                <div class="biome-option active" data-seed="valleys">Mythic Valleys</div>
+                <div class="biome-option" data-seed="islands">Aether Islands</div>
+                <div class="biome-option" data-seed="abyss">Crystal Abyss</div>
+            </div>
+
+            <button class="play-btn" id="start-btn">ENTER WORLD</button>
+            <div style="margin-top: 15px; font-size: 11px; color: #666;">Requires mouse pointer lock. Press ESC to pause.</div>
+        </div>
+    </div>
+
+    <!-- Pause Menu Overlay -->
+    <div class="overlay hidden" id="pause-menu">
+        <div class="menu-card">
+            <h1 class="game-title" style="font-size: 20px;">GAME PAUSED</h1>
+            <p style="margin-bottom: 25px; color: #aaa;">Click below or press Escape to resume your adventure.</p>
+            <button class="play-btn" id="resume-btn">RESUME GAME</button>
+        </div>
+    </div>
+
+    <!-- Creative Inventory Overlay -->
+    <div class="overlay hidden" id="creative-inventory">
+        <div class="inventory-card">
+            <h1 class="game-title" style="font-size: 18px; margin-bottom: 10px;">CREATIVE INVENTORY</h1>
+            <p style="font-size: 12px; color: #888; margin: 0 0 15px 0;">Click a block to place it in your active hotbar slot.</p>
+            
+            <div class="inventory-grid" id="inventory-grid">
+                <!-- Items populated dynamically by JS -->
+            </div>
+            
+            <div style="text-align: center;">
+                <button class="close-inv-btn" id="close-inv-btn">Close Inventory (E)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME LOGIC SCRIPT -->
+    <script>
+        // --- 1. GAME DATA & CONSTANTS ---
+        const BLOCK_TYPES = {
+            AIR: 0,
+            GRASS: 1,
+            DIRT: 2,
+            STONE: 3,
+            COBBLESTONE: 4,
+            MOSSY_COBBLESTONE: 5,
+            WOOD: 6,
+            LEAVES: 7,
+            QUARTZ: 8,
+            GOLD: 9,
+            CRYSTAL_CYAN: 10,
+            CRYSTAL_PURPLE: 11,
+            PORTAL: 12,
+            WATER: 13,
+            GLASS: 14
+        };
+
+        const BLOCK_DETAILS = {
+            [BLOCK_TYPES.AIR]: { name: "Air", solid: false, transparent: true },
+            [BLOCK_TYPES.GRASS]: { name: "Grass Block", solid: true, transparent: false, color: '#558a2f' },
+            [BLOCK_TYPES.DIRT]: { name: "Dirt", solid: true, transparent: false, color: '#866043' },
+            [BLOCK_TYPES.STONE]: { name: "Stone", solid: true, transparent: false, color: '#808080' },
+            [BLOCK_TYPES.COBBLESTONE]: { name: "Cobblestone", solid: true, transparent: false, color: '#8a8a8a' },
+            [BLOCK_TYPES.MOSSY_COBBLESTONE]: { name: "Mossy Cobblestone", solid: true, transparent: false, color: '#6a8d52' },
+            [BLOCK_TYPES.WOOD]: { name: "Wood Trunk", solid: true, transparent: false, color: '#5c4033' },
+            [BLOCK_TYPES.LEAVES]: { name: "Magical Leaves", solid: true, transparent: true, color: '#2e5c1e' },
+            [BLOCK_TYPES.QUARTZ]: { name: "Quartz Brick", solid: true, transparent: false, color: '#e6e6fa' },
+            [BLOCK_TYPES.GOLD]: { name: "Block of Gold", solid: true, transparent: false, color: '#ffd700' },
+            [BLOCK_TYPES.CRYSTAL_CYAN]: { name: "Glowing Cyan Crystal", solid: true, transparent: false, color: '#00bfff' },
+            [BLOCK_TYPES.CRYSTAL_PURPLE]: { name: "Glowing Purple Crystal", solid: true, transparent: false, color: '#ba55d3' },
+            [BLOCK_TYPES.PORTAL]: { name: "Mystic Portal Energy", solid: false, transparent: true, color: '#8a2be2' },
+            [BLOCK_TYPES.WATER]: { name: "Luminous Water", solid: false, transparent: true, color: '#1e90ff' },
+            [BLOCK_TYPES.GLASS]: { name: "Crystal Pane (Glass)", solid: true, transparent: true, color: '#ffffff' }
+        };
+
+        // Current active hotbar slots (holds block IDs)
+        const hotbarSlots = [
+            BLOCK_TYPES.GRASS,
+            BLOCK_TYPES.DIRT,
+            BLOCK_TYPES.STONE,
+            BLOCK_TYPES.COBBLESTONE,
+            BLOCK_TYPES.WOOD,
+            BLOCK_TYPES.LEAVES,
+            BLOCK_TYPES.QUARTZ,
+            BLOCK_TYPES.GOLD,
+            BLOCK_TYPES.CRYSTAL_CYAN
+        ];
+        let activeHotbarIndex = 0; // 0..8
+
+        // World parameters
+        let worldSeed = "valleys"; // "valleys", "islands", "abyss"
+        const CHUNK_SIZE = 16;
+        const WORLD_HEIGHT = 128;
+        const RENDER_DISTANCE = 4; // chunks around player
+
+        // --- 2. RETRO SOUND SYNTHESIZER (WEB AUDIO) ---
+        class AudioManager {
+            constructor() {
+                this.ctx = null;
+                this.musicPlaying = false;
+            }
+            init() {
+                if (this.ctx) return;
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                this.startAmbientMusic();
+            }
+            playBreak() {
+                if (!this.ctx) return;
+                const ctx = this.ctx;
+                const bufferSize = ctx.sampleRate * 0.08;
+                const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(350, ctx.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(10, ctx.currentTime + 0.08);
+
+                const gain = ctx.createGain();
+                gain.gain.setValueAtTime(0.4, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctx.destination);
+                noise.start();
+            }
+            playPlace() {
+                if (!this.ctx) return;
+                const ctx = this.ctx;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(160, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(90, ctx.currentTime + 0.06);
+
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.06);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.06);
+            }
+            playStep() {
+                if (!this.ctx) return;
+                const ctx = this.ctx;
+                const bufferSize = ctx.sampleRate * 0.04;
+                const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+                const noise = ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(150, ctx.currentTime);
+
+                const gain = ctx.createGain();
+                gain.gain.setValueAtTime(0.08, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.04);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctx.destination);
+                noise.start();
+            }
+            playJump() {
+                if (!this.ctx) return;
+                const ctx = this.ctx;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(180, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.12);
+
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.12);
+            }
+            startAmbientMusic() {
+                if (this.musicPlaying) return;
+                this.musicPlaying = true;
+                const ctx = this.ctx;
+                
+                const playChord = () => {
+                    if (!this.musicPlaying) return;
+                    // Relaxing modal pentatonic pads (C major pentatonic / G Lydian)
+                    const chords = [
+                        [130.81, 164.81, 196.00, 246.94], // Cmaj7
+                        [146.83, 196.00, 220.00, 293.66], // Gsus4 / D
+                        [164.81, 196.00, 246.94, 329.63], // Em7
+                        [174.61, 220.00, 261.63, 349.23]  // Fmaj7
+                    ];
+                    const chord = chords[Math.floor(Math.random() * chords.length)];
+                    
+                    const gain = ctx.createGain();
+                    gain.gain.setValueAtTime(0, ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 4.0); // Slow attack
+                    gain.gain.setValueAtTime(0.02, ctx.currentTime + 8.0);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 12.0); // Release
+
+                    const filter = ctx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(500, ctx.currentTime);
+                    filter.frequency.linearRampToValueAtTime(700, ctx.currentTime + 6.0);
+                    filter.frequency.linearRampToValueAtTime(400, ctx.currentTime + 12.0);
+
+                    gain.connect(filter);
+                    filter.connect(ctx.destination);
+
+                    const oscillators = [];
+                    chord.forEach(freq => {
+                        const osc = ctx.createOscillator();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                        osc.detune.setValueAtTime(Math.random() * 8 - 4, ctx.currentTime); // Chorus effect
+                        osc.connect(gain);
+                        osc.start();
+                        osc.stop(ctx.currentTime + 12.0);
+                        oscillators.push(osc);
+                    });
+
+                    setTimeout(playChord, 14000); // Trigger next chord with small silence gap
+                };
+
+                playChord();
+            }
+        }
+        const audio = new AudioManager();
+
+        // --- 3. DYNAMIC TEXTURE ATLAS GENERATOR ---
+        // Generates a square 4x4 grid of 64x64 textures, total 256x256 pixels
+        function generateTextureAtlas() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
+
+            const texSize = 64; // size of each block texture in the atlas
+
+            function drawNoise(tx, ty, r, g, b, varRange) {
+                const ox = tx * texSize;
+                const oy = ty * texSize;
+                for (let px = 0; px < texSize; px++) {
+                    for (let py = 0; py < texSize; py++) {
+                        const vr = (Math.random() - 0.5) * varRange;
+                        ctx.fillStyle = `rgb(${Math.min(255, Math.max(0, r + vr))}, ${Math.min(255, Math.max(0, g + vr))}, ${Math.min(255, Math.max(0, b + vr))})`;
+                        ctx.fillRect(ox + px, oy + py, 1, 1);
+                    }
+                }
+            }
+
+            // --- 0: Grass Top (0, 3 in UV grid) ---
+            drawNoise(0, 3, 85, 138, 47, 30);
+            // Add darker green pixel patterns
+            ctx.fillStyle = 'rgba(51, 105, 30, 0.4)';
+            for (let i = 0; i < 200; i++) {
+                ctx.fillRect(0 * texSize + Math.random() * texSize, 3 * texSize + Math.random() * texSize, 2, 2);
+            }
+
+            // --- 1: Grass Side (1, 3) ---
+            // Base dirt
+            drawNoise(1, 3, 134, 96, 67, 25);
+            // Top grass cover
+            ctx.fillStyle = 'rgb(85, 138, 47)';
+            ctx.fillRect(1 * texSize, 3 * texSize, texSize, 16);
+            // Add pixelated grass drips
+            for (let col = 0; col < texSize; col++) {
+                const dripHeight = 16 + Math.floor(Math.sin(col * 0.8) * 6) + (Math.random() < 0.3 ? 4 : 0);
+                ctx.fillStyle = `rgb(${75 + Math.random()*20}, ${120 + Math.random()*20}, 40)`;
+                ctx.fillRect(1 * texSize + col, 3 * texSize, 1, dripHeight);
+            }
+            // Add some dirt spots under grass
+            ctx.fillStyle = 'rgba(87, 61, 38, 0.5)';
+            for (let i = 0; i < 150; i++) {
+                ctx.fillRect(1 * texSize + Math.random() * texSize, 3 * texSize + 20 + Math.random() * (texSize - 20), 2, 2);
+            }
+
+            // --- 2: Dirt (2, 3) ---
+            drawNoise(2, 3, 134, 96, 67, 25);
+            ctx.fillStyle = 'rgba(87, 61, 38, 0.6)';
+            for (let i = 0; i < 200; i++) {
+                ctx.fillRect(2 * texSize + Math.random() * texSize, 3 * texSize + Math.random() * texSize, 2, 2);
+            }
+
+            // --- 3: Stone (3, 3) ---
+            drawNoise(3, 3, 128, 128, 128, 20);
+            // Cracks and stone shading
+            ctx.fillStyle = 'rgba(80, 80, 80, 0.5)';
+            for (let i = 0; i < 150; i++) {
+                ctx.fillRect(3 * texSize + Math.random() * texSize, 3 * texSize + Math.random() * texSize, Math.random() * 4 + 1, 1);
+            }
+            ctx.fillStyle = 'rgba(200, 200, 200, 0.3)';
+            for (let i = 0; i < 100; i++) {
+                ctx.fillRect(3 * texSize + Math.random() * texSize, 3 * texSize + Math.random() * texSize, 2, 2);
+            }
+
+            // --- 4: Cobblestone (0, 2) ---
+            drawNoise(0, 2, 110, 110, 110, 15);
+            // Cobble outline drawing
+            ctx.fillStyle = '#555555';
+            for (let i = 0; i < 16; i++) {
+                const lx = Math.random() * texSize;
+                const ly = Math.random() * texSize;
+                ctx.fillRect(0 * texSize + lx, 2 * texSize + ly, 12, 2);
+                ctx.fillRect(0 * texSize + lx, 2 * texSize + ly, 2, 8);
+            }
+            ctx.fillStyle = '#dedede';
+            for (let i = 0; i < 20; i++) {
+                ctx.fillRect(0 * texSize + Math.random() * (texSize - 4), 2 * texSize + Math.random() * (texSize - 4), 4, 1);
+            }
+
+            // --- 5: Mossy Cobblestone (1, 2) ---
+            // Copy Cobble first
+            ctx.drawImage(canvas, 0 * texSize, 2 * texSize, texSize, texSize, 1 * texSize, 2 * texSize, texSize, texSize);
+            // Overlap green moss veins
+            ctx.fillStyle = 'rgba(61, 106, 32, 0.75)';
+            for (let i = 0; i < 12; i++) {
+                const mx = Math.random() * (texSize - 12);
+                const my = Math.random() * (texSize - 12);
+                ctx.fillRect(1 * texSize + mx, 2 * texSize + my, 12, 3);
+                ctx.fillRect(1 * texSize + mx + 4, 2 * texSize + my - 4, 3, 10);
+            }
+
+            // --- 6: Wood Trunk Side (2, 2) ---
+            drawNoise(2, 2, 92, 64, 51, 15);
+            // Bark vertical ridges
+            ctx.fillStyle = 'rgb(61, 43, 31)';
+            for (let i = 0; i < 10; i++) {
+                const rx = Math.floor(Math.random() * texSize);
+                ctx.fillRect(2 * texSize + rx, 2 * texSize, 3, texSize);
+            }
+            ctx.fillStyle = 'rgba(125, 95, 75, 0.4)';
+            for (let i = 0; i < 6; i++) {
+                const rx = Math.floor(Math.random() * texSize);
+                ctx.fillRect(2 * texSize + rx, 2 * texSize, 2, texSize);
+            }
+
+            // --- 7: Wood Trunk Top (3, 2) ---
+            drawNoise(3, 2, 215, 181, 135, 15);
+            // Concentric rings
+            ctx.fillStyle = 'rgba(145, 105, 75, 0.8)';
+            ctx.strokeStyle = 'rgba(145, 105, 75, 0.8)';
+            ctx.lineWidth = 4;
+            const ringCenter = 3 * texSize + texSize/2;
+            for (let r = 8; r < texSize/2; r += 10) {
+                ctx.beginPath();
+                ctx.arc(ringCenter, 2 * texSize + texSize/2, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // --- 8: Leaves (0, 1) ---
+            // Fully transparent background
+            ctx.clearRect(0 * texSize, 1 * texSize, texSize, texSize);
+            ctx.fillStyle = 'rgb(46, 92, 30)';
+            ctx.fillRect(0 * texSize, 1 * texSize, texSize, texSize);
+            // Cutout pixels
+            ctx.fillStyle = '#224814';
+            for (let i = 0; i < 250; i++) {
+                ctx.fillRect(0 * texSize + Math.random() * texSize, 1 * texSize + Math.random() * texSize, 2, 2);
+            }
+            // Leaf transparency holes
+            for (let i = 0; i < 120; i++) {
+                ctx.clearRect(0 * texSize + Math.floor(Math.random() * (texSize - 4)), 1 * texSize + Math.floor(Math.random() * (texSize - 4)), 3, 3);
+            }
+            ctx.fillStyle = 'rgb(69, 140, 44)';
+            for (let i = 0; i < 180; i++) {
+                ctx.fillRect(0 * texSize + Math.random() * texSize, 1 * texSize + Math.random() * texSize, 2, 1);
+            }
+
+            // --- 9: Quartz Brick (1, 1) ---
+            drawNoise(1, 1, 235, 235, 245, 10);
+            // Brick tiles
+            ctx.fillStyle = '#b0c4de'; // slate shadows
+            ctx.strokeStyle = '#cccccc';
+            ctx.lineWidth = 1;
+            // Draw grid lines
+            for (let y = 0; y <= texSize; y += 16) {
+                ctx.beginPath();
+                ctx.moveTo(1 * texSize, 1 * texSize + y);
+                ctx.lineTo(2 * texSize, 1 * texSize + y);
+                ctx.stroke();
+            }
+            for (let x = 0; x <= texSize; x += 16) {
+                ctx.beginPath();
+                ctx.moveTo(1 * texSize + x, 1 * texSize);
+                ctx.lineTo(1 * texSize + x, 2 * texSize);
+                ctx.stroke();
+            }
+
+            // --- 10: Gold Block (2, 1) ---
+            drawNoise(2, 1, 255, 215, 0, 15);
+            // Outer golden borders
+            ctx.strokeStyle = '#b8860b';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(2 * texSize + 2, 1 * texSize + 2, texSize - 4, texSize - 4);
+            // Diagonal specular shines
+            ctx.fillStyle = 'rgba(255, 253, 208, 0.7)';
+            ctx.beginPath();
+            ctx.moveTo(2 * texSize + 8, 1 * texSize + 8);
+            ctx.lineTo(2 * texSize + 20, 1 * texSize + 8);
+            ctx.lineTo(2 * texSize + 8, 1 * texSize + 20);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.moveTo(2 * texSize + texSize - 8, 1 * texSize + texSize - 8);
+            ctx.lineTo(2 * texSize + texSize - 20, 1 * texSize + texSize - 8);
+            ctx.lineTo(2 * texSize + texSize - 8, 1 * texSize + texSize - 20);
+            ctx.closePath();
+            ctx.fill();
+
+            // --- 11: Glowing Crystal Cyan (3, 1) ---
+            drawNoise(3, 1, 0, 191, 255, 20);
+            // Glowing magical pattern
+            ctx.fillStyle = 'rgba(224, 255, 255, 0.9)';
+            ctx.beginPath();
+            ctx.arc(3 * texSize + texSize/2, 1 * texSize + texSize/2, 14, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(3 * texSize + texSize/2, 1 * texSize + texSize/2, 7, 0, Math.PI * 2);
+            ctx.fill();
+            // Outer outline
+            ctx.strokeStyle = '#008b8b';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(3 * texSize + 1, 1 * texSize + 1, texSize - 2, texSize - 2);
+
+            // --- 12: Glowing Crystal Purple (0, 0) ---
+            drawNoise(0, 0, 186, 85, 211, 20);
+            ctx.fillStyle = 'rgba(255, 182, 193, 0.9)';
+            ctx.beginPath();
+            ctx.arc(0 * texSize + texSize/2, 0 * texSize + texSize/2, 14, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0 * texSize + texSize/2, 0 * texSize + texSize/2, 7, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#8b008b';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0 * texSize + 1, 0 * texSize + 1, texSize - 2, texSize - 2);
+
+            // --- 13: Portal Energy (1, 0) ---
+            drawNoise(1, 0, 25, 0, 50, 10);
+            // Purple space-swirls
+            ctx.fillStyle = '#8a2be2';
+            for (let i = 0; i < 40; i++) {
+                ctx.fillRect(1 * texSize + Math.random() * (texSize - 8), Math.random() * (texSize - 8), Math.random() * 8 + 4, Math.random() * 4 + 2);
+            }
+            ctx.fillStyle = '#da70d6';
+            for (let i = 0; i < 20; i++) {
+                ctx.fillRect(1 * texSize + Math.random() * (texSize - 4), Math.random() * (texSize - 4), 4, 2);
+            }
+
+            // --- 14: Luminous Water (2, 0) ---
+            ctx.clearRect(2 * texSize, 0 * texSize, texSize, texSize);
+            ctx.fillStyle = 'rgba(30, 144, 255, 0.6)';
+            ctx.fillRect(2 * texSize, 0 * texSize, texSize, texSize);
+            // Wave ripples
+            ctx.fillStyle = 'rgba(0, 191, 255, 0.8)';
+            for (let i = 0; i < 15; i++) {
+                const wx = Math.random() * texSize;
+                const wy = Math.random() * texSize;
+                ctx.fillRect(2 * texSize + wx, wy, 16, 2);
+            }
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            for (let i = 0; i < 10; i++) {
+                ctx.fillRect(2 * texSize + Math.random() * texSize, Math.random() * texSize, 4, 1);
+            }
+
+            // --- 15: Glass (3, 0) ---
+            ctx.clearRect(3 * texSize, 0 * texSize, texSize, texSize);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.fillRect(3 * texSize, 0 * texSize, texSize, texSize);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(3 * texSize + 1, 0 * texSize + 1, texSize - 2, texSize - 2);
+            // White highlight streak
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.beginPath();
+            ctx.moveTo(3 * texSize + 10, 10);
+            ctx.lineTo(3 * texSize + texSize - 10, texSize - 10);
+            ctx.lineTo(3 * texSize + texSize - 14, texSize - 10);
+            ctx.lineTo(3 * texSize + 6, 10);
+            ctx.closePath();
+            ctx.fill();
+
+            // Return texture
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.NearestFilter;
+            texture.minFilter = THREE.NearestFilter;
+            return texture;
+        }
+
+        // --- 4. 3D IMPROVED PERLIN NOISE CLASS ---
+        class ImprovedNoise {
+            constructor() {
+                const p = [151,160,137,91,90,15,
+                131,13,201,95,96,53,194,233, 7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,
+                190, 6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,
+                88,237,149,56,87,174,20,125,136,171,168, 68,175,74,165,71,134,139,48,27,166,
+                77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,
+                102,143,54, 65,25,63,161, 1,216,80,73,209,76,132,187,208, 89,18,169,200,196,
+                135,130,116,188,189,143,244,235,186,60,182,185,166,245,160,1,244,140,124,48,
+                115,224,141,184,229,29,11,248,187,47,152,22,12,184,81,34,190,130,22,238,206,
+                72,176,137,215,30,219,31,75,9,141,123,220,167,250,58,193,121,80,208,167,0,
+                139,230,166,188,189,87,244,151,200,97,180,252,115,181,124,212,150,9,249,30,
+                84,189,223,154,75,86,244,121,193,14,150,16,145,129,56,221,110,26,88,127,129,
+                162,120,240,37,135,30,0,188,143,142,217,80,52,59,22,252,220,90,250,113,16,
+                203,116,35,11,32,95,33,128,121,252,192,207,151,12,95,236,220,224,193,150,
+                16,38,175,70,239,171,85,97,229,70,210,21,242,78,203,127,136,144,47,85,190,
+                2,182,29,148,241,120,137,86,238,110,181,81,77,236,137,21,224,162,219,10,252,
+                188,242,120,247,228,89,9,201,223,16,250,211,10,30,229,70,12,166,68,12,24,
+                129,236,54,196,167,125,234,251,224,162,222,86,120,41,89,148,18,131,21,189,
+                250,42,91,52,59,0,26,252,252,121,248,40,111,224,9,112,111,229];
+
+                this.permutation = new Array(512);
+                for (let i = 0; i < 256; i++) {
+                    this.permutation[i] = p[i];
+                    this.permutation[256 + i] = p[i];
+                }
+            }
+
+            fade(t) {
+                return t * t * t * (t * (t * 6 - 15) + 10);
+            }
+
+            lerp(t, a, b) {
+                return a + t * (b - a);
+            }
+
+            grad(hash, x, y, z) {
+                const h = hash & 15;
+                const u = h < 8 ? x : y;
+                const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+                return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+            }
+
+            noise(x, y, z) {
+                const floorX = Math.floor(x);
+                const floorY = Math.floor(y);
+                const floorZ = Math.floor(z);
+
+                const X = floorX & 255;
+                const Y = floorY & 255;
+                const Z = floorZ & 255;
+
+                x -= floorX;
+                y -= floorY;
+                z -= floorZ;
+
+                const xMinus1 = x - 1;
+                const yMinus1 = y - 1;
+                const zMinus1 = z - 1;
+
+                const u = this.fade(x);
+                const v = this.fade(y);
+                const w = this.fade(z);
+
+                const A = this.permutation[X] + Y;
+                const AA = this.permutation[A] + Z;
+                const AB = this.permutation[A + 1] + Z;
+                const B = this.permutation[X + 1] + Y;
+                const BA = this.permutation[B] + Z;
+                const BB = this.permutation[B + 1] + Z;
+
+                return this.lerp(w,
+                    this.lerp(v,
+                        this.lerp(u, this.grad(this.permutation[AA], x, y, z),
+                                     this.grad(this.permutation[BA], xMinus1, y, z)),
+                        this.lerp(u, this.grad(this.permutation[AB], x, yMinus1, z),
+                                     this.grad(this.permutation[BB], xMinus1, yMinus1, z))
+                    ),
+                    this.lerp(v,
+                        this.lerp(u, this.grad(this.permutation[AA + 1], x, y, zMinus1),
+                                     this.grad(this.permutation[BA + 1], xMinus1, y, zMinus1)),
+                        this.lerp(u, this.grad(this.permutation[AB + 1], x, yMinus1, zMinus1),
+                                     this.grad(this.permutation[BB + 1], xMinus1, yMinus1, zMinus1))
+                    )
+                );
+            }
+        }
+        const perlin = new ImprovedNoise();
+
+        // --- 5. GLOBAL VOXEL DATABASE & PROCEDURAL ENGINE ---
+        const chunkVoxels = new Map(); // key: "cx,cz", value: Uint8Array(16 * 128 * 16)
+        const terrainGenerated = new Set(); // key: "cx,cz"
+
+        // Helper to check if a block type is transparent
+        function isTransparent(type) {
+            if (type === BLOCK_TYPES.AIR) return true;
+            return BLOCK_DETAILS[type]?.transparent || false;
+        }
+
+        // Base terrain height formula using multi-layered noise
+        function getTerrainHeight(wx, wz) {
+            let height = 30; // base floor
+            
+            if (worldSeed === "valleys") {
+                // Large sweeping hills
+                const n1 = perlin.noise(wx * 0.005, 0, wz * 0.005) * 25;
+                // Minor rocky detail
+                const n2 = perlin.noise(wx * 0.04, 0, wz * 0.04) * 5;
+                height += n1 + n2;
+            } else if (worldSeed === "islands") {
+                // Flying islands pattern - we use noise to generate huge floating gaps
+                // Base ground is very low, peaks are high
+                const baseNoise = perlin.noise(wx * 0.01, 0, wz * 0.01);
+                if (baseNoise > 0.15) {
+                    height += 40 + perlin.noise(wx * 0.03, 0, wz * 0.03) * 15;
+                } else {
+                    height += baseNoise * 10 - 10; // low ocean/void floor
+                }
+            } else if (worldSeed === "abyss") {
+                // Dark valleys and caverns
+                const canyon = Math.abs(perlin.noise(wx * 0.015, 0, wz * 0.015));
+                height += (canyon < 0.2 ? 5 : 45 + perlin.noise(wx * 0.05, 0, wz * 0.05) * 8);
+            }
+            
+            return Math.floor(height);
+        }
+
+        function getVoxel(x, y, z) {
+            if (y < 0 || y >= WORLD_HEIGHT) return BLOCK_TYPES.AIR;
+            const cx = Math.floor(x / CHUNK_SIZE);
+            const cz = Math.floor(z / CHUNK_SIZE);
+            const key = `${cx},${cz}`;
+            let arr = chunkVoxels.get(key);
+            if (!arr) {
+                // If chunk is not initialized in world, auto-generate it
+                arr = generateChunkVoxels(cx, cz);
+            }
+            const ox = (x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+            const oz = (z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+            return arr[(ox * WORLD_HEIGHT + y) * CHUNK_SIZE + oz];
+        }
+
+        // Set voxel raw (instantly populating and creating chunk if needed)
+        function setVoxelRaw(x, y, z, type, triggerRebuild = true) {
+            if (y < 0 || y >= WORLD_HEIGHT) return;
+            const cx = Math.floor(x / CHUNK_SIZE);
+            const cz = Math.floor(z / CHUNK_SIZE);
+            const key = `${cx},${cz}`;
+            let arr = chunkVoxels.get(key);
+            if (!arr) {
+                arr = new Uint8Array(CHUNK_SIZE * WORLD_HEIGHT * CHUNK_SIZE);
+                chunkVoxels.set(key, arr);
+            }
+            const ox = (x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+            const oz = (z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+            arr[(ox * WORLD_HEIGHT + y) * CHUNK_SIZE + oz] = type;
+
+            if (triggerRebuild) {
+                dirtyChunks.add(key);
+                // Also trigger rebuild of adjacent chunks if block is on border (for face culling updates)
+                if (ox === 0) dirtyChunks.add(`${cx - 1},${cz}`);
+                if (ox === CHUNK_SIZE - 1) dirtyChunks.add(`${cx + 1},${cz}`);
+                if (oz === 0) dirtyChunks.add(`${cx},${cz - 1}`);
+                if (oz === CHUNK_SIZE - 1) dirtyChunks.add(`${cx},${cz + 1}`);
+            }
+        }
+
+        // Set voxel with player-facing interface (handles sound & visual updates)
+        function setVoxel(x, y, z, type) {
+            setVoxelRaw(x, y, z, type, true);
+        }
+
+        // --- 5B. MYTHOLOGICAL STRUCTURE GENERATION ---
+        function trySpawnStructure(cx, cz) {
+            // Use deterministic random based on chunk coords
+            const hash = Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453;
+            const rand = hash - Math.floor(hash);
+
+            const centerX = cx * CHUNK_SIZE + 8;
+            const centerZ = cz * CHUNK_SIZE + 8;
+            const surfY = getTerrainHeight(centerX, centerZ);
+
+            if (worldSeed === "islands") {
+                // High probability of floating temples in islands mode
+                if (rand < 0.02) {
+                    spawnAetherTemple(centerX, 90, centerZ);
+                } else if (rand < 0.05 && surfY > 20) {
+                    spawnWorldTree(centerX, surfY, centerZ);
+                }
+            } else if (worldSeed === "abyss") {
+                // Portal ruins and caverns spawn more frequently in Abyss
+                if (rand < 0.035 && surfY > 15) {
+                    spawnAncientRuins(centerX, surfY, centerZ);
+                } else if (rand < 0.05 && surfY > 15) {
+                    spawnWorldTree(centerX, surfY, centerZ);
+                }
+            } else {
+                // Normal Valleys Mode
+                if (rand < 0.008) {
+                    spawnAetherTemple(centerX, 95, centerZ);
+                } else if (rand < 0.022 && surfY > 20) {
+                    spawnAncientRuins(centerX, surfY, centerZ);
+                } else if (rand < 0.05 && surfY > 20) {
+                    spawnWorldTree(centerX, surfY, centerZ);
+                }
+            }
+        }
+
+        function spawnAetherTemple(centerX, yBase, centerZ) {
+            const radius = 6;
+            // Platform
+            for (let dx = -radius; dx <= radius; dx++) {
+                for (let dz = -radius; dz <= radius; dz++) {
+                    const dist = Math.sqrt(dx*dx + dz*dz);
+                    if (dist <= radius) {
+                        const x = centerX + dx;
+                        const z = centerZ + dz;
+                        setVoxelRaw(x, yBase, z, BLOCK_TYPES.QUARTZ, false);
+                        // Gold edge
+                        if (dist > radius - 1.2) {
+                            setVoxelRaw(x, yBase + 1, z, BLOCK_TYPES.GOLD, false);
+                        }
+                    }
+                }
+            }
+
+            // Columns (4 corners of platform)
+            const offsets = [-4, 4];
+            for (let ox of offsets) {
+                for (let oz of offsets) {
+                    const px = centerX + ox;
+                    const pz = centerZ + oz;
+                    for (let h = 1; h <= 6; h++) {
+                        setVoxelRaw(px, yBase + h, pz, BLOCK_TYPES.QUARTZ, false);
+                    }
+                    setVoxelRaw(px, yBase + 7, pz, BLOCK_TYPES.GOLD, false);
+                }
+            }
+
+            // Roof
+            for (let dx = -5; dx <= 5; dx++) {
+                for (let dz = -5; dz <= 5; dz++) {
+                    const x = centerX + dx;
+                    const z = centerZ + dz;
+                    setVoxelRaw(x, yBase + 8, z, BLOCK_TYPES.QUARTZ, false);
+                    if (Math.abs(dx) === 5 || Math.abs(dz) === 5) {
+                        setVoxelRaw(x, yBase + 8, z, BLOCK_TYPES.GOLD, false);
+                    }
+                }
+            }
+
+            // Core in center
+            setVoxelRaw(centerX, yBase + 1, centerZ, BLOCK_TYPES.GOLD, false);
+            setVoxelRaw(centerX, yBase + 2, centerZ, BLOCK_TYPES.CRYSTAL_CYAN, false);
+            setVoxelRaw(centerX, yBase + 3, centerZ, BLOCK_TYPES.CRYSTAL_CYAN, false);
+            setVoxelRaw(centerX, yBase + 4, centerZ, BLOCK_TYPES.GOLD, false);
+
+            // Waterfalls falling into the void
+            setVoxelRaw(centerX + 3, yBase, centerZ, BLOCK_TYPES.WATER, false);
+            setVoxelRaw(centerX - 3, yBase, centerZ, BLOCK_TYPES.WATER, false);
+            setVoxelRaw(centerX, yBase, centerZ + 3, BLOCK_TYPES.WATER, false);
+            setVoxelRaw(centerX, yBase, centerZ - 3, BLOCK_TYPES.WATER, false);
+        }
+
+        function spawnAncientRuins(centerX, yBase, centerZ) {
+            const radius = 5;
+            // Dilapidated Floor
+            for (let dx = -radius; dx <= radius; dx++) {
+                for (let dz = -radius; dz <= radius; dz++) {
+                    const x = centerX + dx;
+                    const z = centerZ + dz;
+                    if (Math.random() < 0.7) {
+                        const type = Math.random() < 0.4 ? BLOCK_TYPES.MOSSY_COBBLESTONE : BLOCK_TYPES.COBBLESTONE;
+                        setVoxelRaw(x, yBase - 1, z, type, false);
+                    }
+                }
+            }
+
+            // Pillars
+            const pillarPos = [[-3, -3], [3, -3], [-3, 3], [3, 3]];
+            for (let pos of pillarPos) {
+                const px = centerX + pos[0];
+                const pz = centerZ + pos[1];
+                const height = Math.floor(Math.random() * 4) + 2;
+                for (let h = 0; h < height; h++) {
+                    const type = Math.random() < 0.5 ? BLOCK_TYPES.MOSSY_COBBLESTONE : BLOCK_TYPES.COBBLESTONE;
+                    setVoxelRaw(px, yBase + h, pz, type, false);
+                }
+            }
+
+            // Portal Frame (facing X-axis, aligned along Z-axis)
+            const px = centerX;
+            for (let dy = 0; dy < 5; dy++) {
+                for (let dz = -1; dz <= 2; dz++) {
+                    const isBorder = (dy === 0 || dy === 4 || dz === -1 || dz === 2);
+                    const wx = px;
+                    const wy = yBase + dy;
+                    const wz = centerZ + dz;
+                    if (isBorder) {
+                        setVoxelRaw(wx, wy, wz, BLOCK_TYPES.CRYSTAL_PURPLE, false);
+                    } else {
+                        setVoxelRaw(wx, wy, wz, BLOCK_TYPES.PORTAL, false);
+                    }
+                }
+            }
+        }
+
+        function spawnWorldTree(centerX, yBase, centerZ) {
+            const trunkHeight = Math.floor(Math.random() * 8) + 14;
+            // 2x2 Trunk
+            for (let dy = 0; dy < trunkHeight; dy++) {
+                setVoxelRaw(centerX, yBase + dy, centerZ, BLOCK_TYPES.WOOD, false);
+                setVoxelRaw(centerX + 1, yBase + dy, centerZ, BLOCK_TYPES.WOOD, false);
+                setVoxelRaw(centerX, yBase + dy, centerZ + 1, BLOCK_TYPES.WOOD, false);
+                setVoxelRaw(centerX + 1, yBase + dy, centerZ + 1, BLOCK_TYPES.WOOD, false);
+            }
+
+            // Leaves canopy
+            const canopyRadius = 6;
+            const canopyCenterY = yBase + trunkHeight - 3;
+            for (let dx = -canopyRadius; dx <= canopyRadius + 1; dx++) {
+                for (let dy = -canopyRadius; dy <= canopyRadius; dy++) {
+                    for (let dz = -canopyRadius; dz <= canopyRadius + 1; dz++) {
+                        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                        if (dist <= canopyRadius) {
+                            const lx = centerX + dx;
+                            const ly = canopyCenterY + dy;
+                            const lz = centerZ + dz;
+                            
+                            // Check if air
+                            if (getVoxel(lx, ly, lz) === BLOCK_TYPES.AIR) {
+                                // Spawn glowing cyan crystal fruits inside leaf canopy
+                                if (Math.random() < 0.03) {
+                                    setVoxelRaw(lx, ly, lz, BLOCK_TYPES.CRYSTAL_CYAN, false);
+                                } else {
+                                    setVoxelRaw(lx, ly, lz, BLOCK_TYPES.LEAVES, false);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 5C. CHUNK VOXEL GENERATOR ---
+        function generateChunkVoxels(cx, cz) {
+            const key = `${cx},${cz}`;
+            let arr = chunkVoxels.get(key);
+            if (!arr) {
+                arr = new Uint8Array(CHUNK_SIZE * WORLD_HEIGHT * CHUNK_SIZE);
+                chunkVoxels.set(key, arr);
+            }
+
+            if (!terrainGenerated.has(key)) {
+                terrainGenerated.add(key);
+
+                // Populate terrain
+                for (let ox = 0; ox < CHUNK_SIZE; ox++) {
+                    for (let oz = 0; oz < CHUNK_SIZE; oz++) {
+                        const wx = cx * CHUNK_SIZE + ox;
+                        const wz = cz * CHUNK_SIZE + oz;
+                        const height = getTerrainHeight(wx, wz);
+
+                        for (let y = 0; y < WORLD_HEIGHT; y++) {
+                            const idx = (ox * WORLD_HEIGHT + y) * CHUNK_SIZE + oz;
+
+                            // Skip if pre-populated by structure blocks
+                            if (arr[idx] !== BLOCK_TYPES.AIR) continue;
+
+                            let type = BLOCK_TYPES.AIR;
+                            if (y <= height) {
+                                if (y === height) {
+                                    type = BLOCK_TYPES.GRASS;
+                                } else if (y > height - 4) {
+                                    type = BLOCK_TYPES.DIRT;
+                                } else {
+                                    type = BLOCK_TYPES.STONE;
+                                }
+                            }
+
+                            // Cavern Caves & Crystal cavern decoration using 3D Perlin Noise
+                            if (type !== BLOCK_TYPES.AIR && y < 35) {
+                                const caveNoise = perlin.noise(wx * 0.06, y * 0.12, wz * 0.06);
+                                if (caveNoise > 0.42) {
+                                    type = BLOCK_TYPES.AIR;
+                                }
+                            }
+
+                            // Deep cave crystal decoration on cave floors/ceilings
+                            if (type === BLOCK_TYPES.AIR && y < 22 && y > 2) {
+                                const floorBlock = (y > 0) ? arr[(ox * WORLD_HEIGHT + (y - 1)) * CHUNK_SIZE + oz] : BLOCK_TYPES.AIR;
+                                if (floorBlock === BLOCK_TYPES.STONE && Math.random() < 0.015) {
+                                    type = Math.random() < 0.5 ? BLOCK_TYPES.CRYSTAL_CYAN : BLOCK_TYPES.CRYSTAL_PURPLE;
+                                }
+                            }
+
+                            // Generate water level for sea (sea level = 20)
+                            if (type === BLOCK_TYPES.AIR && y <= 20) {
+                                type = BLOCK_TYPES.WATER;
+                            }
+
+                            arr[idx] = type;
+                        }
+                    }
+                }
+
+                // Trigger structure seeding centered in this chunk
+                trySpawnStructure(cx, cz);
+            }
+            return arr;
+        }
+
+        // --- 6. OPTIMIZED VOXEL MESH BUILDER (FACE CULLING) ---
+        // Voxel UV mapping in our 4x4 atlas grid
+        const UV_EPSILON = 0.0008;
+        const ATLAS_COORDS = {
+            [BLOCK_TYPES.GRASS]: {
+                top: [0, 3], bottom: [2, 3], side: [1, 3]
+            },
+            [BLOCK_TYPES.DIRT]: {
+                all: [2, 3]
+            },
+            [BLOCK_TYPES.STONE]: {
+                all: [3, 3]
+            },
+            [BLOCK_TYPES.COBBLESTONE]: {
+                all: [0, 2]
+            },
+            [BLOCK_TYPES.MOSSY_COBBLESTONE]: {
+                all: [1, 2]
+            },
+            [BLOCK_TYPES.WOOD]: {
+                top: [3, 2], bottom: [3, 2], side: [2, 2]
+            },
+            [BLOCK_TYPES.LEAVES]: {
+                all: [0, 1]
+            },
+            [BLOCK_TYPES.QUARTZ]: {
+                all: [1, 1]
+            },
+            [BLOCK_TYPES.GOLD]: {
+                all: [2, 1]
+            },
+            [BLOCK_TYPES.CRYSTAL_CYAN]: {
+                all: [3, 1]
+            },
+            [BLOCK_TYPES.CRYSTAL_PURPLE]: {
+                all: [0, 0]
+            },
+            [BLOCK_TYPES.PORTAL]: {
+                all: [1, 0]
+            },
+            [BLOCK_TYPES.WATER]: {
+                all: [2, 0]
+            },
+            [BLOCK_TYPES.GLASS]: {
+                all: [3, 0]
+            }
+        };
+
+        function getUVForFace(blockType, faceName) {
+            const atlasPos = ATLAS_COORDS[blockType];
+            let coords = atlasPos?.all || atlasPos?.[faceName] || [0, 0];
+            
+            // Calculate UV min/max with epsilon padding
+            const uMin = coords[0] * 0.25 + UV_EPSILON;
+            const uMax = (coords[0] + 1) * 0.25 - UV_EPSILON;
+            const vMin = coords[1] * 0.25 + UV_EPSILON;
+            const vMax = (coords[1] + 1) * 0.25 - UV_EPSILON;
+            
+            return { uMin, uMax, vMin, vMax };
+        }
+
+        // Compiles visual mesh data for a single chunk
+        function buildChunkGeometry(cx, cz) {
+            const arr = chunkVoxels.get(`${cx},${cz}`);
+            if (!arr) return null;
+
+            // Arrays for geometry buffers
+            const opaque = { positions: [], normals: [], uvs: [], indices: [], vertCount: 0 };
+            const transparent = { positions: [], normals: [], uvs: [], indices: [], vertCount: 0 };
+
+            // Face definition helper
+            function addFace(buffers, x, y, z, nx, ny, nz, uvs) {
+                const positions = buffers.positions;
+                const normals = buffers.normals;
+                const uvsArray = buffers.uvs;
+                const indices = buffers.indices;
+                const vc = buffers.vertCount;
+
+                // Push 4 vertices per face based on normals
+                if (nx === -1) { // Left Face (-X)
+                    positions.push(x, y, z,   x, y, z+1,   x, y+1, z+1,   x, y+1, z);
+                } else if (nx === 1) { // Right Face (+X)
+                    positions.push(x+1, y, z+1,   x+1, y, z,   x+1, y+1, z,   x+1, y+1, z+1);
+                } else if (ny === -1) { // Bottom Face (-Y)
+                    positions.push(x, y, z,   x+1, y, z,   x+1, y, z+1,   x, y, z+1);
+                } else if (ny === 1) { // Top Face (+Y)
+                    positions.push(x, y+1, z+1,   x+1, y+1, z+1,   x+1, y+1, z,   x, y+1, z);
+                } else if (nz === -1) { // Back Face (-Z)
+                    positions.push(x+1, y, z,   x, y, z,   x, y+1, z,   x+1, y+1, z);
+                } else if (nz === 1) { // Front Face (+Z)
+                    positions.push(x, y, z+1,   x+1, y, z+1,   x+1, y+1, z+1,   x, y+1, z+1);
+                }
+
+                // Push Normals 4 times
+                for (let i = 0; i < 4; i++) {
+                    normals.push(nx, ny, nz);
+                }
+
+                // Push UVs
+                uvsArray.push(uvs.uMin, uvs.vMin,   uvs.uMax, uvs.vMin,   uvs.uMax, uvs.vMax,   uvs.uMin, uvs.vMax);
+
+                // Push Indices (2 triangles)
+                indices.push(vc, vc+1, vc+2,   vc, vc+2, vc+3);
+                buffers.vertCount += 4;
+            }
+
+            // Loop through chunk voxels
+            for (let ox = 0; ox < CHUNK_SIZE; ox++) {
+                for (let y = 0; y < WORLD_HEIGHT; y++) {
+                    for (let oz = 0; oz < CHUNK_SIZE; oz++) {
+                        const idx = (ox * WORLD_HEIGHT + y) * CHUNK_SIZE + oz;
+                        const blockType = arr[idx];
+                        if (blockType === BLOCK_TYPES.AIR) continue;
+
+                        const wx = cx * CHUNK_SIZE + ox;
+                        const wz = cz * CHUNK_SIZE + oz;
+                        
+                        const isWater = (blockType === BLOCK_TYPES.WATER);
+                        const destBuffers = isWater ? transparent : opaque;
+
+                        // Check 6 directions
+                        const neighbors = [
+                            { nx: -1, ny: 0, nz: 0, face: 'side' },   // Left
+                            { nx: 1, ny: 0, nz: 0, face: 'side' },    // Right
+                            { nx: 0, ny: -1, nz: 0, face: 'bottom' }, // Bottom
+                            { nx: 0, ny: 1, nz: 0, face: 'top' },     // Top
+                            { nx: 0, ny: 0, nz: -1, face: 'side' },   // Back
+                            { nx: 0, ny: 0, nz: 1, face: 'side' }     // Front
+                        ];
+
+                        for (let n of neighbors) {
+                            const nType = getVoxel(wx + n.nx, y + n.ny, wz + n.nz);
+                            
+                            // Face culling conditions:
+                            // 1. Draw if neighbor is air
+                            // 2. Draw solid next to transparent
+                            // 3. Draw different transparents next to each other (e.g. water next to glass)
+                            let draw = false;
+                            if (nType === BLOCK_TYPES.AIR) {
+                                draw = true;
+                            } else if (isTransparent(nType) && !isTransparent(blockType)) {
+                                draw = true;
+                            } else if (isTransparent(nType) && blockType !== nType) {
+                                draw = true;
+                            }
+
+                            if (draw) {
+                                const uvs = getUVForFace(blockType, n.face);
+                                addFace(destBuffers, wx, y, wz, n.nx, n.ny, n.nz, uvs);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return { opaque, transparent };
+        }
+
+        // --- 7. GAME ENGINE CLASS ---
+        class Game {
+            constructor() {
+                this.container = document.getElementById('canvas-container');
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                
+                // Lights
+                this.sunLight = null;
+                this.moonLight = null;
+                this.ambientLight = null;
+                this.hemisphereLight = null;
+                
+                // Timing & Game State
+                this.clock = new THREE.Clock();
+                this.keys = {};
+                this.loadedChunks = new Map(); // key: "cx,cz", value: { opaqueMesh, transMesh }
+                this.timeOfDay = 0.35; // 0..1 (0.35 is bright afternoon)
+                this.isPaused = true;
+                
+                // Player Physics & Spectator
+                this.player = {
+                    x: 0, y: 40, z: 0,
+                    vx: 0, vy: 0, vz: 0,
+                    speed: 7.0,
+                    sprintMultiplier: 1.6,
+                    jumpForce: 10.0,
+                    onGround: false,
+                    creativeFly: false
+                };
+                
+                this.gravity = -26.0;
+                this.friction = 8.0; // horizontal deceleration
+
+                // Visual FX & Particles
+                this.particles = [];
+                this.maxParticles = 500;
+                this.particlePoints = null;
+                this.particlePositions = new Float32Array(this.maxParticles * 3);
+                this.particleColors = new Float32Array(this.maxParticles * 3);
+                this.ambientDust = null;
+
+                // Selection Outline
+                this.selectionBox = null;
+                this.targetedVoxel = null; // {x, y, z, nx, ny, nz}
+
+                // FPS display
+                this.frameCount = 0;
+                this.fpsTimer = 0;
+            }
+
+            init() {
+                // Scene & Camera setup
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color('#7ec0ee');
+                this.scene.fog = new THREE.FogExp2('#d0e0f0', 0.012);
+
+                this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.rotation.order = 'YXZ'; // Perfect FPS look
+
+                // Renderer
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.outputEncoding = THREE.sRGBEncoding;
+                this.container.appendChild(this.renderer.domElement);
+
+                // Load Shared Texture Atlas
+                this.textureAtlas = generateTextureAtlas();
+
+                // Material Setup
+                this.opaqueMaterial = new THREE.MeshStandardMaterial({
+                    map: this.textureAtlas,
+                    roughness: 0.85,
+                    metalness: 0.1,
+                    alphaTest: 0.5,
+                    side: THREE.DoubleSide
+                });
+
+                this.transparentMaterial = new THREE.MeshStandardMaterial({
+                    map: this.textureAtlas,
+                    roughness: 0.1,
+                    metalness: 0.15,
+                    transparent: true,
+                    opacity: 0.65,
+                    depthWrite: false,
+                    side: THREE.DoubleSide
+                });
+
+                // Spawn selection highlight box
+                const geom = new THREE.BoxGeometry(1.002, 1.002, 1.002);
+                const edges = new THREE.EdgesGeometry(geom);
+                const lineMat = new THREE.LineBasicMaterial({ color: 0x00ffcc, linewidth: 2 });
+                this.selectionBox = new THREE.LineSegments(edges, lineMat);
+                this.selectionBox.visible = false;
+                this.scene.add(this.selectionBox);
+
+                // Setup Particle System
+                this.setupParticleSystem();
+
+                // Setup ambient magical glowing dust motes
+                this.setupAmbientDust();
+
+                // Lights
+                this.setupLights();
+
+                // Initialize Spawn Position
+                this.resetPlayerSpawn();
+
+                // Register event listeners
+                this.registerEvents();
+
+                // Start loop
+                this.clock.getDelta(); // flush clock
+                this.animate();
+            }
+
+            resetPlayerSpawn() {
+                // Generate spawn chunks
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dz = -1; dz <= 1; dz++) {
+                        generateChunkVoxels(dx, dz);
+                    }
+                }
+                
+                // Find highest block at 0, 0
+                let spawnY = 30;
+                for (let y = WORLD_HEIGHT - 1; y >= 0; y--) {
+                    const block = getVoxel(0, y, 0);
+                    if (block !== BLOCK_TYPES.AIR && block !== BLOCK_TYPES.WATER) {
+                        spawnY = y + 1;
+                        break;
+                    }
+                }
+                this.player.x = 0.5;
+                this.player.y = spawnY + 2.0;
+                this.player.z = 0.5;
+                this.player.vx = 0;
+                this.player.vy = 0;
+                this.player.vz = 0;
+
+                this.camera.position.set(this.player.x, this.player.y + 1.6, this.player.z);
+                this.camera.rotation.set(0, 0, 0);
+            }
+
+            setupLights() {
+                // Hemisphere Sky light
+                this.hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.4);
+                this.scene.add(this.hemisphereLight);
+
+                // Ambient glow
+                this.ambientLight = new THREE.AmbientLight(0x0a0a1a, 0.2);
+                this.scene.add(this.ambientLight);
+
+                // Main Sun Light (casting shadows)
+                this.sunLight = new THREE.DirectionalLight(0xfff1cc, 0.8);
+                this.sunLight.castShadow = true;
+                this.sunLight.shadow.mapSize.width = 1024;
+                this.sunLight.shadow.mapSize.height = 1024;
+                this.sunLight.shadow.camera.near = 0.5;
+                this.sunLight.shadow.camera.far = 200;
+                
+                const d = 50;
+                this.sunLight.shadow.camera.left = -d;
+                this.sunLight.shadow.camera.right = d;
+                this.sunLight.shadow.camera.top = d;
+                this.sunLight.shadow.camera.bottom = -d;
+                this.scene.add(this.sunLight);
+
+                // Moon Light
+                this.moonLight = new THREE.DirectionalLight(0xaaccff, 0.3);
+                this.moonLight.castShadow = false;
+                this.scene.add(this.moonLight);
+            }
+
+            setupParticleSystem() {
+                const geom = new THREE.BufferGeometry();
+                geom.setAttribute('position', new THREE.BufferAttribute(this.particlePositions, 3));
+                geom.setAttribute('color', new THREE.BufferAttribute(this.particleColors, 3));
+                
+                const mat = new THREE.PointsMaterial({
+                    size: 0.18,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.85
+                });
+                
+                this.particlePoints = new THREE.Points(geom, mat);
+                this.scene.add(this.particlePoints);
+            }
+
+            setupAmbientDust() {
+                // Add magical sparkles in the sky
+                const count = 300;
+                const geom = new THREE.BufferGeometry();
+                const pos = new Float32Array(count * 3);
+                
+                for (let i = 0; i < count; i++) {
+                    pos[i*3] = (Math.random() - 0.5) * 120;
+                    pos[i*3+1] = 20 + Math.random() * 80;
+                    pos[i*3+2] = (Math.random() - 0.5) * 120;
+                }
+                
+                geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                const mat = new THREE.PointsMaterial({
+                    size: 0.25,
+                    color: 0xffe680,
+                    transparent: true,
+                    opacity: 0.5,
+                    blending: THREE.AdditiveBlending
+                });
+                
+                this.ambientDust = new THREE.Points(geom, mat);
+                this.scene.add(this.ambientDust);
+            }
+
+            registerEvents() {
+                // Key state mapping
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.code] = true;
+                    this.handleKeyDownImmediate(e);
+                });
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.code] = false;
+                });
+
+                // Window Resize
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                // Pointer Lock listeners
+                const startBtn = document.getElementById('start-btn');
+                const resumeBtn = document.getElementById('resume-btn');
+                const mainMenu = document.getElementById('main-menu');
+                const pauseMenu = document.getElementById('pause-menu');
+
+                const requestLock = () => {
+                    audio.init();
+                    document.body.requestPointerLock();
+                };
+
+                startBtn.addEventListener('click', requestLock);
+                resumeBtn.addEventListener('click', requestLock);
+
+                document.addEventListener('pointerlockchange', () => {
+                    if (document.pointerLockElement === document.body) {
+                        this.isPaused = false;
+                        mainMenu.classList.add('hidden');
+                        pauseMenu.classList.add('hidden');
+                    } else {
+                        this.isPaused = true;
+                        // Only show pause menu if creative inventory is not open
+                        if (document.getElementById('creative-inventory').classList.contains('hidden')) {
+                            pauseMenu.classList.remove('hidden');
+                        }
+                    }
+                });
+
+                // Mouse camera rotation (Only when locked)
+                document.addEventListener('mousemove', (e) => {
+                    if (document.pointerLockElement === document.body && !this.isPaused) {
+                        this.camera.rotation.y -= e.movementX * 0.0022;
+                        this.camera.rotation.x -= e.movementY * 0.0022;
+                        
+                        // Limit pitch to -85deg to +85deg
+                        const limit = Math.PI / 2 - 0.06;
+                        this.camera.rotation.x = Math.max(-limit, Math.min(limit, this.camera.rotation.x));
+                    }
+                });
+
+                // Block Interaction (Click handlers)
+                window.addEventListener('mousedown', (e) => {
+                    if (document.pointerLockElement !== document.body || this.isPaused) return;
+
+                    if (e.button === 0) { // Left Click - Break
+                        this.breakBlock();
+                    } else if (e.button === 2) { // Right Click - Place
+                        this.placeBlock();
+                    }
+                });
+
+                // Scroll Wheel to select slots
+                window.addEventListener('wheel', (e) => {
+                    if (this.isPaused) return;
+                    if (e.deltaY > 0) {
+                        activeHotbarIndex = (activeHotbarIndex + 1) % 9;
+                    } else {
+                        activeHotbarIndex = (activeHotbarIndex - 1 + 9) % 9;
+                    }
+                    this.updateHotbarUI();
+                });
+            }
+
+            handleKeyDownImmediate(e) {
+                // E - Creative Inventory Toggle
+                if (e.code === 'KeyE') {
+                    this.toggleCreativeInventory();
+                }
+                // F - Creative Fly Mode
+                if (e.code === 'KeyF') {
+                    if (document.pointerLockElement === document.body) {
+                        this.player.creativeFly = !this.player.creativeFly;
+                        this.player.vy = 0; // stop falling instantly
+                        this.showToast(this.player.creativeFly ? "Creative Fly Mode: ON" : "Creative Fly Mode: OFF");
+                        this.updateHUDStats();
+                    }
+                }
+                // 1..9 slot selection
+                if (e.code.startsWith('Digit') && e.code.length === 6) {
+                    const num = parseInt(e.code[5]);
+                    if (num >= 1 && num <= 9) {
+                        activeHotbarIndex = num - 1;
+                        this.updateHotbarUI();
+                    }
+                }
+            }
+
+            showToast(message) {
+                const toast = document.getElementById('toast-notification');
+                toast.textContent = message;
+                toast.classList.add('show');
+                clearTimeout(this.toastTimeout);
+                this.toastTimeout = setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2000);
+            }
+
+            toggleCreativeInventory() {
+                const inv = document.getElementById('creative-inventory');
+                if (inv.classList.contains('hidden')) {
+                    inv.classList.remove('hidden');
+                    document.exitPointerLock();
+                } else {
+                    inv.classList.add('hidden');
+                    document.body.requestPointerLock();
+                }
+            }
+
+            // --- 8. BLOCK RAYCASTER ---
+            // Simulates Raymarching along the grid to check intersections
+            performRaycast() {
+                const dir = new THREE.Vector3();
+                this.camera.getWorldDirection(dir);
+                const start = this.camera.position.clone();
+                const step = 0.04;
+                const maxReach = 6.5;
+
+                const current = start.clone();
+                const prev = start.clone();
+
+                for (let dist = 0; dist < maxReach; dist += step) {
+                    current.addScaledVector(dir, step);
+                    
+                    const bx = Math.floor(current.x);
+                    const by = Math.floor(current.y);
+                    const bz = Math.floor(current.z);
+
+                    const voxel = getVoxel(bx, by, bz);
+                    if (voxel !== BLOCK_TYPES.AIR) {
+                        // We hit a block!
+                        const pbx = Math.floor(prev.x);
+                        const pby = Math.floor(prev.y);
+                        const pbz = Math.floor(prev.z);
+
+                        // Calculate normal
+                        let nx = pbx - bx;
+                        let ny = pby - by;
+                        let nz = pbz - bz;
+
+                        // Clamp to face unit normal bounds
+                        nx = Math.max(-1, Math.min(1, nx));
+                        ny = Math.max(-1, Math.min(1, ny));
+                        nz = Math.max(-1, Math.min(1, nz));
+
+                        return {
+                            hit: true,
+                            x: bx, y: by, z: bz,
+                            nx, ny, nz,
+                            voxel
+                        };
+                    }
+                    prev.copy(current);
+                }
+                return { hit: false };
+            }
+
+            breakBlock() {
+                const hitInfo = this.performRaycast();
+                if (hitInfo.hit) {
+                    // Get voxel type for audio / particle feedback
+                    const blockType = hitInfo.voxel;
+                    
+                    // Don't break if it is Aether barrier or portal in some cases (unless we want to)
+                    setVoxel(hitInfo.x, hitInfo.y, hitInfo.z, BLOCK_TYPES.AIR);
+                    
+                    // Trigger sound synth
+                    audio.playBreak();
+
+                    // Spawn breaking particles
+                    this.spawnBreakParticles(hitInfo.x, hitInfo.y, hitInfo.z, blockType);
+                }
+            }
+
+            placeBlock() {
+                const hitInfo = this.performRaycast();
+                if (hitInfo.hit) {
+                    const targetX = hitInfo.x + hitInfo.nx;
+                    const targetY = hitInfo.y + hitInfo.ny;
+                    const targetZ = hitInfo.z + hitInfo.nz;
+
+                    if (targetY < 0 || targetY >= WORLD_HEIGHT) return;
+
+                    // Check if block overlaps player AABB
+                    const blockMinX = targetX;
+                    const blockMaxX = targetX + 1;
+                    const blockMinY = targetY;
+                    const blockMaxY = targetY + 1;
+                    const blockMinZ = targetZ;
+                    const blockMaxZ = targetZ + 1;
+
+                    const pMinX = this.player.x - 0.3;
+                    const pMaxX = this.player.x + 0.3;
+                    const pMinY = this.player.y;
+                    const pMaxY = this.player.y + 1.8;
+                    const pMinZ = this.player.z - 0.3;
+                    const pMaxZ = this.player.z + 0.3;
+
+                    const blockType = hotbarSlots[activeHotbarIndex];
+                    const isVoxelSolid = BLOCK_DETAILS[blockType].solid;
+
+                    // If placing a solid block, verify it doesn't clip the player's body
+                    if (isVoxelSolid) {
+                        const overlapX = pMaxX > blockMinX && pMinX < blockMaxX;
+                        const overlapY = pMaxY > blockMinY && pMinY < blockMaxY;
+                        const overlapZ = pMaxZ > blockMinZ && pMinZ < blockMaxZ;
+                        if (overlapX && overlapY && overlapZ) {
+                            return; // collides, cancel placing
+                        }
+                    }
+
+                    // Place the block
+                    setVoxel(targetX, targetY, targetZ, blockType);
+
+                    // Trigger sound
+                    audio.playPlace();
+                }
+            }
+
+            spawnBreakParticles(bx, by, bz, blockType) {
+                const center = new THREE.Vector3(bx + 0.5, by + 0.5, bz + 0.5);
+                const blockColorHex = BLOCK_DETAILS[blockType]?.color || '#ffffff';
+                const col = new THREE.Color(blockColorHex);
+
+                const particleCount = 18;
+                for (let i = 0; i < particleCount; i++) {
+                    this.particles.push({
+                        pos: center.clone().add(new THREE.Vector3(
+                            (Math.random() - 0.5) * 0.6,
+                            (Math.random() - 0.5) * 0.6,
+                            (Math.random() - 0.5) * 0.6
+                        )),
+                        vel: new THREE.Vector3(
+                            (Math.random() - 0.5) * 3.5,
+                            (Math.random() * 4.0) + 1.5, // blow upwards
+                            (Math.random() - 0.5) * 3.5
+                        ),
+                        color: col.clone().multiplyScalar(0.7 + Math.random() * 0.4), // slight shading noise
+                        age: 0.0,
+                        maxAge: 0.4 + Math.random() * 0.4
+                    });
+                }
+            }
+
+            updateParticles(dt) {
+                let activeCount = 0;
+                
+                const posAttr = this.particlePoints.geometry.getAttribute('position');
+                const colorAttr = this.particlePoints.geometry.getAttribute('color');
+
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.age += dt;
+                    if (p.age >= p.maxAge) {
+                        this.particles.splice(i, 1);
+                        continue;
+                    }
+
+                    // Physics: apply gravity and velocity
+                    p.vel.y -= 18.0 * dt;
+                    p.pos.addScaledVector(p.vel, dt);
+
+                    if (activeCount < this.maxParticles) {
+                        const idx = activeCount * 3;
+                        this.particlePositions[idx] = p.pos.x;
+                        this.particlePositions[idx+1] = p.pos.y;
+                        this.particlePositions[idx+2] = p.pos.z;
+
+                        this.particleColors[idx] = p.color.r;
+                        this.particleColors[idx+1] = p.color.g;
+                        this.particleColors[idx+2] = p.color.b;
+                        activeCount++;
+                    }
+                }
+
+                posAttr.needsUpdate = true;
+                colorAttr.needsUpdate = true;
+                this.particlePoints.geometry.setDrawRange(0, activeCount);
+            }
+
+            // --- 9. PLAYER MOVEMENT & COLLISION RESOLUTION ---
+            checkAABBCollisions(px, py, pz) {
+                const xMin = px - 0.3;
+                const xMax = px + 0.3;
+                const yMin = py;
+                const yMax = py + 1.8;
+                const zMin = pz - 0.3;
+                const zMax = pz + 0.3;
+
+                const bxMin = Math.floor(xMin);
+                const bxMax = Math.floor(xMax);
+                const byMin = Math.floor(yMin);
+                const byMax = Math.floor(yMax);
+                const bzMin = Math.floor(zMin);
+                const bzMax = Math.floor(zMax);
+
+                for (let x = bxMin; x <= bxMax; x++) {
+                    for (let y = byMin; y <= byMax; y++) {
+                        for (let z = bzMin; z <= bzMax; z++) {
+                            const voxel = getVoxel(x, y, z);
+                            const details = BLOCK_DETAILS[voxel];
+                            if (voxel !== BLOCK_TYPES.AIR && details.solid) {
+                                // Intersection check
+                                const blockMinX = x;
+                                const blockMaxX = x + 1;
+                                const blockMinY = y;
+                                const blockMaxY = y + 1;
+                                const blockMinZ = z;
+                                const blockMaxZ = z + 1;
+
+                                if (xMax > blockMinX && xMin < blockMaxX &&
+                                    yMax > blockMinY && yMin < blockMaxY &&
+                                    zMax > blockMinZ && zMin < blockMaxZ) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+
+            updatePlayerPhysics(dt) {
+                // If spectator / fly mode, bypass gravity & standard collisions
+                if (this.player.creativeFly) {
+                    this.updateSpectatorFly(dt);
+                    return;
+                }
+
+                // Apply Gravity
+                this.player.vy += this.gravity * dt;
+                // Terminal velocity
+                if (this.player.vy < -40.0) this.player.vy = -40.0;
+
+                // Move direction relative to camera looking angle
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+                forward.y = 0;
+                forward.normalize();
+                right.y = 0;
+                right.normalize();
+
+                const moveDir = new THREE.Vector3();
+                if (this.keys['KeyW']) moveDir.add(forward);
+                if (this.keys['KeyS']) moveDir.sub(forward);
+                if (this.keys['KeyD']) moveDir.add(right);
+                if (this.keys['KeyA']) moveDir.sub(right);
+                moveDir.normalize();
+
+                // Sprinting check
+                const isSprinting = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
+                const speedMultiplier = isSprinting ? this.player.sprintMultiplier : 1.0;
+                const targetSpeed = this.player.speed * speedMultiplier;
+
+                if (moveDir.lengthSq() > 0) {
+                    this.player.vx = moveDir.x * targetSpeed;
+                    this.player.vz = moveDir.z * targetSpeed;
+
+                    // Play rhythmic step sounds when moving on ground
+                    if (this.player.onGround && !this.isPaused) {
+                        if (!this.stepTimer) this.stepTimer = 0;
+                        this.stepTimer += dt;
+                        const stepInterval = isSprinting ? 0.28 : 0.38;
+                        if (this.stepTimer >= stepInterval) {
+                            audio.playStep();
+                            this.stepTimer = 0;
+                        }
+                    }
+                } else {
+                    // Decelerate smoothly using friction
+                    this.player.vx -= this.player.vx * this.friction * dt;
+                    this.player.vz -= this.player.vz * this.friction * dt;
+                    if (Math.abs(this.player.vx) < 0.1) this.player.vx = 0;
+                    if (Math.abs(this.player.vz) < 0.1) this.player.vz = 0;
+                }
+
+                // Jumping
+                if (this.keys['Space'] && this.player.onGround) {
+                    this.player.vy = this.player.jumpForce;
+                    this.player.onGround = false;
+                    audio.playJump();
+                }
+
+                // Displacement vectors
+                const dx = this.player.vx * dt;
+                const dy = this.player.vy * dt;
+                const dz = this.player.vz * dt;
+
+                // --- Axis-by-Axis Collision Resolution ---
+                // 1. Y Axis
+                this.player.y += dy;
+                this.player.onGround = false;
+                if (this.checkAABBCollisions(this.player.x, this.player.y, this.player.z)) {
+                    if (dy < 0) {
+                        // Landed on block top
+                        this.player.y = Math.floor(this.player.y) + 1.0;
+                        // Stepping out
+                        while (this.checkAABBCollisions(this.player.x, this.player.y, this.player.z)) {
+                            this.player.y += 1.0;
+                        }
+                        this.player.onGround = true;
+                    } else if (dy > 0) {
+                        // Hit ceiling
+                        this.player.y = Math.floor(this.player.y + 1.8) - 1.801;
+                    }
+                    this.player.vy = 0;
+                }
+
+                // 2. X Axis
+                this.player.x += dx;
+                if (this.checkAABBCollisions(this.player.x, this.player.y, this.player.z)) {
+                    if (dx < 0) {
+                        this.player.x = Math.floor(this.player.x - 0.3) + 1.301;
+                    } else {
+                        this.player.x = Math.floor(this.player.x + 0.3) - 0.301;
+                    }
+                    this.player.vx = 0;
+                }
+
+                // 3. Z Axis
+                this.player.z += dz;
+                if (this.checkAABBCollisions(this.player.x, this.player.y, this.player.z)) {
+                    if (dz < 0) {
+                        this.player.z = Math.floor(this.player.z - 0.3) + 1.301;
+                    } else {
+                        this.player.z = Math.floor(this.player.z + 0.3) - 0.301;
+                    }
+                    this.player.vz = 0;
+                }
+
+                // Fall into the void fallback (re-teleport player to highest peak)
+                if (this.player.y < -20) {
+                    this.resetPlayerSpawn();
+                    this.showToast("Returned to Spawn Peak");
+                }
+
+                // Update Camera Position to Head Level
+                this.camera.position.set(this.player.x, this.player.y + 1.6, this.player.z);
+            }
+
+            updateSpectatorFly(dt) {
+                // Free flying spectrum controls (no gravity, no collisions)
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+                
+                const moveDir = new THREE.Vector3();
+                if (this.keys['KeyW']) moveDir.add(forward);
+                if (this.keys['KeyS']) moveDir.sub(forward);
+                if (this.keys['KeyD']) moveDir.add(right);
+                if (this.keys['KeyA']) moveDir.sub(right);
+                
+                // Fly Up/Down using Space/Shift
+                if (this.keys['Space']) moveDir.y += 1.0;
+                if (this.keys['ShiftLeft'] || this.keys['ShiftRight']) moveDir.y -= 1.0;
+                
+                moveDir.normalize();
+
+                const flySpeed = 22.0; // fly faster than walking
+                this.player.x += moveDir.x * flySpeed * dt;
+                this.player.y += moveDir.y * flySpeed * dt;
+                this.player.z += moveDir.z * flySpeed * dt;
+
+                this.camera.position.set(this.player.x, this.player.y + 1.6, this.player.z);
+            }
+
+            // --- 10. DYNAMIC CHUNK MANAGER (INFINITE WORLD GENERATION) ---
+            updateChunksAroundPlayer() {
+                const pcx = Math.floor(this.player.x / CHUNK_SIZE);
+                const pcz = Math.floor(this.player.z / CHUNK_SIZE);
+
+                const activeKeys = new Set();
+
+                // Load chunks in render distance circle
+                for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+                    for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
+                        const cx = pcx + dx;
+                        const cz = pcz + dz;
+                        const key = `${cx},${cz}`;
+                        activeKeys.add(key);
+
+                        if (!this.loadedChunks.has(key)) {
+                            this.loadChunk(cx, cz);
+                        }
+                    }
+                }
+
+                // Cull chunks outside render distance + 1
+                for (let [key, chunkData] of this.loadedChunks.entries()) {
+                    if (!activeKeys.has(key)) {
+                        // Extract cx, cz
+                        const [cx, cz] = key.split(',').map(Number);
+                        const dist = Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz));
+                        if (dist > RENDER_DISTANCE + 1) {
+                            this.unloadChunk(key, chunkData);
+                        }
+                    }
+                }
+            }
+
+            loadChunk(cx, cz) {
+                // Generates voxels if not present
+                generateChunkVoxels(cx, cz);
+
+                // Build geometry and meshes
+                const key = `${cx},${cz}`;
+                const geoms = buildChunkGeometry(cx, cz);
+                if (!geoms) return;
+
+                const chunkMeshes = {};
+
+                // 1. Opaque Mesh
+                if (geoms.opaque.positions.length > 0) {
+                    const geometry = new THREE.BufferGeometry();
+                    geometry.setAttribute('position', new THREE.Float32BufferAttribute(geoms.opaque.positions, 3));
+                    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(geoms.opaque.normals, 3));
+                    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(geoms.opaque.uvs, 2));
+                    geometry.setIndex(geoms.opaque.indices);
+                    geometry.computeBoundingBox();
+
+                    const mesh = new THREE.Mesh(geometry, this.opaqueMaterial);
+                    mesh.receiveShadow = true;
+                    mesh.castShadow = true;
+                    this.scene.add(mesh);
+                    chunkMeshes.opaqueMesh = mesh;
+                }
+
+                // 2. Transparent Mesh (Water)
+                if (geoms.transparent.positions.length > 0) {
+                    const geometry = new THREE.BufferGeometry();
+                    geometry.setAttribute('position', new THREE.Float32BufferAttribute(geoms.transparent.positions, 3));
+                    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(geoms.transparent.normals, 3));
+                    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(geoms.transparent.uvs, 2));
+                    geometry.setIndex(geoms.transparent.indices);
+
+                    const mesh = new THREE.Mesh(geometry, this.transparentMaterial);
+                    this.scene.add(mesh);
+                    chunkMeshes.transMesh = mesh;
+                }
+
+                this.loadedChunks.set(key, chunkMeshes);
+            }
+
+            rebuildChunk(cx, cz) {
+                const key = `${cx},${cz}`;
+                const chunkData = this.loadedChunks.get(key);
+                if (!chunkData) return; // not loaded, skip
+
+                // Unload first (dispose graphics memory)
+                this.unloadChunk(key, chunkData);
+
+                // Reload compiled mesh
+                this.loadChunk(cx, cz);
+            }
+
+            unloadChunk(key, chunkData) {
+                if (chunkData.opaqueMesh) {
+                    this.scene.remove(chunkData.opaqueMesh);
+                    chunkData.opaqueMesh.geometry.dispose();
+                }
+                if (chunkData.transMesh) {
+                    this.scene.remove(chunkData.transMesh);
+                    chunkData.transMesh.geometry.dispose();
+                }
+                this.loadedChunks.delete(key);
+            }
+
+            // --- 11. ATMOSPHERIC TIME-OF-DAY CYCLE ---
+            updateDayNightCycle(dt) {
+                // Increment time of day (Full cycle takes 180 seconds)
+                this.timeOfDay += dt * (1 / 180);
+                if (this.timeOfDay > 1.0) this.timeOfDay -= 1.0;
+
+                const angle = this.timeOfDay * Math.PI * 2;
+                const sunHeight = Math.sin(angle);
+
+                // Define colors
+                const skyDay = new THREE.Color('#7ec0ee');
+                const skySunset = new THREE.Color('#fd5e53');
+                const skyNight = new THREE.Color('#030308');
+
+                const fogDay = new THREE.Color('#d0e0f0');
+                const fogSunset = new THREE.Color('#e07060');
+                const fogNight = new THREE.Color('#030308');
+
+                let currentSky, currentFog, intensity;
+
+                // Interpolate colors based on sun height
+                if (sunHeight > 0.15) { // Day
+                    currentSky = skyDay;
+                    currentFog = fogDay;
+                    intensity = sunHeight * 0.8;
+                } else if (sunHeight > -0.15) { // Dawn / Dusk Transition
+                    const factor = (sunHeight + 0.15) / 0.3;
+                    currentSky = skySunset.clone().lerp(skyDay, factor);
+                    currentFog = fogSunset.clone().lerp(fogDay, factor);
+                    intensity = factor * 0.4;
+                } else { // Night
+                    const factor = Math.min(1, Math.abs(sunHeight + 0.15) / 0.35);
+                    currentSky = skySunset.clone().lerp(skyNight, factor);
+                    currentFog = fogSunset.clone().lerp(fogNight, factor);
+                    intensity = 0.05;
+                }
+
+                // Update scene visual params
+                this.scene.background = currentSky;
+                this.scene.fog.color = currentFog;
+
+                // Rotate Sun position
+                const distance = 120;
+                const sunX = Math.cos(angle) * distance;
+                const sunY = Math.sin(angle) * distance;
+                this.sunLight.position.set(this.player.x + sunX, sunY, this.player.z + 10);
+                this.sunLight.intensity = intensity;
+
+                // Position Moon opposite to Sun
+                this.moonLight.position.set(this.player.x - sunX, -sunY, this.player.z - 10);
+                this.moonLight.intensity = sunHeight < 0 ? 0.3 : 0.0;
+            }
+
+            // --- 12. RUNTIME INTERACTIVE UI CONTROLS ---
+            setupUI() {
+                // Populate hotbar slots with isometric canvas renderings
+                const hotbarContainer = document.getElementById('hotbar');
+                hotbarContainer.innerHTML = '';
+                
+                hotbarSlots.forEach((type, index) => {
+                    const slot = document.createElement('div');
+                    slot.className = `hotbar-slot ${index === activeHotbarIndex ? 'active' : ''}`;
+                    slot.innerHTML = `<span class="slot-key">${index + 1}</span>`;
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 44;
+                    canvas.height = 44;
+                    slot.appendChild(canvas);
+                    
+                    // Render isometric preview
+                    drawIsometricBlock(canvas, type);
+
+                    slot.addEventListener('click', () => {
+                        activeHotbarIndex = index;
+                        this.updateHotbarUI();
+                    });
+
+                    hotbarContainer.appendChild(slot);
+                });
+
+                // Populate Creative Inventory grid
+                const grid = document.getElementById('inventory-grid');
+                grid.innerHTML = '';
+
+                Object.keys(BLOCK_TYPES).forEach(key => {
+                    const type = BLOCK_TYPES[key];
+                    if (type === BLOCK_TYPES.AIR) return;
+
+                    const item = document.createElement('div');
+                    item.className = 'inventory-item';
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 44;
+                    canvas.height = 44;
+                    item.appendChild(canvas);
+
+                    drawIsometricBlock(canvas, type);
+
+                    const name = document.createElement('div');
+                    item.className = 'inventory-item';
+                    name.className = 'inventory-item-name';
+                    name.textContent = BLOCK_DETAILS[type].name;
+                    item.appendChild(name);
+
+                    // Add click handler to replace currently active hotbar slot
+                    item.addEventListener('click', () => {
+                        hotbarSlots[activeHotbarIndex] = type;
+                        this.updateHotbarUI();
+                        this.toggleCreativeInventory();
+                        audio.playPlace();
+                    });
+
+                    grid.appendChild(item);
+                });
+
+                // Set close inventory click handler
+                document.getElementById('close-inv-btn').addEventListener('click', () => {
+                    this.toggleCreativeInventory();
+                });
+
+                // Biome selection handler
+                const options = document.querySelectorAll('.biome-option');
+                options.forEach(opt => {
+                    opt.addEventListener('click', () => {
+                        options.forEach(o => o.classList.remove('active'));
+                        opt.classList.add('active');
+                        worldSeed = opt.dataset.seed;
+                        
+                        // Set text on HUD
+                        let displaySeed = "Mythic Valleys";
+                        if (worldSeed === "islands") displaySeed = "Aether Islands";
+                        if (worldSeed === "abyss") displaySeed = "Crystal Abyss";
+                        document.getElementById('biome-val').textContent = displaySeed;
+                    });
+                });
+            }
+
+            updateHotbarUI() {
+                const slots = document.querySelectorAll('.hotbar-slot');
+                slots.forEach((slot, index) => {
+                    if (index === activeHotbarIndex) {
+                        slot.classList.add('active');
+                    } else {
+                        slot.classList.remove('active');
+                    }
+                    // Redraw in case values changed
+                    const canvas = slot.querySelector('canvas');
+                    drawIsometricBlock(canvas, hotbarSlots[index]);
+                });
+
+                // Update active name text
+                const activeType = hotbarSlots[activeHotbarIndex];
+                document.getElementById('block-name').textContent = BLOCK_DETAILS[activeType].name;
+            }
+
+            updateHUDStats() {
+                // Update position stats
+                const px = Math.floor(this.player.x);
+                const py = Math.floor(this.player.y);
+                const pz = Math.floor(this.player.z);
+                document.getElementById('pos-val').textContent = `${px}, ${py}, ${pz}`;
+                document.getElementById('fly-val').textContent = this.player.creativeFly ? "ON" : "OFF";
+                document.getElementById('fly-val').style.color = this.player.creativeFly ? "#00ffcc" : "#ff3366";
+            }
+
+            // --- 13. MAIN ANIMATION & RENDERING LOOP ---
+            animate() {
+                requestAnimationFrame(() => this.animate());
+
+                const dt = Math.min(this.clock.getDelta(), 0.1); // clamp delta to avoid insane spikes on tab sleep
+
+                // FPS counter calculation
+                this.frameCount++;
+                this.fpsTimer += dt;
+                if (this.fpsTimer >= 0.5) {
+                    const fps = Math.round(this.frameCount / this.fpsTimer);
+                    document.getElementById('fps-val').textContent = fps;
+                    this.frameCount = 0;
+                    this.fpsTimer = 0;
+                }
+
+                if (this.isPaused) {
+                    this.renderer.render(this.scene, this.camera);
+                    return;
+                }
+
+                // 1. Update Day/Night Cycle
+                this.updateDayNightCycle(dt);
+
+                // 2. Physics & Spectator camera movement
+                this.updatePlayerPhysics(dt);
+
+                // 3. Highlight targeted voxel
+                const hit = this.performRaycast();
+                if (hit.hit) {
+                    this.selectionBox.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
+                    this.selectionBox.visible = true;
+                    this.targetedVoxel = hit;
+                } else {
+                    this.selectionBox.visible = false;
+                    this.targetedVoxel = null;
+                }
+
+                // 4. Update breaking particles
+                this.updateParticles(dt);
+
+                // 5. Update Ambient dust motes slowly rotating
+                if (this.ambientDust) {
+                    this.ambientDust.rotation.y += 0.02 * dt;
+                }
+
+                // 6. Infinite World: load chunks around player
+                this.updateChunksAroundPlayer();
+
+                // 7. Flush dirty chunks rebuilt mesh updates
+                if (dirtyChunks.size > 0) {
+                    for (let key of dirtyChunks) {
+                        const [cx, cz] = key.split(',').map(Number);
+                        this.rebuildChunk(cx, cz);
+                    }
+                    dirtyChunks.clear();
+                }
+
+                // 8. Update HUD coords text
+                this.updateHUDStats();
+
+                // 9. Render Frame
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // --- 14. GLOBAL DIRTY CHUNK SET ---
+        const dirtyChunks = new Set(); // holds chunk keys e.g. "cx,cz" to rebuild
+
+        // --- 15. ISOMETRIC CUBE RENDER HELPER (FOR HUD AND INVENTORY CARDS) ---
+        function drawIsometricBlock(canvas, blockType) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Shading colors for top, left, right faces
+            let topColor, leftColor, rightColor;
+
+            switch(blockType) {
+                case BLOCK_TYPES.GRASS:
+                    topColor = '#558a2f'; leftColor = '#6d4c41'; rightColor = '#5d4037';
+                    break;
+                case BLOCK_TYPES.DIRT:
+                    topColor = '#866043'; leftColor = '#6d4c41'; rightColor = '#5c3e2b';
+                    break;
+                case BLOCK_TYPES.STONE:
+                    topColor = '#a9a9a9'; leftColor = '#808080'; rightColor = '#696969';
+                    break;
+                case BLOCK_TYPES.COBBLESTONE:
+                    topColor = '#8a8a8a'; leftColor = '#6e6e6e'; rightColor = '#5c5c5c';
+                    break;
+                case BLOCK_TYPES.MOSSY_COBBLESTONE:
+                    topColor = '#6a8d52'; leftColor = '#50723a'; rightColor = '#415e2e';
+                    break;
+                case BLOCK_TYPES.WOOD:
+                    topColor = '#d7b587'; leftColor = '#5c4033'; rightColor = '#4d3327';
+                    break;
+                case BLOCK_TYPES.LEAVES:
+                    topColor = '#2e5c1e'; leftColor = '#224814'; rightColor = '#1b3a10';
+                    break;
+                case BLOCK_TYPES.QUARTZ:
+                    topColor = '#ffffff'; leftColor = '#f0f0f0'; rightColor = '#e0e0e0';
+                    break;
+                case BLOCK_TYPES.GOLD:
+                    topColor = '#ffd700'; leftColor = '#daa520'; rightColor = '#b8860b';
+                    break;
+                case BLOCK_TYPES.CRYSTAL_CYAN:
+                    topColor = '#e0ffff'; leftColor = '#00bfff'; rightColor = '#008b8b';
+                    break;
+                case BLOCK_TYPES.CRYSTAL_PURPLE:
+                    topColor = '#ffb6c1'; leftColor = '#ba55d3'; rightColor = '#8b008b';
+                    break;
+                case BLOCK_TYPES.PORTAL:
+                    topColor = '#8a2be2'; leftColor = '#4b0082'; rightColor = '#190033';
+                    break;
+                case BLOCK_TYPES.WATER:
+                    topColor = '#1e90ff'; leftColor = '#00bfff'; rightColor = '#0000ff';
+                    break;
+                case BLOCK_TYPES.GLASS:
+                    topColor = 'rgba(255,255,255,0.45)'; leftColor = 'rgba(255,255,255,0.2)'; rightColor = 'rgba(255,255,255,0.3)';
+                    break;
+                default:
+                    topColor = '#ffffff'; leftColor = '#cccccc'; rightColor = '#999999';
+            }
+
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const size = canvas.width * 0.28;
+
+            // 1. Draw Top Face
+            ctx.fillStyle = topColor;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - size);
+            ctx.lineTo(cx + size * 1.732 / 2, cy - size / 2);
+            ctx.lineTo(cx, cy);
+            ctx.lineTo(cx - size * 1.732 / 2, cy - size / 2);
+            ctx.closePath();
+            ctx.fill();
+
+            // 2. Draw Left Face
+            ctx.fillStyle = leftColor;
+            ctx.beginPath();
+            ctx.moveTo(cx - size * 1.732 / 2, cy - size / 2);
+            ctx.lineTo(cx, cy);
+            ctx.lineTo(cx, cy + size);
+            ctx.lineTo(cx - size * 1.732 / 2, cy + size / 2);
+            ctx.closePath();
+            ctx.fill();
+
+            // 3. Draw Right Face
+            ctx.fillStyle = rightColor;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + size * 1.732 / 2, cy - size / 2);
+            ctx.lineTo(cx + size * 1.732 / 2, cy + size / 2);
+            ctx.lineTo(cx, cy + size);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // --- 16. INIT RUNTIME ---
+        window.addEventListener('DOMContentLoaded', () => {
+            const game = new Game();
+            game.setupUI();
+            game.init();
+        });
+    </script>
+</body>
+</html>
