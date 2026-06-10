@@ -138,6 +138,9 @@ export const RUNS: Record<string, Record<string, RunDef>> = {
         en: 'Generated in one shot in the Claude web app on Fable 5 Max (max thinking effort).',
       },
     },
+    'gpt-5-5-xhigh': {},
+    'gemini-3-1-pro': {},
+    'gemini-3-5-flash': {},
   },
 }
 
