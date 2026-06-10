@@ -82,6 +82,7 @@ bun run build    # 数据校验 + 类型检查 + 产物构建（输出到 site/d
 - 每条 run 的 `note` **双语必填**——这是本仓库的可信度来源，必须写明产出怎么来的；
 - 声明的 run 必须有对应的产出文件；
 - 同一组合对同一案例可提交多个版本：`runs.<case-id>` 写成数组，第二个版本起必须用 `file` 指定不同文件名（如 `pelican-cycling-2.svg`）；
-- `contributor` 填你的 GitHub 用户名，站点会在产出旁展示你的头像并链接到主页。
+- `contributor` 填你的 GitHub 用户名，站点会在产出旁展示你的头像并链接到主页；
+- 新组合的 `harness`（运行环境）与 `effort`（思考配额）请如实填写：站点会据此在测评页生成「运行环境 / 思考配额」metadata 徽章，并自动为模型、厂商、Harness 匹配品牌 icon（来自 [lobe-icons](https://github.com/lobehub/lobe-icons)），贡献者无需处理任何图标。
 
 提 PR 后 CI 会跑数据校验 + 构建；合入 `main` 自动部署。
