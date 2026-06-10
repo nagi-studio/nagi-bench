@@ -46,6 +46,7 @@ export const MODELS: ModelDef[] = [
   { id: 'composer-2-5', label: 'Composer 2.5', vendor: 'Cursor', status: 'ran' },
   { id: 'mistral-medium-3-5', label: 'Mistral Medium 3.5', vendor: 'Mistral AI', status: 'pending' },
   { id: 'deepseek-v4-pro', label: 'DeepSeek-V4-Pro', vendor: 'DeepSeek', status: 'pending' },
+  { id: 'xiaomi-mimo-v2-5-pro', label: 'MiMo v2.5 Pro', vendor: 'Xiaomi', status: 'ran' },
   { id: 'kimi-k2-6', label: 'Kimi K2.6', vendor: 'Moonshot AI', status: 'pending' },
   { id: 'minimax-m3', label: 'MiniMax M3', vendor: 'MiniMax', status: 'pending' },
   { id: 'glm-5-1', label: 'GLM-5.1', vendor: 'Zhipu AI', status: 'pending' },
@@ -130,12 +131,24 @@ export const RUNS: Record<string, Record<string, RunDef>> = {
         en: 'Generated with Composer 2.5 in Cursor; fixed build (1 line changed) plus one small addition. Bug: line 1152 multiplied horizontal velocity by speed*dt, then displacement multiplied by dt again, leaving walking at ~1/60 of the designed 5 blocks/s. Before the fix: walking crawled while jumping/falling felt normal, and biomes or mythic structures were effectively unreachable — which read as "scene switching is broken" (there is no teleport; biomes are reached on foot). Cause: X/Z stored per-frame displacement in a per-second velocity field, inconsistent with the Y axis. With one dt removed walking is back to 5 blocks/s. It does generate three landmarks (Elven Spiral Tower, Dragon Temple, Sky Ruins — also drawn on the minimap) that were only reachable on foot, so a G-key cycle-teleport to them was added, with a line in the start screen.',
       },
     },
+    'xiaomi-mimo-v2-5-pro': {
+      note: {
+        zh: '在 Claude Code 中以 MiMo v2.5 Pro（最高思考强度）一次生成，未修复。包含 Perlin 噪声地形、WASD + 鼠标第一人称操控、12 种方块类型（含水、黑曜石、水晶、金块等）、程序化材质纹理、四种神话建筑（水晶塔、石环阵、龙骨遗迹、天空遗迹），按 G 可依次传送至神话建筑，小地图显示玩家位置和地标。',
+        en: 'Generated in one shot via Claude Code with MiMo v2.5 Pro (max thinking effort), no fixes. Features Perlin noise terrain, WASD + mouse first-person controls, 12 block types (including water, obsidian, crystal, gold), procedural textures, and four mythic structures (Crystal Tower, Stone Circle, Dragon Skeleton, Sky Ruins). Press G to cycle-teleport between landmarks; minimap shows player position and landmarks.',
+      },
+    },
   },
   'pelican-cycling': {
     'claude-fable-5': {
       note: {
         zh: '在 Claude 网页版以 Fable 5 Max（最高思考强度）一次生成。',
         en: 'Generated in one shot in the Claude web app on Fable 5 Max (max thinking effort).',
+      },
+    },
+    'xiaomi-mimo-v2-5-pro': {
+      note: {
+        zh: '在 Claude Code 中以 MiMo v2.5 Pro（最高思考强度）一次生成。场景包含渐变天空、太阳、云朵、海洋波浪、沙滩、棕榈树、海鸥、完整自行车细节（辐条、链条、齿轮、脚踏）以及鹈鹕（长喙、喉囊、羽翼、踩踏姿态），海滩上有海星和贝壳装饰。',
+        en: 'Generated in one shot via Claude Code with MiMo v2.5 Pro (max thinking effort). Scene includes gradient sky, sun, clouds, ocean waves, beach, palm trees, seagulls, detailed bicycle (spokes, chain, gears, pedals), and a pelican (beak, gular pouch, wings, pedaling pose), with starfish and shell decorations on the beach.',
       },
     },
   },
