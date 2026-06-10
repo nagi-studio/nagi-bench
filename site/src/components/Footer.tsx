@@ -33,7 +33,7 @@ export default function Footer() {
 
   return (
     <footer ref={scope} className="border-line border-t">
-      <div className="mx-auto w-full max-w-7xl px-4 py-16 md:py-20">
+      <div className="mx-auto w-full max-w-7xl px-4 py-12 md:py-20">
         <p data-footer-fade className="text-accent font-mono text-xs tracking-[0.35em] uppercase">
           {t('footer.tagline')}
         </p>
@@ -43,7 +43,7 @@ export default function Footer() {
             target="_blank"
             rel="noreferrer"
             data-footer-title
-            className="text-outline hover:text-paper text-5xl font-bold tracking-tight uppercase transition-colors duration-300 md:text-7xl"
+            className="text-outline hover:text-paper text-4xl font-bold tracking-tight uppercase transition-colors duration-300 sm:text-5xl md:text-7xl"
           >
             NAGI STUDIO
           </a>

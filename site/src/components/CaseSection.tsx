@@ -246,6 +246,11 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
       duration: prefersReducedMotion() ? 0 : 0.45,
       ease: 'power3.out',
     })
+    // On narrow screens the tab strip scrolls horizontally; keep the active
+    // tab in view.
+    if (tabs.scrollWidth > tabs.clientWidth) {
+      tabs.scrollTo({ left: Math.max(0, active.offsetLeft - 24), behavior: 'smooth' })
+    }
   }, [activeModelId, lang])
 
   useGSAP(
@@ -357,7 +362,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
         {caseDef.index}
       </div>
 
-      <div className="relative mx-auto w-full max-w-7xl px-4 py-24 md:py-32">
+      <div className="relative mx-auto w-full max-w-7xl px-4 py-16 md:py-32">
         <header className="max-w-3xl">
           <div
             data-reveal
@@ -378,7 +383,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
           </p>
         </header>
 
-        <div data-reveal className="mt-14 max-w-4xl">
+        <div data-reveal className="mt-10 max-w-4xl md:mt-14">
           <div className="border-line text-dim flex items-center justify-between border-b pb-3 font-mono text-[11px] tracking-[0.25em] uppercase">
             <span>{t('case.prompt')}</span>
             <button
@@ -401,15 +406,19 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
           </pre>
         </div>
 
-        <div className="mt-16 md:mt-20">
+        <div className="mt-12 md:mt-20">
           <div
             data-reveal
-            className="border-line flex flex-wrap items-center justify-between gap-3 border-b pb-3"
+            className="border-line flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between"
           >
             <span className="text-dim font-mono text-[11px] tracking-[0.25em] uppercase">
               {t('case.output')}
             </span>
-            <div ref={tabsRef} className="relative flex flex-wrap gap-1.5" role="tablist">
+            <div
+              ref={tabsRef}
+              className="no-scrollbar relative flex gap-1.5 overflow-x-auto md:flex-wrap md:overflow-x-visible"
+              role="tablist"
+            >
               <div
                 ref={inkRef}
                 aria-hidden
@@ -425,7 +434,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
                     role="tab"
                     aria-selected={m.id === activeModelId}
                     onClick={() => selectModel(m.id)}
-                    className={`inline-flex items-center gap-1.5 border px-2.5 py-1 font-mono text-[11px] transition-colors ${
+                    className={`inline-flex shrink-0 items-center gap-1.5 border px-2.5 py-1 font-mono text-[11px] whitespace-nowrap transition-colors ${
                       m.id === activeModelId
                         ? 'border-line text-accent'
                         : 'text-dim hover:text-paper border-transparent'

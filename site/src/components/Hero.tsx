@@ -139,8 +139,11 @@ export default function Hero() {
 
   return (
     <section ref={scope} id="top" className="relative overflow-hidden">
-      <div className="mx-auto w-full max-w-7xl px-4 pt-36 pb-20 md:pt-44 md:pb-28">
-        <p data-hero-fade className="text-dim font-mono text-xs tracking-[0.35em] uppercase">
+      <div className="mx-auto w-full max-w-7xl px-4 pt-28 pb-16 md:pt-44 md:pb-28">
+        <p
+          data-hero-fade
+          className="text-dim font-mono text-xs tracking-[0.2em] uppercase md:tracking-[0.35em]"
+        >
           {t('hero.kicker')}
         </p>
 
@@ -171,17 +174,17 @@ export default function Hero() {
 
         <dl
           data-hero-fade
-          className="border-line text-dim mt-12 flex flex-wrap gap-x-14 gap-y-6 border-t pt-6 font-mono text-[11px] tracking-[0.25em] uppercase"
+          className="border-line text-dim mt-10 flex flex-wrap gap-x-8 gap-y-5 border-t pt-6 font-mono text-[11px] tracking-[0.25em] uppercase md:mt-12 md:gap-x-14"
         >
           <div>
             <dt>{t('meta.cases')}</dt>
-            <dd className="text-paper mt-1 text-3xl tracking-normal">
+            <dd className="text-paper mt-1 text-2xl tracking-normal md:text-3xl">
               <span data-count={CASES.length}>{pad(CASES.length)}</span>
             </dd>
           </div>
           <div>
             <dt>{t('meta.models')}</dt>
-            <dd className="text-paper mt-1 text-3xl tracking-normal">
+            <dd className="text-paper mt-1 text-2xl tracking-normal md:text-3xl">
               <span data-count={ranCount}>{pad(ranCount)}</span>
               <span className="text-amber ml-2 align-middle text-xs tracking-[0.2em]">
                 +{pad(pendingCount)} {t('meta.pending')}
@@ -190,7 +193,7 @@ export default function Hero() {
           </div>
           <div>
             <dt>{t('meta.updated')}</dt>
-            <dd className="text-paper mt-1 text-3xl tracking-normal">2026.06</dd>
+            <dd className="text-paper mt-1 text-2xl tracking-normal md:text-3xl">2026.06</dd>
           </div>
         </dl>
       </div>
