@@ -44,6 +44,8 @@ export const MODELS: ModelDef[] = [
   { id: 'gemini-3-5-flash', label: 'Gemini 3.5 Flash', vendor: 'Google', status: 'ran' },
   { id: 'grok-build', label: 'Grok Build', vendor: 'xAI', status: 'ran' },
   { id: 'composer-2-5', label: 'Composer 2.5', vendor: 'Cursor', status: 'ran' },
+  { id: 'doubao-seed-2.0-pro', label: 'Doubao Seed 2.0 Pro', vendor: 'ByteDance', status: 'ran' },
+  { id: 'doubao-seed-2.0-mini', label: 'Doubao Seed 2.0 Mini', vendor: 'ByteDance', status: 'ran' },
   { id: 'mistral-medium-3-5', label: 'Mistral Medium 3.5', vendor: 'Mistral AI', status: 'pending' },
   { id: 'deepseek-v4-pro', label: 'DeepSeek-V4-Pro', vendor: 'DeepSeek', status: 'pending' },
   { id: 'kimi-k2-6', label: 'Kimi K2.6', vendor: 'Moonshot AI', status: 'pending' },
@@ -148,6 +150,18 @@ export const RUNS: Record<string, Record<string, RunDef>> = {
       note: {
         zh: '在 Google AI Studio 以 Gemini 3.5 Flash High（最高思考强度）一次生成。',
         en: 'Generated in Google AI Studio on Gemini 3.5 Flash High (max thinking effort) in one shot.',
+      },
+    },
+    'doubao-seed-2.0-pro': {
+      note: {
+        zh: '使用豆包网页版超能模式，首次输出了 png 图片，经提醒后生成 svg 代码。',
+        en: 'Using Doubao web app (Pro mode), it initially output a PNG image, then generated the SVG code after being reminded.',
+      },
+    },
+    'doubao-seed-2.0-mini': {
+      note: {
+        zh: '在豆包网页版以快速模式一次生成\n\n“要不要我再给你做一个带简单动画（翅膀扇动、车轮转动）的增强版 SVG 代码？”',
+        en: 'Generated in one shot on Doubao web app in Lite mode.\n\n"Should I make you an enhanced version of the SVG code with simple animations (flapping wings, rotating wheels)?"',
       },
     },
   },
