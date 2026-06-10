@@ -30,7 +30,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | Doubao Seed 2.0 Pro | ByteDance | 豆包网页版 | 超能模式 | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | 豆包网页版 | 快速模式 | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code | Max | 02 |
-| Kimi K2.6 | Moonshot AI | Kimi Code（本地） | Default | 02 |
+| Kimi K2.6 | Moonshot AI | Kimi Code（本地） | Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code 网页版 | Thinking | 01 |
 
 待测：Mistral Medium 3.5 · GLM-5.1 · Qwen3.7-Max（欢迎 PR 补充）
