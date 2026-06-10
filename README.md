@@ -17,7 +17,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | 模型 | 厂商 | Harness 环境 | 思考配额 | 产出 |
 |---|---|---|---|---|
 | Claude Fable 5 | Anthropic | Claude 网页版 | Max | 02 |
-| GPT-5.5 Pro | OpenAI | ChatGPT 网页版 | Extended Pro | 01 |
+| GPT-5.5 Pro | OpenAI | ChatGPT 网页版 | Extended Pro | 02 |
 | GPT-5.5 Codex | OpenAI | Codex CLI（无 skill） | xhigh | 02 |
 | Gemini 3.1 Pro | Google | AntiGravity | High | 03 |
 | Gemini 3.5 Flash | Google | AntiGravity | High | 03 |
