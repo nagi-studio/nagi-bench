@@ -218,11 +218,14 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
     return MODELS[0].id
   })
   const activeModel = MODELS.find((m) => m.id === activeModelId) ?? MODELS[0]
-  const run = RUNS[caseDef.id]?.[activeModelId]
+  const [variantIdx, setVariantIdx] = useState(0)
+  const variants = RUNS[caseDef.id]?.[activeModelId] ?? []
+  const run = variants[Math.min(variantIdx, Math.max(variants.length - 1, 0))]
   const [copied, setCopied] = useState(false)
 
   const selectModel = (modelId: string) => {
     setActiveModelId(modelId)
+    setVariantIdx(0)
     history.replaceState(null, '', `#${caseDef.id}:${modelId}`)
   }
 
@@ -427,7 +430,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
               {MODELS.map((m) => {
                 // The dot reflects whether THIS model has a run for THIS case,
                 // not its global status.
-                const hasRun = Boolean(RUNS[caseDef.id]?.[m.id])
+                const hasRun = (RUNS[caseDef.id]?.[m.id]?.length ?? 0) > 0
                 return (
                   <button
                     key={m.id}
@@ -452,11 +455,31 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
             </div>
           </div>
 
+          {variants.length > 1 && (
+            <div className="text-dim mt-4 flex items-center gap-2 font-mono text-[10px] tracking-[0.2em] uppercase">
+              <span>{t('case.variants')}</span>
+              {variants.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setVariantIdx(i)}
+                  aria-pressed={i === variantIdx}
+                  className={`border px-2 py-0.5 transition-colors ${
+                    i === variantIdx
+                      ? 'border-accent text-accent'
+                      : 'border-line hover:text-paper'
+                  }`}
+                >
+                  {String(i + 1).padStart(2, '0')}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div
             data-frame
             className="xl:relative xl:left-1/2 xl:w-[min(100vw-3rem,90rem)] xl:-translate-x-1/2"
           >
-            <div data-viewer key={`${caseDef.id}-${activeModelId}`}>
+            <div data-viewer key={`${caseDef.id}-${activeModelId}-${variantIdx}`}>
               <Viewer caseDef={caseDef} model={activeModel} run={run} />
             </div>
           </div>

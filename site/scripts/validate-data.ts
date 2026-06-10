@@ -31,7 +31,8 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
     errors.push(`models/${f}: id "${id}" must be lowercase letters/digits/dashes only (it doubles as the outputs/ folder name)`)
   }
 
-  let def: { label?: unknown; vendor?: unknown; order?: unknown; runs?: Record<string, { note?: unknown; file?: unknown }> }
+  type RunJson = { note?: unknown; file?: unknown }
+  let def: { label?: unknown; vendor?: unknown; order?: unknown; runs?: Record<string, RunJson | RunJson[]> }
   try {
     def = JSON.parse(readFileSync(join(modelsDir, f), 'utf8'))
   } catch (e) {
@@ -43,21 +44,31 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
   if (typeof def.vendor !== 'string' || !def.vendor.trim()) errors.push(`models/${f}: "vendor" is required`)
   if (def.order !== undefined && typeof def.order !== 'number') errors.push(`models/${f}: "order" must be a number`)
 
-  for (const [caseId, run] of Object.entries(def.runs ?? {})) {
+  for (const [caseId, runRaw] of Object.entries(def.runs ?? {})) {
     if (!caseKind.has(caseId)) {
       errors.push(`models/${f}: unknown case "${caseId}" (known: ${[...caseKind.keys()].join(', ')})`)
       continue
     }
-    if (!isBilingual(run?.note)) {
-      errors.push(`models/${f}: runs.${caseId} needs a bilingual "note" ({ "zh", "en" }) documenting provenance (tool, effort level, one-shot or fixed)`)
-    }
-    if (run?.file !== undefined && typeof run.file !== 'string') {
-      errors.push(`models/${f}: runs.${caseId}.file must be a string`)
-    }
-    const file = (typeof run?.file === 'string' && run.file) || `${caseId}.${caseKind.get(caseId)}`
-    if (!existsSync(join(outputsDir, id, file))) {
-      errors.push(`models/${f}: runs.${caseId} declared but artifact missing: outputs/${id}/${file}`)
-    }
+    const variants = Array.isArray(runRaw) ? runRaw : [runRaw]
+    if (!variants.length) errors.push(`models/${f}: runs.${caseId} is an empty array`)
+    const seenFiles = new Set<string>()
+    variants.forEach((run, i) => {
+      const where = variants.length > 1 ? `runs.${caseId}[${i}]` : `runs.${caseId}`
+      if (!isBilingual(run?.note)) {
+        errors.push(`models/${f}: ${where} needs a bilingual "note" ({ "zh", "en" }) documenting provenance (tool, effort level, one-shot or fixed)`)
+      }
+      if (run?.file !== undefined && typeof run.file !== 'string') {
+        errors.push(`models/${f}: ${where}.file must be a string`)
+      }
+      const file = (typeof run?.file === 'string' && run.file) || `${caseId}.${caseKind.get(caseId)}`
+      if (seenFiles.has(file)) {
+        errors.push(`models/${f}: ${where} resolves to the same artifact "${file}" as another variant — extra variants must set a distinct "file"`)
+      }
+      seenFiles.add(file)
+      if (!existsSync(join(outputsDir, id, file))) {
+        errors.push(`models/${f}: ${where} declared but artifact missing: outputs/${id}/${file}`)
+      }
+    })
   }
 }
 
