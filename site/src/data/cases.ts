@@ -45,7 +45,7 @@ export const MODELS: ModelDef[] = [
   { id: 'grok-build', label: 'Grok Build', vendor: 'xAI', status: 'ran' },
   { id: 'composer-2-5', label: 'Composer 2.5', vendor: 'Cursor', status: 'ran' },
   { id: 'mistral-medium-3-5', label: 'Mistral Medium 3.5', vendor: 'Mistral AI', status: 'pending' },
-  { id: 'deepseek-v4-pro', label: 'DeepSeek-V4-Pro', vendor: 'DeepSeek', status: 'pending' },
+  { id: 'deepseek-v4-pro', label: 'DeepSeek-V4-Pro', vendor: 'DeepSeek', status: 'ran' },
   { id: 'kimi-k2-6', label: 'Kimi K2.6', vendor: 'Moonshot AI', status: 'pending' },
   { id: 'minimax-m3', label: 'MiniMax M3', vendor: 'MiniMax', status: 'pending' },
   { id: 'glm-5-1', label: 'GLM-5.1', vendor: 'Zhipu AI', status: 'pending' },
@@ -127,7 +127,13 @@ export const RUNS: Record<string, Record<string, RunDef>> = {
     'composer-2-5': {
       note: {
         zh: '在 Cursor 中以 Composer 2.5 生成；本页为修复版（改 1 行）+ 补一个小功能。问题：第 1152 行水平速度先乘 speed*dt，位移时又乘一次 dt，实际步速只有设计值（5 格/秒）的约 1/60。修复前：走路如蜗牛、跳跃下落却正常；沙漠雪地等群系与神话建筑实际走不到，体感像「切换不了场景」——游戏本无传送功能，群系需步行抵达。原因：X/Z 轴把「每帧位移」当「每秒速度」存入 velocity，与 Y 轴语义不一致。去掉一次 dt 后步行恢复 5 格/秒。另外它确实生成了精灵螺旋塔、龙神殿、天空遗迹三处景点（也画在小地图上），但原版只能徒步抵达——已补加按 G 依次瞬移到三处景点的功能，开屏说明里也加了一行。',
-        en: 'Generated with Composer 2.5 in Cursor; fixed build (1 line changed) plus one small addition. Bug: line 1152 multiplied horizontal velocity by speed*dt, then displacement multiplied by dt again, leaving walking at ~1/60 of the designed 5 blocks/s. Before the fix: walking crawled while jumping/falling felt normal, and biomes or mythic structures were effectively unreachable — which read as "scene switching is broken" (there is no teleport; biomes are reached on foot). Cause: X/Z stored per-frame displacement in a per-second velocity field, inconsistent with the Y axis. With one dt removed walking is back to 5 blocks/s. It does generate three landmarks (Elven Spiral Tower, Dragon Temple, Sky Ruins — also drawn on the minimap) that were only reachable on foot, so a G-key cycle-teleport to them was added, with a line in the start screen.',
+        en: 'Generated with Composer 2.5 in Cursor; fixed build (1 line changed) plus one small addition. Bug: line 1152 multiplied horizontal velocity by speed*dt, then displacement multiplied by dt again, leaving walking at ~1/60 of the designed 5 blocks/s. Before the fix: walking crawled while jumping/falling felt normal, and biomes or mythic structures were virtually unreachable — which read as "scene switching is broken" (there is no teleport; biomes are reached on foot). Cause: X/Z stored per-frame displacement in a per-second velocity field, inconsistent with the Y axis. With one dt removed walking is back to 5 blocks/s. It does generate three landmarks (Elven Spiral Tower, Dragon Temple, Sky Ruins — also drawn on the minimap) that were only reachable on foot, so a G-key cycle-teleport to them was added, with a line in the start screen.',
+      },
+    },
+    'deepseek-v4-pro': {
+      note: {
+        zh: '在 Claude Code 中以 DeepSeek V4 Pro（最高思考强度）一次生成，未修复。包含 Perlin 噪声地形、WASD + 鼠标第一人称操控、12 种方块类型（含水、黑曜石、水晶、金块等）、程序化材质纹理、四种神话建筑（水晶塔、石环阵、龙骨遗迹、天空遗迹），按 G 可随机传送至神话建筑。',
+        en: 'Generated in one shot via Claude Code with DeepSeek V4 Pro (max thinking effort), no fixes. Features Perlin noise terrain, WASD + mouse first-person controls, 12 block types (including water, obsidian, crystal, gold), procedural textures, and four mythic structures (Crystal Tower, Stone Circle, Dragon Skeleton, Sky Ruins). Press G to teleport between landmarks.',
       },
     },
   },
@@ -136,6 +142,12 @@ export const RUNS: Record<string, Record<string, RunDef>> = {
       note: {
         zh: '在 Claude 网页版以 Fable 5 Max（最高思考强度）一次生成。',
         en: 'Generated in one shot in the Claude web app on Fable 5 Max (max thinking effort).',
+      },
+    },
+    'deepseek-v4-pro': {
+      note: {
+        zh: '在 Claude Code 中以 DeepSeek V4 Pro（最高思考强度）一次生成。场景包含天空、海洋、沙滩、棕榈树、海鸥、完整自行车细节（辐条、链条、齿轮）以及鹈鹕（长喙、喉囊、羽翼、踩踏动作）。',
+        en: 'Generated in one shot via Claude Code with DeepSeek V4 Pro (max thinking effort). Scene includes sky, ocean, beach, palm trees, seagulls, detailed bicycle (spokes, chain, gears), and a pelican (beak, gular pouch, wings, pedaling pose).',
       },
     },
   },
