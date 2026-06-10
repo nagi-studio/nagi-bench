@@ -31,10 +31,11 @@ export type CaseDef = {
 
 // A model's artifact for one case, plus run-specific notes. By convention the
 // artifact lives at outputs/<model-id>/<case-id>.<kind>; set `file` only when
-// the filename deviates from that.
+// the filename deviates from that. `contributor` is a GitHub username.
 export type RunDef = {
   note?: Bilingual
   file?: string
+  contributor?: string
 }
 
 export const REPO_URL = 'https://github.com/nagi-studio/nagi-bench'

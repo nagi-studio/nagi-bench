@@ -235,6 +235,23 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
     return () => window.clearTimeout(timer)
   }, [copied])
 
+  // Warm the browser cache for every SVG variant of this case during idle
+  // time, so switching model tabs swaps images without a network hiccup.
+  useEffect(() => {
+    if (caseDef.kind !== 'svg') return
+    const schedule = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1200))
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout
+    const handle = schedule(() => {
+      for (const [modelId, runs] of Object.entries(RUNS[caseDef.id] ?? {})) {
+        for (const v of runs) {
+          const img = new Image()
+          img.src = outputUrl(runPath(caseDef, modelId, v))
+        }
+      }
+    })
+    return () => cancel(handle as number)
+  }, [caseDef])
+
   // Magic-ink underline that glides to the active model tab.
   useEffect(() => {
     const tabs = tabsRef.current
@@ -484,12 +501,33 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
             </div>
           </div>
 
-          {run?.note && (
-            <p className="text-dim mt-5 max-w-4xl font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
-              <span className="text-amber">{t('case.note')}</span>
-              <span className="mx-2">·</span>
-              {pick(run.note)}
-            </p>
+          {(run?.note || run?.contributor) && (
+            <div className="mt-5 flex flex-wrap items-start justify-between gap-x-8 gap-y-3">
+              {run?.note && (
+                <p className="text-dim min-w-0 flex-1 basis-72 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                  <span className="text-amber">{t('case.note')}</span>
+                  <span className="mx-2">·</span>
+                  {pick(run.note)}
+                </p>
+              )}
+              {run?.contributor && (
+                <a
+                  href={`https://github.com/${run.contributor}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="border-line text-dim hover:border-accent hover:text-accent flex shrink-0 items-center gap-2.5 border px-3 py-2 font-mono text-[11px] transition-colors"
+                >
+                  <span className="tracking-[0.2em] uppercase">{t('case.contributor')}</span>
+                  <img
+                    src={`https://github.com/${run.contributor}.png?size=64`}
+                    alt={run.contributor}
+                    loading="lazy"
+                    className="border-line size-5 rounded-full border"
+                  />
+                  @{run.contributor}
+                </a>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -31,7 +31,7 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
     errors.push(`models/${f}: id "${id}" must be lowercase letters/digits/dashes only (it doubles as the outputs/ folder name)`)
   }
 
-  type RunJson = { note?: unknown; file?: unknown }
+  type RunJson = { note?: unknown; file?: unknown; contributor?: unknown }
   let def: { label?: unknown; vendor?: unknown; order?: unknown; runs?: Record<string, RunJson | RunJson[]> }
   try {
     def = JSON.parse(readFileSync(join(modelsDir, f), 'utf8'))
@@ -59,6 +59,9 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
       }
       if (run?.file !== undefined && typeof run.file !== 'string') {
         errors.push(`models/${f}: ${where}.file must be a string`)
+      }
+      if (run?.contributor !== undefined && (typeof run.contributor !== 'string' || !run.contributor.trim())) {
+        errors.push(`models/${f}: ${where}.contributor must be a non-empty GitHub username`)
       }
       const file = (typeof run?.file === 'string' && run.file) || `${caseId}.${caseKind.get(caseId)}`
       if (seenFiles.has(file)) {

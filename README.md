@@ -26,6 +26,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | DeepSeek-V4-Pro | DeepSeek | Claude Code | Max | 02 |
 | Doubao Seed 2.0 Pro | ByteDance | 豆包网页版 | 超能模式 | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | 豆包网页版 | 快速模式 | 01 |
+| MiMo v2.5 Pro | Xiaomi | Claude Code | Max | 02 |
 
 待测：Mistral Medium 3.5 · Kimi K2.6 · MiniMax M3 · GLM-5.1 · Qwen3.7-Max（欢迎 PR 补充）
 
@@ -69,7 +70,8 @@ bun run build    # 数据校验 + 类型检查 + 产物构建（输出到 site/d
       "note": {
         "zh": "在哪个 Harness 里、什么思考档位、是否一次生成、是否有修复",
         "en": "Which harness, what effort level, one-shot or fixed"
-      }
+      },
+      "contributor": "你的 GitHub 用户名"
     }
   }
 }
@@ -79,6 +81,7 @@ bun run build    # 数据校验 + 类型检查 + 产物构建（输出到 site/d
 - `model-id` 只用小写字母/数字/连字符（如 `doubao-seed-2-0-pro`），文件名与 `outputs/` 目录名一致；
 - 每条 run 的 `note` **双语必填**——这是本仓库的可信度来源，必须写明产出怎么来的；
 - 声明的 run 必须有对应的产出文件；
-- 同一组合对同一案例可提交多个版本：`runs.<case-id>` 写成数组，第二个版本起必须用 `file` 指定不同文件名（如 `pelican-cycling-2.svg`）。
+- 同一组合对同一案例可提交多个版本：`runs.<case-id>` 写成数组，第二个版本起必须用 `file` 指定不同文件名（如 `pelican-cycling-2.svg`）；
+- `contributor` 填你的 GitHub 用户名，站点会在产出旁展示你的头像并链接到主页。
 
 提 PR 后 CI 会跑数据校验 + 构建；合入 `main` 自动部署。

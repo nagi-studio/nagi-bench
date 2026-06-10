@@ -26,6 +26,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | DeepSeek-V4-Pro | DeepSeek | Claude Code | Max | 02 |
 | Doubao Seed 2.0 Pro | ByteDance | Doubao Web | Pro Mode | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web | Fast Mode | 01 |
+| MiMo v2.5 Pro | Xiaomi | Claude Code | Max | 02 |
 
 Pending: Mistral Medium 3.5 · Kimi K2.6 · MiniMax M3 · GLM-5.1 · Qwen3.7-Max (PRs welcome)
 
@@ -57,6 +58,6 @@ Contributions are data-only — no code changes needed:
 1. Artifact: `outputs/<model-id>/<case-id>.<ext>` (e.g. `outputs/gpt-5-5-pro/pelican-cycling.svg`).
 2. Registration: `models/<model-id>.json` (new file for a new combination; add to `runs` for an existing one) — see the schema example in the Chinese README.
 
-CI-enforced rules: dash-only lowercase ids matching the `outputs/` folder name; a **required bilingual provenance `note`** per run (which harness, what effort, one-shot or fixed); every declared run must have its artifact; multiple versions of the same combination x case go in an array with distinct `file` names (e.g. `pelican-cycling-2.svg`).
+CI-enforced rules: dash-only lowercase ids matching the `outputs/` folder name; a **required bilingual provenance `note`** per run (which harness, what effort, one-shot or fixed); every declared run must have its artifact; multiple versions of the same combination x case go in an array with distinct `file` names (e.g. `pelican-cycling-2.svg`). Set `contributor` to your GitHub username — the site shows your avatar linked to your profile next to the run.
 
 PRs get data validation + a build from CI; merges to `main` deploy automatically.
