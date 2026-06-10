@@ -23,12 +23,12 @@ There are no tests; verification is the snap/fullpage scripts against `vite prev
 
 ## Architecture
 
-**Single data registry: `site/src/data/cases.ts`.** Everything renders from three exports:
-- `MODELS` — ids are dash-only because they double as `outputs/<model-id>/` folder names.
-- `CASES` — bilingual `title/tagline/prompt` (`{zh, en}` objects). The hero typewriter feeds off prompts automatically.
-- `RUNS` — `caseId → modelId → { note?, file? }`. An entry existing means "this model ran this case": artifact path is derived as `outputs/<model-id>/<case-id>.<kind>` (`file` overrides), and the per-case tab dots key off RUNS presence — never off `model.status` (that's global, used only by marquee/hero stats).
+**Data is contribution-friendly config, not code.** Sources of truth:
+- `models/<model-id>.json` (repo root) — one file per model: `label`, `vendor`, `order` (display sort), and `runs.<case-id>.{note, file?}`. The filename IS the model id (dash-only, doubles as the `outputs/` folder name). A model having runs = "ran" status; the per-case tab dots key off run presence.
+- `site/src/data/cases.json` — case definitions (bilingual title/tagline/prompt), maintainer-owned. The hero typewriter feeds off prompts automatically.
+- `site/src/data/cases.ts` only derives `MODELS`/`RUNS` from those files via `import.meta.glob` — contributors never touch it.
 
-Adding a run = drop `outputs/<model-id>/<case-id>.<ext>` + register in `cases.ts` + push.
+`site/scripts/validate-data.ts` runs inside `bun run build` (and PR CI): dash-only ids, required bilingual provenance `note` per run, declared artifacts must exist, no orphan `outputs/` dirs. Adding a run = drop `outputs/<model-id>/<case-id>.<ext>` + edit `models/<model-id>.json` + push.
 
 **Artifact fix policy.** Model outputs may receive surgical, line-level fixes (originals stay in git history). Every fix must be documented in the run `note` as: where the bug is / pre-fix behavior / root cause / "this page shows the fixed build (N lines)". Notes also carry provenance (which tool/effort produced the run). Recurring trap in these artifacts: canvas-atlas `flipY` mismatches and camera `-Z` convention sign errors.
 

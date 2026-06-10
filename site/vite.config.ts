@@ -6,4 +6,6 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   base: '/',
   plugins: [react(), tailwindcss()],
+  // model registrations live at the repo root (../models), outside the Vite root
+  server: { fs: { allow: ['..'] } },
 })

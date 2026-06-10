@@ -10,9 +10,10 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different models, one attem
 
 ```
 outputs/<model-id>/<case-id>.<ext>   模型产出原文件（HTML / SVG），文件名 = 案例 id
+models/<model-id>.json               模型登记：label / vendor / order / 各案例运行备注
 site/                                展示站点（Vite + React + Tailwind v4 + GSAP，bun 驱动）
-site/src/data/cases.ts               案例定义：双语提示词、模型列表、运行备注
-.github/workflows/deploy.yml         GitHub Pages 自动部署
+site/src/data/cases.json             案例定义：双语标题与提示词（维护者维护）
+.github/workflows/                   deploy.yml 自动部署；ci.yml 对 PR 跑数据校验 + 构建
 ```
 
 ## URL 规则 / URL scheme
@@ -37,13 +38,34 @@ bun run dev      # 同步 outputs/ 并启动 http://localhost:5173/
 bun run build    # 类型检查 + 产物构建（输出到 site/dist）
 ```
 
-## 添加案例或模型 / Adding a case or model
+## 贡献一个模型产出 / Contributing a run
 
-1. 把产出文件放进 `outputs/<model-id>/`，命名为 `<case-id>.<ext>`（如 `mythos-craft.html`）。
-2. 在 `site/src/data/cases.ts` 里登记：
-   - 新模型：加入 `MODELS`（`status: 'ran' | 'pending'`）。
-   - 新案例：加入 `CASES`（中英双语 `title` / `tagline` / `prompt`）。
-   - 运行记录：在 `RUNS` 里登记案例 id 对应的模型 id（可附双语 `note` 运行备注；文件名不符合约定时用 `file` 覆盖）。
-3. 推送到 `main`，GitHub Actions 自动构建并部署。
+贡献**不需要改任何代码**，只涉及两类文件：
 
-Drop the artifact into `outputs/<model-id>/` named `<case-id>.<ext>`, register it in `site/src/data/cases.ts` (model in `MODELS`, case in `CASES` with bilingual prompts, run entry in `RUNS` with an optional per-model `note`), then push to `main` — GitHub Actions deploys automatically.
+1. 产出文件：`outputs/<model-id>/<case-id>.<ext>`（如 `outputs/gpt-5-5-pro/pelican-cycling.svg`）。
+2. 模型登记：`models/<model-id>.json`（新模型新建文件；已有模型在 `runs` 里加一条）：
+
+```json
+{
+  "label": "GPT-5.5 Pro",
+  "vendor": "OpenAI",
+  "order": 20,
+  "runs": {
+    "pelican-cycling": {
+      "note": {
+        "zh": "在哪个工具/产品里、什么思考档位、是否一次生成、是否有修复",
+        "en": "Which tool, what effort level, one-shot or fixed"
+      }
+    }
+  }
+}
+```
+
+规则（CI 自动校验，不满足会挂）：
+- `model-id` 只用小写字母/数字/连字符（如 `doubao-seed-2-0-pro`），文件名与 `outputs/` 目录名一致；
+- 每条 run 的 `note` **双语必填**——这是本仓库的可信度来源，必须写明产出怎么来的；
+- 声明的 run 必须有对应的产出文件。
+
+提 PR 后 CI 会跑数据校验 + 构建；合入 `main` 自动部署。
+
+Contributions are data-only — no code changes needed. Drop the artifact into `outputs/<model-id>/<case-id>.<ext>` and register it in `models/<model-id>.json` (schema above). CI enforces: dash-only ids matching the folder name, a required bilingual provenance `note` per run, and that every declared run has its artifact. Merges to `main` deploy automatically.

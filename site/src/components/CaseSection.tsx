@@ -462,7 +462,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
           </div>
 
           {run?.note && (
-            <p className="text-dim mt-5 max-w-4xl font-mono text-[11px] leading-relaxed">
+            <p className="text-dim mt-5 max-w-4xl font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
               <span className="text-amber">{t('case.note')}</span>
               <span className="mx-2">·</span>
               {pick(run.note)}
