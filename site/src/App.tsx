@@ -5,7 +5,7 @@ import { CASES } from './data/cases'
 import { ScrollTrigger } from './lib/gsap'
 import TopBar from './components/TopBar'
 import Hero from './components/Hero'
-import ModelMarquee from './components/ModelMarquee'
+import ModelRegistry from './components/ModelRegistry'
 import CaseSection from './components/CaseSection'
 import Footer from './components/Footer'
 import CursorGlow from './components/CursorGlow'
@@ -33,7 +33,7 @@ function Shell() {
       <TopBar />
       <main>
         <Hero />
-        <ModelMarquee />
+        <ModelRegistry />
         <div id="cases">
           {CASES.map((c) => (
             <CaseSection key={c.id} caseDef={c} />

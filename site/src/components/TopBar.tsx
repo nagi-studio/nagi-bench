@@ -19,8 +19,8 @@ export default function TopBar() {
     <button
       onClick={() => setLang(target)}
       aria-pressed={lang === target}
-      className={`px-1 transition-colors ${
-        lang === target ? 'text-accent' : 'text-dim hover:text-paper'
+      className={`px-3 py-1.5 font-mono text-xs font-bold tracking-wider transition-colors ${
+        lang === target ? 'bg-paper text-ink' : 'text-dim hover:text-paper'
       }`}
     >
       {label}
@@ -29,21 +29,23 @@ export default function TopBar() {
 
   return (
     <header className="border-line bg-ink/80 fixed inset-x-0 top-0 z-40 border-b backdrop-blur-md transition-colors duration-500">
-      <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4">
         <a href="#top" className="flex items-center gap-2.5 font-mono text-sm font-bold tracking-[0.2em]">
           <span className="bg-acid inline-block size-3" />
           NAGI BENCH
         </a>
-        <div className="flex items-center gap-5">
-          <nav className="flex items-center font-mono text-xs" aria-label="Language">
+        <div className="flex items-center gap-2.5">
+          <nav
+            className="border-line flex items-center border p-0.5"
+            aria-label="Language"
+          >
             <LangButton target="zh" label="中文" />
-            <span className="text-dim select-none">/</span>
             <LangButton target="en" label="EN" />
           </nav>
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="text-dim hover:text-paper transition-colors"
+            className="border-line text-dim hover:border-accent hover:text-accent flex size-9 items-center justify-center border transition-colors"
           >
             {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </button>
@@ -52,7 +54,7 @@ export default function TopBar() {
             target="_blank"
             rel="noreferrer"
             aria-label="GitHub repository"
-            className="text-dim hover:text-paper transition-colors"
+            className="border-line text-dim hover:border-accent hover:text-accent flex size-9 items-center justify-center border transition-colors"
           >
             <GithubMark className="size-4" />
           </a>

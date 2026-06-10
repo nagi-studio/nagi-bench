@@ -1,33 +1,45 @@
 # NAGI BENCH
 
-NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同模型，一次生成、不许返工，并排对比它们交出的可运行作品。
+中文 | [English](./README.en.md)
 
-One-shot LLM eval cases by NAGI STUDIO: same prompt, different models, one attempt and no retries — a side-by-side record of the runnable artifacts they ship.
+NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Harness × 思考配额」组合，一次生成、不许返工，并排对比它们交出的可运行作品。
 
-**Live site:** https://bench.nagi.fun/
+**线上站点：** https://bench.nagi.fun/
+
+## 模型与 Harness 的关系
+
+- **模型（Model）**：权重与推理引擎本身，如 GPT-5.5、Gemini 3.1 Pro、Claude Fable 5。
+- **Harness（运行环境）**：包裹模型的产品/脚手架，如 Codex CLI、Cursor、AntiGravity、Claude 网页版——它决定工具调用、系统提示词、上下文管理与续写策略，对最终产出的影响往往不亚于模型本身。
+- 因此本仓库的测评单位是**组合**：同一个模型在不同 Harness 或不同思考配额下，记为不同条目（例如 GPT-5.5 Pro 与 GPT-5.5 Codex 是同一模型家族的两条记录）。思考配额默认拉满（Max），未来同一组合可以追加新配额版本。
+
+## 已测组合 / Registry
+
+| 模型 | 厂商 | Harness 环境 | 思考配额 | 产出 |
+|---|---|---|---|---|
+| Claude Fable 5 | Anthropic | Claude 网页版 | Max | 02 |
+| GPT-5.5 Pro | OpenAI | ChatGPT 网页版 | Extended Pro | 01 |
+| GPT-5.5 Codex | OpenAI | Codex CLI（无 skill） | xhigh | 02 |
+| Gemini 3.1 Pro | Google | AntiGravity | High | 03 |
+| Gemini 3.5 Flash | Google | AntiGravity | High | 03 |
+| Grok Build | xAI | Grok Build TUI（本地） | Max | 01 |
+| Composer 2.5 | Cursor | Cursor | Max | 01 |
+| DeepSeek-V4-Pro | DeepSeek | Claude Code | Max | 02 |
+| Doubao Seed 2.0 Pro | ByteDance | 豆包网页版 | 超能模式 | 01 |
+| Doubao Seed 2.0 Mini | ByteDance | 豆包网页版 | 快速模式 | 01 |
+
+待测：Mistral Medium 3.5 · Kimi K2.6 · MiniMax M3 · GLM-5.1 · Qwen3.7-Max（欢迎 PR 补充）
+
+> 此表为人工维护的快照；站点上的「模型阵容」表由 `models/*.json` 实时生成，以站点为准。
 
 ## 结构 / Structure
 
 ```
 outputs/<model-id>/<case-id>.<ext>   模型产出原文件（HTML / SVG），文件名 = 案例 id
-models/<model-id>.json               模型登记：label / vendor / order / 各案例运行备注
+models/<model-id>.json               组合登记：label / vendor / harness / effort / order / 各案例运行备注
 site/                                展示站点（Vite + React + Tailwind v4 + GSAP，bun 驱动）
 site/src/data/cases.json             案例定义：双语标题与提示词（维护者维护）
 .github/workflows/                   deploy.yml 自动部署；ci.yml 对 PR 跑数据校验 + 构建
 ```
-
-## URL 规则 / URL scheme
-
-| URL | 含义 / Meaning |
-| --- | --- |
-| `https://bench.nagi.fun/` | 站点首页 / Home |
-| `https://bench.nagi.fun/#<case-id>` | 定位到某个案例 / Anchor to a case (e.g. `#mythos-craft`) |
-| `https://bench.nagi.fun/#<case-id>:<model-id>` | 定位案例并选中模型 / Case + preselected model tab |
-| `https://bench.nagi.fun/outputs/<model-id>/<case-id>.<ext>` | 产物直链 / Raw artifact |
-
-切换模型标签时地址栏自动更新（`replaceState`），当前视图随时可直接分享。旧域名链接（`https://nagi-studio.github.io/nagi-bench/*`）由 GitHub Pages 自动 301 重定向到 `https://bench.nagi.fun/*`，路径保留。
-
-Switching a model tab updates the address bar in place, so the current view is always shareable. Legacy `nagi-studio.github.io/nagi-bench/*` links are 301-redirected by GitHub Pages to `bench.nagi.fun/*` with the path preserved.
 
 ## 本地开发 / Development
 
@@ -35,7 +47,7 @@ Switching a model tab updates the address bar in place, so the current view is a
 cd site
 bun install
 bun run dev      # 同步 outputs/ 并启动 http://localhost:5173/
-bun run build    # 类型检查 + 产物构建（输出到 site/dist）
+bun run build    # 数据校验 + 类型检查 + 产物构建（输出到 site/dist）
 ```
 
 ## 贡献一个模型产出 / Contributing a run
@@ -43,18 +55,20 @@ bun run build    # 类型检查 + 产物构建（输出到 site/dist）
 贡献**不需要改任何代码**，只涉及两类文件：
 
 1. 产出文件：`outputs/<model-id>/<case-id>.<ext>`（如 `outputs/gpt-5-5-pro/pelican-cycling.svg`）。
-2. 模型登记：`models/<model-id>.json`（新模型新建文件；已有模型在 `runs` 里加一条）：
+2. 组合登记：`models/<model-id>.json`（新组合新建文件；已有组合在 `runs` 里加一条）：
 
 ```json
 {
   "label": "GPT-5.5 Pro",
   "vendor": "OpenAI",
+  "harness": "ChatGPT Web",
+  "effort": "Extended Pro",
   "order": 20,
   "runs": {
     "pelican-cycling": {
       "note": {
-        "zh": "在哪个工具/产品里、什么思考档位、是否一次生成、是否有修复",
-        "en": "Which tool, what effort level, one-shot or fixed"
+        "zh": "在哪个 Harness 里、什么思考档位、是否一次生成、是否有修复",
+        "en": "Which harness, what effort level, one-shot or fixed"
       }
     }
   }
@@ -64,8 +78,7 @@ bun run build    # 类型检查 + 产物构建（输出到 site/dist）
 规则（CI 自动校验，不满足会挂）：
 - `model-id` 只用小写字母/数字/连字符（如 `doubao-seed-2-0-pro`），文件名与 `outputs/` 目录名一致；
 - 每条 run 的 `note` **双语必填**——这是本仓库的可信度来源，必须写明产出怎么来的；
-- 声明的 run 必须有对应的产出文件。
+- 声明的 run 必须有对应的产出文件；
+- 同一组合对同一案例可提交多个版本：`runs.<case-id>` 写成数组，第二个版本起必须用 `file` 指定不同文件名（如 `pelican-cycling-2.svg`）。
 
 提 PR 后 CI 会跑数据校验 + 构建；合入 `main` 自动部署。
-
-Contributions are data-only — no code changes needed. Drop the artifact into `outputs/<model-id>/<case-id>.<ext>` and register it in `models/<model-id>.json` (schema above). CI enforces: dash-only ids matching the folder name, a required bilingual provenance `note` per run, and that every declared run has its artifact. Merges to `main` deploy automatically.

@@ -24,7 +24,7 @@ There are no tests; verification is the snap/fullpage scripts against `vite prev
 ## Architecture
 
 **Data is contribution-friendly config, not code.** Sources of truth:
-- `models/<model-id>.json` (repo root) — one file per model: `label`, `vendor`, `order` (display sort), and `runs.<case-id>.{note, file?}`. The filename IS the model id (dash-only, doubles as the `outputs/` folder name). A model having runs = "ran" status; the per-case tab dots key off run presence.
+- `models/<model-id>.json` (repo root) — one file per **model x harness x effort combination**: `label`, `vendor`, `harness`, `effort`, `order` (display sort), and `runs.<case-id>` (one run or an array of variants, each `{note, file?}`; extra variants need distinct `file` names). The filename IS the entry id (dash-only, doubles as the `outputs/` folder name). The same model under a different harness is a separate entry (GPT-5.5 Pro vs GPT-5.5 Codex). Having runs = "ran" status; per-case tab dots key off run presence.
 - `site/src/data/cases.json` — case definitions (bilingual title/tagline/prompt), maintainer-owned. The hero typewriter feeds off prompts automatically.
 - `site/src/data/cases.ts` only derives `MODELS`/`RUNS` from those files via `import.meta.glob` — contributors never touch it.
 
@@ -42,4 +42,4 @@ There are no tests; verification is the snap/fullpage scripts against `vite prev
 
 - No emojis anywhere in UI text or code (hard design rule); lucide-react or inline SVG for icons.
 - `.agents/`, `.claude/`, `skills-lock.json` are local tooling — gitignored and purged from history; never commit them.
-- Commit messages are plain English; the site copy defaults to zh with en translations.
+- Commit messages are plain English; the site copy defaults to zh with en translations. README.md is Chinese-first with README.en.md mirroring it — keep both registry tables in sync with models/*.json when combinations change.
