@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { gsap, useGSAP, prefersReducedMotion } from '../lib/gsap'
 import { useLang } from '../i18n'
 import { MODELS } from '../data/cases'
+import { BrandIcon, harnessIcon, modelIcon, vendorIcon } from '../lib/brands'
 
 // Registry of model x harness x effort combinations — replaces the old
 // marquee with something you can actually read.
@@ -37,7 +38,7 @@ export default function ModelRegistry() {
     <section ref={scope} id="models" className="border-line relative overflow-hidden border-t">
       <div className="relative mx-auto w-full max-w-7xl px-4 py-14 md:py-20">
         <header data-registry-head>
-          <div className="text-dim flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] tracking-[0.25em] uppercase">
+          <div className="text-dim flex flex-wrap items-center justify-between gap-2 font-mono text-xs tracking-[0.25em] uppercase">
             <span className="flex items-center gap-2.5">
               <span className="bg-acid inline-block size-2.5" />
               <span className="text-accent">{t('registry.label')}</span>
@@ -46,12 +47,12 @@ export default function ModelRegistry() {
               {pad(ranCount)}/{pad(MODELS.length)} {t('registry.ran')}
             </span>
           </div>
-          <p className="text-dim mt-4 max-w-2xl text-sm leading-relaxed">{t('registry.sub')}</p>
+          <p className="text-dim mt-4 max-w-3xl text-base leading-relaxed">{t('registry.sub')}</p>
         </header>
 
         <div
           data-registry-row
-          className="border-line text-dim mt-8 hidden border-b pb-2 font-mono text-[10px] tracking-[0.2em] uppercase md:grid md:grid-cols-[2fr_1fr_1.3fr_1fr_0.5fr] md:gap-4"
+          className="border-line text-dim mt-8 hidden border-b pb-2 font-mono text-xs tracking-[0.2em] uppercase md:grid md:grid-cols-[2fr_1fr_1.3fr_1fr_0.5fr] md:gap-4"
         >
           <span>{t('registry.model')}</span>
           <span>{t('registry.vendor')}</span>
@@ -67,30 +68,35 @@ export default function ModelRegistry() {
               <li
                 key={m.id}
                 data-registry-row
-                className={`border-line hover:bg-ink-2/70 grid grid-cols-2 gap-x-4 gap-y-1.5 border-b py-3.5 transition-colors md:grid-cols-[2fr_1fr_1.3fr_1fr_0.5fr] md:items-center ${
+                className={`border-line hover:bg-ink-2/70 grid grid-cols-2 gap-x-4 gap-y-1.5 border-b py-4 transition-colors md:grid-cols-[2fr_1fr_1.3fr_1fr_0.5fr] md:items-center ${
                   ran ? '' : 'opacity-55'
                 }`}
               >
-                <span className="flex items-center gap-2.5 font-mono text-sm font-bold tracking-tight">
+                <span className="flex items-center gap-2.5 font-mono text-base font-bold tracking-tight">
                   <span
                     className={`size-1.5 shrink-0 rounded-full ${ran ? 'bg-accent' : 'bg-amber dot-breathe'}`}
                   />
+                  <BrandIcon icon={modelIcon(m.label)} className="text-paper text-[17px]" />
                   {m.label}
                 </span>
-                <span className="text-dim text-right font-mono text-xs md:text-left">{m.vendor}</span>
-                <span className="text-dim font-mono text-xs">
+                <span className="text-dim flex items-center justify-end gap-2 font-mono text-sm md:justify-start">
+                  <BrandIcon icon={vendorIcon(m.vendor)} className="text-[15px]" />
+                  {m.vendor}
+                </span>
+                <span className="text-dim flex items-center gap-2 font-mono text-sm">
+                  <BrandIcon icon={harnessIcon(m.harness)} className="text-[15px]" />
                   {m.harness ?? t('registry.tbd')}
                 </span>
                 <span>
                   {ran ? (
-                    <span className="border-line text-paper inline-block border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase">
+                    <span className="border-line text-paper inline-block border px-2 py-0.5 font-mono text-xs tracking-wider uppercase">
                       {m.effort ?? 'Max'}
                     </span>
                   ) : (
-                    <span className="text-dim font-mono text-xs">{t('registry.tbd')}</span>
+                    <span className="text-dim font-mono text-sm">{t('registry.tbd')}</span>
                   )}
                 </span>
-                <span className="text-paper text-right font-mono text-xs">
+                <span className="text-paper text-right font-mono text-sm">
                   {ran ? pad(m.runCount) : '—'}
                 </span>
               </li>

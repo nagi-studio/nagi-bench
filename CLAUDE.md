@@ -41,5 +41,6 @@ There are no tests; verification is the snap/fullpage scripts against `vite prev
 ## Conventions
 
 - No emojis anywhere in UI text or code (hard design rule); lucide-react or inline SVG for icons.
+- Brand icons (model/vendor/harness) are `@lobehub/icons-static-svg` raw imports mapped in `site/src/lib/brands.tsx` via regex on the strings in `models/*.json`. Never add the `@lobehub/icons` React package — its peer deps pull in antd/@lobehub/ui. New vendor/harness = one import + one rule in brands.tsx.
 - `.agents/`, `.claude/`, `skills-lock.json` are local tooling — gitignored and purged from history; never commit them.
 - Commit messages are plain English; the site copy defaults to zh with en translations. README.md is Chinese-first with README.en.md mirroring it — keep both registry tables in sync with models/*.json when combinations change.

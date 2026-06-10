@@ -12,6 +12,7 @@ import {
   type ModelDef,
   type RunDef,
 } from '../data/cases'
+import { BrandIcon, harnessIcon, modelIcon } from '../lib/brands'
 
 function Spinner({ label }: { label: string }) {
   return (
@@ -26,7 +27,7 @@ function FrameFooter({ path, onFullscreen }: { path: string; onFullscreen?: () =
   const { t } = useLang()
   const file = path.split('/').pop() ?? path
   return (
-    <div className="text-dim mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px]">
+    <div className="text-dim mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-xs">
       <span className="truncate">{file}</span>
       <span className="flex items-center gap-4">
         {onFullscreen && (
@@ -66,7 +67,7 @@ function EmptyState() {
     <div className="border-line bg-ink-2/50 mt-6 flex h-64 flex-col items-center justify-center gap-3 border border-dashed px-6 md:h-80">
       <span className="bg-amber dot-breathe size-2.5 rounded-full" />
       <p className="text-paper font-mono text-xs tracking-[0.25em] uppercase">{t('empty.title')}</p>
-      <p className="text-dim max-w-xs text-center text-xs leading-relaxed">{t('empty.desc')}</p>
+      <p className="text-dim max-w-sm text-center text-sm leading-relaxed">{t('empty.desc')}</p>
     </div>
   )
 }
@@ -76,10 +77,10 @@ function SvgViewer({ path, label }: { path: string; label: string }) {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   return (
     <figure>
-      <div className="border-line bg-ink-2 relative mt-6 flex min-h-72 items-center justify-center overflow-hidden border p-4 md:p-12">
+      <div className="border-line bg-ink-2 relative mt-6 flex min-h-72 items-center justify-center overflow-hidden border p-4 md:p-10">
         {state === 'loading' && <Spinner label={t('case.loading')} />}
         {state === 'error' ? (
-          <p className="text-dim max-w-sm text-center font-mono text-xs leading-relaxed">
+          <p className="text-dim max-w-sm text-center font-mono text-sm leading-relaxed">
             {t('case.loadError')}
           </p>
         ) : (
@@ -88,7 +89,7 @@ function SvgViewer({ path, label }: { path: string; label: string }) {
             alt={label}
             onLoad={() => setState('ready')}
             onError={() => setState('error')}
-            className={`max-h-[44rem] w-full object-contain transition-opacity duration-500 ${
+            className={`max-h-[32rem] w-full object-contain transition-opacity duration-500 ${
               state === 'ready' ? 'opacity-100' : 'opacity-0'
             }`}
           />
@@ -161,7 +162,7 @@ function HtmlViewer({ path, label }: { path: string; label: string }) {
             <span className="text-paper font-mono text-xs tracking-[0.25em] uppercase">
               {t('case.run')}
             </span>
-            <span className="text-dim font-mono text-[10px]">{t('case.runHint')}</span>
+            <span className="text-dim font-mono text-xs">{t('case.runHint')}</span>
           </button>
         ) : (
           <>
@@ -386,7 +387,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
         <header className="max-w-3xl">
           <div
             data-reveal
-            className="text-dim flex flex-wrap items-center gap-2.5 font-mono text-[11px] tracking-[0.2em] uppercase"
+            className="text-dim flex flex-wrap items-center gap-2.5 font-mono text-xs tracking-[0.2em] uppercase"
           >
             <span className="text-accent">CASE {caseDef.index}</span>
             {caseDef.tags.map((tag) => (
@@ -398,13 +399,13 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
           <h2 ref={titleRef} className="mt-5 text-4xl font-bold tracking-tight uppercase md:text-6xl">
             {pick(caseDef.title)}
           </h2>
-          <p data-reveal className="text-dim mt-4 max-w-xl leading-relaxed">
+          <p data-reveal className="text-dim mt-4 max-w-xl text-base leading-relaxed md:text-lg">
             {pick(caseDef.tagline)}
           </p>
         </header>
 
         <div data-reveal className="mt-10 max-w-4xl md:mt-14">
-          <div className="border-line text-dim flex items-center justify-between border-b pb-3 font-mono text-[11px] tracking-[0.25em] uppercase">
+          <div className="border-line text-dim flex items-center justify-between border-b pb-3 font-mono text-xs tracking-[0.25em] uppercase">
             <span>{t('case.prompt')}</span>
             <button
               onClick={copyPrompt}
@@ -416,7 +417,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
           </div>
           <pre
             ref={preRef}
-            className="border-accent text-paper/90 mt-6 border-l-2 pl-5 font-mono text-sm leading-loose whitespace-pre-wrap"
+            className="border-accent text-paper/90 mt-6 border-l-2 pl-5 font-mono text-sm leading-loose whitespace-pre-wrap md:text-base"
           >
             {prompt.split('\n').map((line, i) => (
               <span key={i} data-prompt-line className="block min-h-[1.6em]">
@@ -431,7 +432,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
             data-reveal
             className="border-line flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between"
           >
-            <span className="text-dim font-mono text-[11px] tracking-[0.25em] uppercase">
+            <span className="text-dim font-mono text-xs tracking-[0.25em] uppercase">
               {t('case.output')}
             </span>
             <div
@@ -454,7 +455,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
                     role="tab"
                     aria-selected={m.id === activeModelId}
                     onClick={() => selectModel(m.id)}
-                    className={`inline-flex shrink-0 items-center gap-1.5 border px-2.5 py-1 font-mono text-[11px] whitespace-nowrap transition-colors ${
+                    className={`inline-flex shrink-0 items-center gap-2 border px-3 py-1.5 font-mono text-sm whitespace-nowrap transition-colors ${
                       m.id === activeModelId
                         ? 'border-line text-accent'
                         : 'text-dim hover:text-paper border-transparent'
@@ -465,6 +466,7 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
                         hasRun ? 'bg-accent' : 'bg-amber dot-breathe'
                       }`}
                     />
+                    <BrandIcon icon={modelIcon(m.label)} className="text-[15px]" />
                     {m.label}
                   </button>
                 )
@@ -473,14 +475,14 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
           </div>
 
           {variants.length > 1 && (
-            <div className="text-dim mt-4 flex items-center gap-2 font-mono text-[10px] tracking-[0.2em] uppercase">
+            <div className="text-dim mt-4 flex items-center gap-2 font-mono text-xs tracking-[0.2em] uppercase">
               <span>{t('case.variants')}</span>
               {variants.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setVariantIdx(i)}
                   aria-pressed={i === variantIdx}
-                  className={`border px-2 py-0.5 transition-colors ${
+                  className={`border px-2.5 py-1 transition-colors ${
                     i === variantIdx
                       ? 'border-accent text-accent'
                       : 'border-line hover:text-paper'
@@ -494,40 +496,59 @@ export default function CaseSection({ caseDef }: { caseDef: CaseDef }) {
 
           <div
             data-frame
-            className="xl:relative xl:left-1/2 xl:w-[min(100vw-3rem,90rem)] xl:-translate-x-1/2"
+            className={
+              caseDef.kind === 'html'
+                ? 'xl:relative xl:left-1/2 xl:w-[min(100vw-3rem,90rem)] xl:-translate-x-1/2'
+                : 'max-w-5xl'
+            }
           >
             <div data-viewer key={`${caseDef.id}-${activeModelId}-${variantIdx}`}>
               <Viewer caseDef={caseDef} model={activeModel} run={run} />
             </div>
           </div>
 
-          {(run?.note || run?.contributor) && (
-            <div className="mt-5 flex flex-wrap items-start justify-between gap-x-8 gap-y-3">
-              {run?.note && (
-                <p className="text-dim min-w-0 flex-1 basis-72 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
-                  <span className="text-amber">{t('case.note')}</span>
-                  <span className="mx-2">·</span>
-                  {pick(run.note)}
-                </p>
+          {run && (
+            <div className="mt-5 flex flex-wrap items-stretch gap-2.5">
+              {activeModel.harness && (
+                <span className="border-line text-dim flex items-center gap-2.5 border px-3 py-2 font-mono text-xs">
+                  <span className="tracking-[0.2em] uppercase">{t('case.harness')}</span>
+                  <BrandIcon
+                    icon={harnessIcon(activeModel.harness)}
+                    className="text-paper text-[16px]"
+                  />
+                  <span className="text-paper">{activeModel.harness}</span>
+                </span>
               )}
-              {run?.contributor && (
+              <span className="border-line text-dim flex items-center gap-2.5 border px-3 py-2 font-mono text-xs">
+                <span className="tracking-[0.2em] uppercase">{t('case.effort')}</span>
+                <span className="text-paper">{activeModel.effort ?? 'Max'}</span>
+              </span>
+              {run.contributor && (
                 <a
                   href={`https://github.com/${run.contributor}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="border-line text-dim hover:border-accent hover:text-accent flex shrink-0 items-center gap-2.5 border px-3 py-2 font-mono text-[11px] transition-colors"
+                  className="border-line text-dim hover:border-accent hover:text-accent flex items-center gap-2.5 border px-3 py-2 font-mono text-xs transition-colors"
                 >
                   <span className="tracking-[0.2em] uppercase">{t('case.contributor')}</span>
                   <img
                     src={`https://github.com/${run.contributor}.png?size=64`}
                     alt={run.contributor}
                     loading="lazy"
-                    className="border-line size-5 rounded-full border"
+                    className="border-line size-6 rounded-full border"
                   />
                   @{run.contributor}
                 </a>
               )}
             </div>
+          )}
+
+          {run?.note && (
+            <p className="text-dim mt-4 max-w-4xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
+              <span className="text-amber">{t('case.note')}</span>
+              <span className="mx-2">·</span>
+              {pick(run.note)}
+            </p>
           )}
         </div>
       </div>
