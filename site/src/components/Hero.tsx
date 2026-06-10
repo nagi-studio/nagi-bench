@@ -37,16 +37,25 @@ const PromptTerminal = memo(function PromptTerminal({ entries }: { entries: Entr
       }
       const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.6 })
       entries.forEach((entry) => {
+        // Type via textContent slicing, not TextPlugin: prompts may contain
+        // markup-looking text like `<svg>` which innerHTML would swallow.
+        const typed = { chars: 0 }
         tl.set(labelRef.current, { text: entry.id })
-          .to(text, {
+          .to(typed, {
+            chars: entry.text.length,
             duration: gsap.utils.clamp(2, 9, entry.text.length * 0.028),
-            text: entry.text,
             ease: 'none',
-            onUpdate: follow,
+            onUpdate: () => {
+              text.textContent = entry.text.slice(0, Math.round(typed.chars))
+              follow()
+            },
           })
           .to({}, { duration: 2.8 })
           .to(body, { autoAlpha: 0, duration: 0.3, ease: 'power1.in' })
-          .set(text, { text: '' })
+          .call(() => {
+            typed.chars = 0
+            text.textContent = ''
+          })
           .set(body, { scrollTop: 0 })
           .to(body, { autoAlpha: 1, duration: 0.2 })
       })
