@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神话之境 — Mythos Craft</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #000; font-family: system-ui, sans-serif; }
+  canvas { display: block; }
+  #overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.82);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; cursor: pointer; text-align: center; padding: 24px;
+  }
+  #overlay h1 { color: #e8d5a3; font-size: 40px; letter-spacing: 4px; margin-bottom: 8px; }
+  #overlay h2 { color: #9ec5e8; font-size: 17px; font-weight: 400; margin-bottom: 28px; }
+  #overlay p { color: rgba(255,255,255,0.65); line-height: 1.9; font-size: 14px; max-width: 520px; }
+  #overlay .btn {
+    margin-top: 28px; padding: 12px 36px; font-size: 17px; letter-spacing: 2px;
+    background: linear-gradient(135deg, #4a6741, #2d4a2d); color: #e8d5a3;
+    border: 2px solid #6b8f5e; border-radius: 4px;
+  }
+  #crosshair {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 20px; height: 20px; pointer-events: none; z-index: 10; display: none;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: rgba(255,255,255,0.85);
+  }
+  #crosshair::before { width: 2px; height: 20px; left: 9px; }
+  #crosshair::after { width: 20px; height: 2px; top: 9px; }
+  #hud {
+    position: fixed; bottom: 0; left: 0; right: 0; padding: 14px;
+    display: none; flex-direction: column; align-items: center; gap: 8px;
+    pointer-events: none; z-index: 10;
+  }
+  #hotbar {
+    display: flex; gap: 4px; background: rgba(0,0,0,0.55);
+    padding: 6px; border-radius: 4px; border: 2px solid rgba(255,255,255,0.28);
+  }
+  .slot {
+    width: 46px; height: 46px; border: 2px solid rgba(100,100,100,0.55);
+    border-radius: 2px; position: relative; background: rgba(0,0,0,0.35);
+  }
+  .slot.active { border-color: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.45); }
+  .slot canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+  .slot .key { position: absolute; top: 2px; left: 4px; font-size: 10px; color: rgba(255,255,255,0.65); }
+  #info { color: rgba(255,255,255,0.7); font-size: 12px; text-shadow: 1px 1px 2px #000; }
+  #blockName {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, 36px);
+    color: rgba(255,255,255,0.85); font-size: 13px; display: none;
+    text-shadow: 1px 1px 3px #000; pointer-events: none; z-index: 10;
+  }
+  #minimap {
+    position: fixed; top: 14px; right: 14px; width: 110px; height: 110px;
+    border: 2px solid rgba(255,255,255,0.28); border-radius: 4px;
+    background: rgba(0,0,0,0.45); display: none; z-index: 10; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div id="overlay">
+  <h1>神话之境</h1>
+  <h2>Mythos Craft — 体素世界</h2>
+  <p>
+    WASD 移动 · 空格跳跃 · Shift 潜行<br>
+    鼠标环视 · 左键破坏 · 右键放置 · 1-6 切换方块<br>
+    柏林噪声生成的无限地形：草原、沙漠、雪原、神话群系<br>
+    探索精灵螺旋塔、龙神殿、天空浮岛遗迹
+  </p>
+  <div class="btn">点击开始</div>
+</div>
+<div id="crosshair"></div>
+<div id="blockName"></div>
+<canvas id="minimap"></canvas>
+<div id="hud">
+  <div id="hotbar"></div>
+  <div id="info">坐标 0, 0, 0</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  const BLOCK = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, SAND: 4, SNOW: 5, WOOD: 6, LEAVES: 7, MYTH_STONE: 8, GOLD: 9 };
+  const BLOCK_NAMES = ['', '草地', '泥土', '石头', '沙子', '雪', '原木', '树叶', '神话石', '金块'];
+  const HOTBAR = [BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.SAND, BLOCK.WOOD, BLOCK.MYTH_STONE];
+  const CHUNK = 16, WORLD_H = 64, RENDER = 4;
+  const GRAVITY = 24, JUMP = 9, WALK = 5.5, SNEAK = 2.5;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 16;
+  const ctx = canvas.getContext('2d');
+  const atlasCanvas = document.createElement('canvas');
+  atlasCanvas.width = 160; atlasCanvas.height = 16;
+  const atlasCtx = atlasCanvas.getContext('2d');
+
+  function noise2D(x, z) {
+    const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
+    return s - Math.floor(s);
+  }
+  function smoothNoise(x, z) {
+    const ix = Math.floor(x), iz = Math.floor(z);
+    const fx = x - ix, fz = z - iz;
+    const u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+    const a = noise2D(ix, iz), b = noise2D(ix + 1, iz);
+    const c = noise2D(ix, iz + 1), d = noise2D(ix + 1, iz + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x, z, oct = 5) {
+    let v = 0, a = 0.5, f = 1;
+    for (let i = 0; i < oct; i++) { v += smoothNoise(x * f, z * f) * a; a *= 0.5; f *= 2; }
+    return v;
+  }
+
+  function drawFace(color, detail) {
+    ctx.fillStyle = color; ctx.fillRect(0, 0, 16, 16);
+    if (detail === 'grass') {
+      ctx.fillStyle = '#5a8f3c'; ctx.fillRect(0, 0, 16, 4);
+      for (let i = 0; i < 20; i++) {
+        ctx.fillStyle = i % 2 ? '#6b9a45' : '#4a7530';
+        ctx.fillRect((i * 7) % 16, (i * 3) % 16, 1, 1);
+      }
+    } else if (detail === 'dirt') {
+      for (let i = 0; i < 30; i++) {
+        ctx.fillStyle = i % 2 ? '#6b5038' : '#5a422e';
+        ctx.fillRect((i * 5) % 16, (i * 7) % 16, 1, 1);
+      }
+    } else if (detail === 'stone') {
+      for (let i = 0; i < 24; i++) {
+        ctx.fillStyle = i % 3 ? '#7a7a7a' : '#686868';
+        ctx.fillRect((i * 4) % 16, (i * 6) % 16, 2, 1);
+      }
+    } else if (detail === 'sand') {
+      for (let i = 0; i < 18; i++) {
+        ctx.fillStyle = i % 2 ? '#d4b870' : '#c9a860';
+        ctx.fillRect((i * 6) % 16, (i * 4) % 16, 1, 1);
+      }
+    } else if (detail === 'snow') {
+      ctx.fillStyle = '#eef6ff'; ctx.fillRect(0, 0, 16, 16);
+      for (let i = 0; i < 8; i++) ctx.fillRect((i * 9) % 16, (i * 5) % 16, 1, 1);
+    } else if (detail === 'wood') {
+      ctx.fillStyle = '#6b4423';
+      for (let x = 0; x < 16; x += 2) ctx.fillRect(x, 0, 1, 16);
+    } else if (detail === 'leaves') {
+      for (let i = 0; i < 40; i++) {
+        ctx.fillStyle = i % 2 ? '#2d6b2d' : '#3a8040';
+        ctx.fillRect((i * 3) % 16, (i * 5) % 16, 2, 2);
+      }
+    } else if (detail === 'myth') {
+      ctx.fillStyle = '#4a3a7a';
+      ctx.fillRect(0, 0, 16, 16);
+      ctx.fillStyle = '#c8b4ff';
+      for (let i = 0; i < 12; i++) ctx.fillRect((i * 5) % 16, (i * 7) % 16, 1, 1);
+    } else if (detail === 'gold') {
+      ctx.fillStyle = '#d4af37';
+      ctx.fillRect(0, 0, 16, 16);
+      ctx.fillStyle = '#f0d060';
+      ctx.fillRect(2, 2, 12, 12);
+    }
+  }
+
+  const texData = {
+    [BLOCK.GRASS]: { top: ['#5a8f3c', 'grass'], side: ['#6b5038', 'dirt'], bottom: ['#6b5038', 'dirt'] },
+    [BLOCK.DIRT]: { top: ['#6b5038', 'dirt'], side: ['#6b5038', 'dirt'], bottom: ['#6b5038', 'dirt'] },
+    [BLOCK.STONE]: { top: ['#888', 'stone'], side: ['#888', 'stone'], bottom: ['#888', 'stone'] },
+    [BLOCK.SAND]: { top: ['#d4b870', 'sand'], side: ['#d4b870', 'sand'], bottom: ['#d4b870', 'sand'] },
+    [BLOCK.SNOW]: { top: ['#eef6ff', 'snow'], side: ['#eef6ff', 'snow'], bottom: ['#eef6ff', 'snow'] },
+    [BLOCK.WOOD]: { top: ['#8b6914', 'wood'], side: ['#6b4423', 'wood'], bottom: ['#8b6914', 'wood'] },
+    [BLOCK.LEAVES]: { top: ['#3a8040', 'leaves'], side: ['#3a8040', 'leaves'], bottom: ['#3a8040', 'leaves'] },
+    [BLOCK.MYTH_STONE]: { top: ['#4a3a7a', 'myth'], side: ['#4a3a7a', 'myth'], bottom: ['#4a3a7a', 'myth'] },
+    [BLOCK.GOLD]: { top: ['#d4af37', 'gold'], side: ['#d4af37', 'gold'], bottom: ['#d4af37', 'gold'] },
+  };
+
+  const faceUV = {};
+  let atlasIndex = 0;
+  for (const id of Object.keys(texData).map(Number)) {
+    faceUV[id] = {};
+    for (const face of ['top', 'side', 'bottom']) {
+      const [c, d] = texData[id][face];
+      drawFace(c, d);
+      atlasCtx.drawImage(canvas, atlasIndex * 16, 0);
+      faceUV[id][face] = atlasIndex / 10;
+      atlasIndex++;
+    }
+  }
+
+  const atlasTex = new THREE.CanvasTexture(atlasCanvas);
+  atlasTex.magFilter = THREE.NearestFilter;
+  atlasTex.minFilter = THREE.NearestFilter;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+  scene.fog = new THREE.Fog(0x87ceeb, 40, 120);
+
+  const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 200);
+  const renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const sun = new THREE.DirectionalLight(0xfff4d6, 0.85);
+  sun.position.set(50, 80, 30);
+  scene.add(sun);
+
+  const chunks = new Map();
+  const chunkMeshes = new Map();
+  let worldSeed = 42;
+  let generating = false;
+
+  function chunkKey(cx, cz) { return cx + ',' + cz; }
+  function biome(x, z) {
+    const t = fbm(x * 0.008 + worldSeed, z * 0.008, 4);
+    const m = fbm(x * 0.015 + 100, z * 0.015, 3);
+    if (t < 0.28) return 'desert';
+    if (t > 0.72 && m > 0.55) return 'snow';
+    if (m > 0.62) return 'myth';
+    return 'plains';
+  }
+  function heightAt(x, z) {
+    const b = biome(x, z);
+    let h = fbm(x * 0.04 + worldSeed, z * 0.04, 5) * 18 + 22;
+    if (b === 'desert') h += fbm(x * 0.02, z * 0.02) * 6 - 2;
+    if (b === 'snow') h += 8 + fbm(x * 0.03, z * 0.03) * 10;
+    if (b === 'myth') h += 12 + Math.sin(x * 0.08) * 3;
+    return Math.floor(h);
+  }
+
+  function getBlock(x, y, z) {
+    if (y < 0 || y >= WORLD_H) return BLOCK.AIR;
+    const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+    const c = chunks.get(chunkKey(cx, cz));
+    if (!c) return BLOCK.AIR;
+    const lx = ((x % CHUNK) + CHUNK) % CHUNK;
+    const lz = ((z % CHUNK) + CHUNK) % CHUNK;
+    return c[lx + lz * CHUNK + y * CHUNK * CHUNK] || BLOCK.AIR;
+  }
+  function setBlock(x, y, z, v, silent) {
+    const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+    const key = chunkKey(cx, cz);
+    if (!chunks.has(key)) return;
+    const c = chunks.get(key);
+    const lx = ((x % CHUNK) + CHUNK) % CHUNK;
+    const lz = ((z % CHUNK) + CHUNK) % CHUNK;
+    c[lx + lz * CHUNK + y * CHUNK * CHUNK] = v;
+    if (silent || generating) return;
+    rebuildChunk(cx, cz);
+    if (lx === 0) rebuildChunk(cx - 1, cz);
+    if (lx === CHUNK - 1) rebuildChunk(cx + 1, cz);
+    if (lz === 0) rebuildChunk(cx, cz - 1);
+    if (lz === CHUNK - 1) rebuildChunk(cx, cz + 1);
+  }
+
+  function fillBox(x0, y0, z0, x1, y1, z1, id) {
+    for (let y = y0; y <= y1; y++)
+      for (let x = x0; x <= x1; x++)
+        for (let z = z0; z <= z1; z++) setBlock(x, y, z, id);
+  }
+
+  function buildTree(x, y, z) {
+    for (let dy = 0; dy < 5; dy++) setBlock(x, y + dy, z, BLOCK.WOOD);
+    for (let dy = 3; dy <= 7; dy++)
+      for (let dx = -2; dx <= 2; dx++)
+        for (let dz = -2; dz <= 2; dz++)
+          if (Math.abs(dx) + Math.abs(dz) < 4) setBlock(x + dx, y + dy, z + dz, BLOCK.LEAVES);
+  }
+
+  function buildSpiralTower(bx, by, bz) {
+    const r = 5, h = 22;
+    for (let y = 0; y < h; y++) {
+      const ang = y * 0.55, rad = r - (y % 6 === 0 ? 0 : 0);
+      for (let i = 0; i < 8; i++) {
+        const a = ang + (i / 8) * Math.PI * 2;
+        const x = bx + Math.round(Math.cos(a) * rad);
+        const z = bz + Math.round(Math.sin(a) * rad);
+        setBlock(x, by + y, z, BLOCK.MYTH_STONE);
+        if (y % 5 === 0) setBlock(x, by + y, z, BLOCK.GOLD);
+      }
+    }
+    fillBox(bx - 1, by, bz - 1, bx + 1, by, bz + 1, BLOCK.GOLD);
+  }
+
+  function buildDragonTemple(bx, by, bz) {
+    fillBox(bx - 6, by, bz - 8, bx + 6, by, bz + 8, BLOCK.STONE);
+    fillBox(bx - 5, by + 1, bz - 7, bx + 5, by + 8, bz + 7, BLOCK.AIR);
+    for (let x = bx - 6; x <= bx + 6; x++)
+      for (let z = bz - 8; z <= bz + 8; z++)
+        setBlock(x, by + 9, z, BLOCK.MYTH_STONE);
+    for (let y = by + 1; y <= by + 6; y++) {
+      setBlock(bx - 6, y, bz, BLOCK.MYTH_STONE);
+      setBlock(bx + 6, y, bz, BLOCK.MYTH_STONE);
+    }
+    fillBox(bx - 2, by + 1, bz - 8, bx + 2, by + 4, bz - 8, BLOCK.AIR);
+    for (let dz = -2; dz <= 2; dz++) setBlock(bx, by + 12, bz + dz, BLOCK.GOLD);
+    for (let dx = -4; dx <= 4; dx++) setBlock(bx + dx, by + 10, bz - 9, BLOCK.GOLD);
+  }
+
+  function buildSkyRuins(bx, by, bz) {
+    for (let i = 0; i < 4; i++) {
+      const ox = (i % 2) * 8 - 4, oz = Math.floor(i / 2) * 8 - 4;
+      for (let y = 0; y < 3 + (i % 2) * 2; y++)
+        fillBox(bx + ox, by + y, bz + oz, bx + ox + 2, by + y, bz + oz + 2, BLOCK.MYTH_STONE);
+    }
+    fillBox(bx - 5, by + 6, bz - 1, bx + 5, by + 6, bz + 1, BLOCK.STONE);
+    setBlock(bx, by + 7, bz, BLOCK.GOLD);
+    setBlock(bx - 3, by + 7, bz, BLOCK.GOLD);
+    setBlock(bx + 3, by + 7, bz, BLOCK.GOLD);
+  }
+
+  const landmarks = [
+    { name: '精灵螺旋塔', x: 48, z: 32 },
+    { name: '龙神殿', x: -64, z: 80 },
+    { name: '天空遗迹', x: 96, z: -56 }
+  ];
+
+  function generateChunk(cx, cz) {
+    generating = true;
+    const data = new Uint8Array(CHUNK * CHUNK * WORLD_H);
+    chunks.set(chunkKey(cx, cz), data);
+    const wx = cx * CHUNK, wz = cz * CHUNK;
+    for (let lx = 0; lx < CHUNK; lx++) {
+      for (let lz = 0; lz < CHUNK; lz++) {
+        const wxp = wx + lx, wzp = wz + lz;
+        const h = heightAt(wxp, wzp);
+        const b = biome(wxp, wzp);
+        for (let y = 0; y < WORLD_H; y++) {
+          let id = BLOCK.AIR;
+          if (y === 0) id = BLOCK.STONE;
+          else if (y < h - 4) id = BLOCK.STONE;
+          else if (y < h - 1) id = BLOCK.DIRT;
+          else if (y === h - 1) {
+            if (b === 'desert') id = BLOCK.SAND;
+            else if (b === 'snow') id = BLOCK.SNOW;
+            else if (b === 'myth') id = BLOCK.MYTH_STONE;
+            else id = BLOCK.GRASS;
+          }
+          data[lx + lz * CHUNK + y * CHUNK * CHUNK] = id;
+        }
+        if (b === 'plains' && noise2D(wxp * 0.17, wzp * 0.17) > 0.93) buildTree(wxp, h, wzp);
+      }
+    }
+    for (const lm of landmarks) {
+      if (wx <= lm.x && wx + CHUNK > lm.x && wz <= lm.z && wz + CHUNK > lm.z) {
+        const ground = heightAt(lm.x, lm.z);
+        if (lm.name === '精灵螺旋塔') buildSpiralTower(lm.x, ground, lm.z);
+        else if (lm.name === '龙神殿') buildDragonTemple(lm.x, ground, lm.z);
+        else buildSkyRuins(lm.x, ground + 4, lm.z);
+      }
+    }
+    generating = false;
+  }
+
+  function rebuildChunk(cx, cz) {
+    const key = chunkKey(cx, cz);
+    if (!chunks.has(key)) return;
+    if (chunkMeshes.has(key)) {
+      scene.remove(chunkMeshes.get(key));
+      chunkMeshes.get(key).geometry.dispose();
+      chunkMeshes.delete(key);
+    }
+    const data = chunks.get(key);
+    const positions = [], normals = [], uvs = [], indices = [];
+    const wx = cx * CHUNK, wz = cz * CHUNK;
+    let vi = 0;
+    const faces = [
+      [0,1,0, 'top'], [0,-1,0, 'bottom'], [1,0,0, 'side'], [-1,0,0, 'side'], [0,0,1, 'side'], [0,0,-1, 'side']
+    ];
+    function neighbor(x, y, z, dx, dy, dz) {
+      return getBlock(x + dx, y + dy, z + dz) === BLOCK.AIR;
+    }
+    for (let lx = 0; lx < CHUNK; lx++) {
+      for (let lz = 0; lz < CHUNK; lz++) {
+        for (let y = 0; y < WORLD_H; y++) {
+          const id = data[lx + lz * CHUNK + y * CHUNK * CHUNK];
+          if (!id) continue;
+          const x = wx + lx, z = wz + lz;
+          for (const [dx, dy, dz, faceName] of faces) {
+            if (!neighbor(x, y, z, dx, dy, dz)) continue;
+            let uvFace = faceName;
+            if (faceName === 'side' && (dx !== 0 || dz !== 0)) uvFace = 'side';
+            if (dy === 1) uvFace = 'top';
+            if (dy === -1) uvFace = 'bottom';
+            const u0 = faceUV[id][uvFace], u1 = u0 + 0.1;
+            const corners = [];
+            if (dy === 1) corners.push([0,1,0],[1,1,0],[1,1,1],[0,1,1]);
+            else if (dy === -1) corners.push([0,0,1],[1,0,1],[1,0,0],[0,0,0]);
+            else if (dx === 1) corners.push([1,0,0],[1,1,0],[1,1,1],[1,0,1]);
+            else if (dx === -1) corners.push([0,0,1],[0,1,1],[0,1,0],[0,0,0]);
+            else if (dz === 1) corners.push([1,0,1],[1,1,1],[0,1,1],[0,0,1]);
+            else corners.push([0,0,0],[0,1,0],[1,1,0],[1,0,0]);
+            const base = vi;
+            const uvQuad = [[u0,1],[u1,1],[u1,0],[u0,0]];
+            corners.forEach((c, i) => {
+              positions.push(x + c[0], y + c[1], z + c[2]);
+              normals.push(dx, dy, dz);
+              uvs.push(uvQuad[i][0], uvQuad[i][1]);
+              vi++;
+            });
+            indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+          }
+        }
+      }
+    }
+    if (!positions.length) return;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    const mat = new THREE.MeshLambertMaterial({ map: atlasTex, vertexColors: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+    chunkMeshes.set(key, mesh);
+  }
+
+  function ensureChunks(px, pz) {
+    const ccx = Math.floor(px / CHUNK), ccz = Math.floor(pz / CHUNK);
+    for (let dx = -RENDER; dx <= RENDER; dx++)
+      for (let dz = -RENDER; dz <= RENDER; dz++) {
+        const cx = ccx + dx, cz = ccz + dz, key = chunkKey(cx, cz);
+        if (!chunks.has(key)) { generateChunk(cx, cz); rebuildChunk(cx, cz); }
+      }
+    for (const [key, mesh] of chunkMeshes) {
+      const [cx, cz] = key.split(',').map(Number);
+      if (Math.abs(cx - ccx) > RENDER + 1 || Math.abs(cz - ccz) > RENDER + 1) {
+        scene.remove(mesh); mesh.geometry.dispose(); chunkMeshes.delete(key); chunks.delete(key);
+      }
+    }
+  }
+
+  const player = {
+    x: 8, y: 30, z: 8,
+    vx: 0, vy: 0, vz: 0,
+    yaw: 0, pitch: 0,
+    onGround: false,
+    height: 1.7,
+    radius: 0.35
+  };
+
+  function groundY(x, z) {
+    for (let y = WORLD_H - 1; y >= 0; y--)
+      if (getBlock(Math.floor(x), y, Math.floor(z)) !== BLOCK.AIR) return y + 1;
+    return 20;
+  }
+  player.y = groundY(player.x, player.z) + player.height;
+
+  const keys = {};
+  let pointerLocked = false, selected = 0, playing = false;
+  let lastTime = performance.now();
+
+  document.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code.startsWith('Digit') && +e.code.slice(5) >= 1 && +e.code.slice(5) <= 6) {
+      selected = +e.code.slice(5) - 1;
+      updateHotbar();
+    }
+  });
+  document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+  const overlay = document.getElementById('overlay');
+  overlay.addEventListener('click', () => {
+    renderer.domElement.requestPointerLock();
+  });
+  document.addEventListener('pointerlockchange', () => {
+    pointerLocked = document.pointerLockElement === renderer.domElement;
+    if (pointerLocked) {
+      playing = true;
+      overlay.style.display = 'none';
+      document.getElementById('crosshair').style.display = 'block';
+      document.getElementById('hud').style.display = 'flex';
+      document.getElementById('blockName').style.display = 'block';
+      document.getElementById('minimap').style.display = 'block';
+    }
+  });
+  document.addEventListener('mousemove', e => {
+    if (!pointerLocked) return;
+    player.yaw -= e.movementX * 0.002;
+    player.pitch -= e.movementY * 0.002;
+    player.pitch = Math.max(-1.5, Math.min(1.5, player.pitch));
+  });
+  document.addEventListener('mousedown', e => {
+    if (!playing) return;
+    const hit = raycast();
+    if (!hit) return;
+    if (e.button === 0) setBlock(hit.x, hit.y, hit.z, BLOCK.AIR);
+    else if (e.button === 2) {
+      const nx = hit.x + hit.nx, ny = hit.y + hit.ny, nz = hit.z + hit.nz;
+      if (!collides(nx + 0.5, ny + 0.5, nz + 0.5)) setBlock(nx, ny, nz, HOTBAR[selected]);
+    }
+  });
+  document.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('wheel', e => {
+    selected = (selected + (e.deltaY > 0 ? 1 : -1) + HOTBAR.length) % HOTBAR.length;
+    updateHotbar();
+  });
+
+  function collides(x, y, z) {
+    const r = player.radius, h = player.height;
+    for (let dy = 0; dy <= h; dy += h) {
+      for (let dx = -r; dx <= r; dx += r * 2)
+        for (let dz = -r; dz <= r; dz += r * 2)
+          if (getBlock(Math.floor(x + dx), Math.floor(y - h / 2 + dy), Math.floor(z + dz)) !== BLOCK.AIR) return true;
+    }
+    return false;
+  }
+
+  function raycast(max = 6) {
+    const dir = new THREE.Vector3(
+      -Math.sin(player.yaw) * Math.cos(player.pitch),
+      Math.sin(player.pitch),
+      -Math.cos(player.yaw) * Math.cos(player.pitch)
+    );
+    let x = player.x, y = player.y, z = player.z;
+    for (let i = 0; i < max * 10; i++) {
+      x += dir.x * 0.1; y += dir.y * 0.1; z += dir.z * 0.1;
+      const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
+      if (getBlock(bx, by, bz) !== BLOCK.AIR) {
+        const px = x - dir.x * 0.1, py = y - dir.y * 0.1, pz = z - dir.z * 0.1;
+        return {
+          x: bx, y: by, z: bz,
+          nx: Math.floor(px) !== bx ? (bx > px ? -1 : 1) : 0,
+          ny: Math.floor(py) !== by ? (by > py ? -1 : 1) : 0,
+          nz: Math.floor(pz) !== bz ? (bz > pz ? -1 : 1) : 0
+        };
+      }
+    }
+    return null;
+  }
+
+  function moveAxis(val, axis) {
+    const next = { x: player.x, y: player.y, z: player.z };
+    next[axis] += val;
+    if (!collides(next.x, next.y, next.z)) player[axis] = next[axis];
+    else if (axis === 'y') player.vy = 0;
+  }
+
+  function updatePlayer(dt) {
+    const speed = keys['ShiftLeft'] || keys['ShiftRight'] ? SNEAK : WALK;
+    let mx = 0, mz = 0;
+    if (keys['KeyW']) { mx -= Math.sin(player.yaw); mz -= Math.cos(player.yaw); }
+    if (keys['KeyS']) { mx += Math.sin(player.yaw); mz += Math.cos(player.yaw); }
+    if (keys['KeyA']) { mx -= Math.cos(player.yaw); mz += Math.sin(player.yaw); }
+    if (keys['KeyD']) { mx += Math.cos(player.yaw); mz -= Math.sin(player.yaw); }
+    const len = Math.hypot(mx, mz) || 1;
+    mx = (mx / len) * speed * dt;
+    mz = (mz / len) * speed * dt;
+    moveAxis(mx, 'x');
+    moveAxis(mz, 'z');
+
+    player.vy -= GRAVITY * dt;
+    if (keys['Space'] && player.onGround) { player.vy = JUMP; player.onGround = false; }
+    moveAxis(player.vy * dt, 'y');
+    player.onGround = collides(player.x, player.y - 0.05, player.z);
+
+    ensureChunks(player.x, player.z);
+    camera.position.set(player.x, player.y, player.z);
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = player.yaw;
+    camera.rotation.x = player.pitch;
+  }
+
+  const hotbarEl = document.getElementById('hotbar');
+  function updateHotbar() {
+    hotbarEl.innerHTML = '';
+    HOTBAR.forEach((id, i) => {
+      const slot = document.createElement('div');
+      slot.className = 'slot' + (i === selected ? ' active' : '');
+      const ic = document.createElement('canvas');
+      ic.width = ic.height = 16;
+      const ict = ic.getContext('2d');
+      const [c, d] = texData[id].top;
+      drawFace(c, d);
+      ict.drawImage(canvas, 0, 0);
+      slot.appendChild(ic);
+      const k = document.createElement('span');
+      k.className = 'key'; k.textContent = i + 1;
+      slot.appendChild(k);
+      hotbarEl.appendChild(slot);
+    });
+    document.getElementById('blockName').textContent = BLOCK_NAMES[HOTBAR[selected]];
+  }
+  updateHotbar();
+
+  const minimap = document.getElementById('minimap');
+  const mm = minimap.getContext('2d');
+  function drawMinimap() {
+    const s = 110, r = 28;
+    mm.fillStyle = 'rgba(0,0,0,0.55)'; mm.fillRect(0, 0, s, s);
+    const px = Math.floor(player.x), pz = Math.floor(player.z);
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dz = -r; dz <= r; dz++) {
+        const wx = px + dx, wz = pz + dz;
+        const b = biome(wx, wz);
+        mm.fillStyle = b === 'desert' ? '#d4b870' : b === 'snow' ? '#eef6ff' : b === 'myth' ? '#6a5acd' : '#5a8f3c';
+        mm.fillRect(r + dx, r + dz, 1, 1);
+      }
+    }
+    landmarks.forEach(lm => {
+      const dx = lm.x - px + r, dz = lm.z - pz + r;
+      if (dx >= 0 && dx < s && dz >= 0 && dz < s) {
+        mm.fillStyle = '#ffd700';
+        mm.fillRect(dx - 1, dz - 1, 3, 3);
+      }
+    });
+    mm.fillStyle = '#f00';
+    mm.fillRect(r - 2, r - 2, 4, 4);
+  }
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+    if (playing) {
+      updatePlayer(dt);
+      document.getElementById('info').textContent =
+        `坐标 ${player.x.toFixed(1)}, ${player.y.toFixed(1)}, ${player.z.toFixed(1)} | ${biome(Math.floor(player.x), Math.floor(player.z))}`;
+      drawMinimap();
+    }
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
