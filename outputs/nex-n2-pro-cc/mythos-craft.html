@@ -1,0 +1,1072 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>神话方块世界 - 单文件 Minecraft Clone</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #08111f;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      color: #eef7ff;
+    }
+    canvas { display: block; image-rendering: pixelated; }
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      user-select: none;
+    }
+    #crosshair {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 22px;
+      height: 22px;
+      transform: translate(-50%, -50%);
+      opacity: 0.9;
+      filter: drop-shadow(0 0 3px #000);
+    }
+    #crosshair::before, #crosshair::after {
+      content: "";
+      position: absolute;
+      background: rgba(255,255,255,0.9);
+      border-radius: 2px;
+    }
+    #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
+    #crosshair::after { left: 0; top: 10px; width: 22px; height: 2px; }
+    #panel {
+      position: fixed;
+      left: 14px;
+      top: 12px;
+      max-width: min(560px, calc(100vw - 28px));
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(7,14,25,0.78), rgba(7,14,25,0.52));
+      box-shadow: 0 12px 30px rgba(0,0,0,0.28);
+      backdrop-filter: blur(8px);
+      line-height: 1.55;
+      font-size: 13px;
+    }
+    #panel b { color: #fff1a8; }
+    #hotbar {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      padding: 8px;
+      border-radius: 14px;
+      background: rgba(8,13,22,0.62);
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.3);
+    }
+    .slot {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.22);
+      background-size: cover;
+      background-position: center;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+    }
+    .slot.active {
+      border-color: #ffe082;
+      box-shadow: 0 0 0 3px rgba(255,224,130,0.22), inset 0 0 0 1px rgba(255,255,255,0.25);
+      transform: translateY(-4px);
+    }
+    .slot span {
+      position: absolute;
+      left: 5px;
+      bottom: 3px;
+      color: white;
+      text-shadow: 0 1px 2px #000;
+      font-weight: 700;
+      font-size: 12px;
+    }
+    #message {
+      position: fixed;
+      left: 50%;
+      top: 18%;
+      transform: translateX(-50%);
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.42);
+      border: 1px solid rgba(255,255,255,0.16);
+      color: #fff;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 180ms ease;
+    }
+    #message.show { opacity: 1; }
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 50% 35%, #1d3153, #07101d 62%);
+      z-index: 10;
+      text-align: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    #loading .box {
+      max-width: 720px;
+      padding: 24px 28px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(8,13,22,0.72);
+      box-shadow: 0 18px 60px rgba(0,0,0,0.36);
+    }
+    h1 { margin: 0 0 10px; font-size: 28px; color: #fff1a8; }
+    p { margin: 8px 0; color: #d8e8ff; }
+    kbd {
+      padding: 2px 6px;
+      border-radius: 5px;
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="box">
+      <h1>神话方块世界</h1>
+      <p>一个单文件 HTML5 + Three.js 的《我的世界》风格原型。</p>
+      <p>点击页面开始，鼠标锁定后使用 <kbd>WASD</kbd> 移动、鼠标环视。</p>
+      <p><kbd>左键</kbd> 破坏方块，<kbd>右键</kbd> 放置方块，<kbd>1-6</kbd> 切换方块，<kbd>Space</kbd> 跳跃。</p>
+    </div>
+  </div>
+
+  <div id="hud">
+    <div id="panel">
+      <b>操作</b>：<kbd>WASD</kbd> 移动 · <kbd>鼠标</kbd> 环视 · <kbd>Space</kbd> 跳跃 · <kbd>Shift</kbd> 缓行 · <kbd>R</kbd> 回到出生点<br/>
+      <b>建造</b>：<kbd>左键</kbd> 破坏 · <kbd>右键</kbd> 放置 · <kbd>1-6</kbd> 切换方块<br/>
+      <b>世界</b>：Perlin 噪声无限地形、浮空岛、远古遗迹、精灵桥、水晶方尖碑、龙像、月门、巨树与瀑布群。
+    </div>
+    <div id="crosshair"></div>
+    <div id="message"></div>
+    <div id="hotbar"></div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    const WORLD = {
+      chunkSize: 16,
+      chunkHeight: 96,
+      renderDistance: 4,
+      blockScale: 1,
+      seaLevel: 18,
+      spawn: { x: 0, y: 52, z: 0 }
+    };
+
+    const BLOCKS = {
+      air: { id: 0, name: '空气', solid: false },
+      grass: { id: 1, name: '草地', solid: true },
+      dirt: { id: 2, name: '泥土', solid: true },
+      stone: { id: 3, name: '石头', solid: true },
+      sand: { id: 4, name: '沙地', solid: true },
+      wood: { id: 5, name: '橡木', solid: true },
+      leaves: { id: 6, name: '树叶', solid: true },
+      crystal: { id: 7, name: '星晶', solid: true },
+      moss: { id: 8, name: '苔石', solid: true },
+      gold: { id: 9, name: '辉金', solid: true },
+      water: { id: 10, name: '水', solid: false }
+    };
+
+    const HOTBAR = ['grass', 'dirt', 'stone', 'sand', 'wood', 'crystal'];
+    let selectedBlock = 'grass';
+
+    const $ = (id) => document.getElementById(id);
+    const loading = $('loading');
+    const messageEl = $('message');
+    const hotbar = $('hotbar');
+
+    let messageTimer = 0;
+    function showMessage(text, ms = 1600) {
+      messageEl.textContent = text;
+      messageEl.classList.add('show');
+      clearTimeout(messageTimer);
+      messageTimer = setTimeout(() => messageEl.classList.remove('show'), ms);
+    }
+
+    class Perlin {
+      constructor(seed = 1337) {
+        this.p = new Uint8Array(512);
+        const perm = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) perm[i] = i;
+        let s = seed >>> 0;
+        const rand = () => {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          return s / 4294967296;
+        };
+        for (let i = 255; i > 0; i--) {
+          const j = Math.floor(rand() * (i + 1));
+          [perm[i], perm[j]] = [perm[j], perm[i]];
+        }
+        for (let i = 0; i < 512; i++) this.p[i] = perm[i & 255];
+      }
+
+      fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+      lerp(t, a, b) { return a + t * (b - a); }
+      grad(hash, x, y) {
+        const h = hash & 7;
+        const u = h < 4 ? x : y;
+        const v = h < 4 ? y : x;
+        return ((h & 1) ? -u : u) + ((h & 2) ? -2 * v : 2 * v);
+      }
+      noise2(x, y) {
+        const X = Math.floor(x) & 255;
+        const Y = Math.floor(y) & 255;
+        x -= Math.floor(x);
+        y -= Math.floor(y);
+        const u = this.fade(x);
+        const v = this.fade(y);
+        const p = this.p;
+        const A = p[X] + Y;
+        const B = p[X + 1] + Y;
+        return this.lerp(v,
+          this.lerp(u, this.grad(p[A], x, y), this.grad(p[B], x - 1, y)),
+          this.lerp(u, this.grad(p[A + 1], x, y - 1), this.grad(p[B + 1], x - 1, y - 1))
+        );
+      }
+      fbm(x, y, octaves = 5, persistence = 0.5, lacunarity = 2.0) {
+        let value = 0;
+        let amp = 1;
+        let freq = 1;
+        let norm = 0;
+        for (let i = 0; i < octaves; i++) {
+          value += this.noise2(x * freq, y * freq) * amp;
+          norm += amp;
+          amp *= persistence;
+          freq *= lacunarity;
+        }
+        return value / norm;
+      }
+    }
+
+    const perlin = new Perlin(928371);
+    const detail = new Perlin(445566);
+
+    function key(x, y, z) {
+      return `${x},${y},${z}`;
+    }
+    function parseKey(k) {
+      return k.split(',').map(Number);
+    }
+    function chunkKey(cx, cz) { return `${cx},${cz}`; }
+    function parseChunkKey(k) {
+      const [x, z] = k.split(',').map(Number);
+      return { x, z };
+    }
+    function floorDiv(v, n) { return Math.floor(v / n) - (v < 0 && v % n ? 1 : 0); }
+    function mod(v, n) { return ((v % n) + n) % n; }
+
+    function rand2(x, z, salt = 0) {
+      const n = Math.sin(x * 12.9898 + z * 78.233 + salt * 37.719) * 43758.5453123;
+      return n - Math.floor(n);
+    }
+
+    function terrainHeight(x, z) {
+      const continent = perlin.fbm(x * 0.006, z * 0.006, 5, 0.52, 2.0);
+      const hills = perlin.fbm(x * 0.025 + 91, z * 0.025 - 33, 4, 0.48, 2.1);
+      const mountains = Math.pow(Math.max(0, perlin.fbm(x * 0.012 - 400, z * 0.012 + 400, 5, 0.5, 2.0)), 2.4);
+      const basin = Math.sin(x * 0.018) * Math.cos(z * 0.016) * 4;
+      let h = 20 + continent * 20 + hills * 8 + mountains * 34 + basin;
+      if (Math.abs(x) < 90 && Math.abs(z) < 90) h += (1 - Math.min(1, Math.hypot(x, z) / 90)) * 5;
+      return Math.floor(h);
+    }
+
+    function biomeAt(x, z) {
+      const n = perlin.fbm(x * 0.004 + 300, z * 0.004 - 700, 3, 0.5, 2.0);
+      if (n > 0.42) return 'celestial';
+      if (n < -0.32) return 'elder';
+      return 'forest';
+    }
+
+    function surfaceBlock(x, y, z) {
+      const h = terrainHeight(x, z);
+      if (y > h) return 'air';
+      if (y < 4) return 'stone';
+      if (y === h) {
+        if (h <= WORLD.seaLevel + 1) return 'sand';
+        const b = biomeAt(x, z);
+        if (b === 'celestial') return rand2(x, z, 11) < 0.10 ? 'crystal' : 'moss';
+        if (b === 'elder') return rand2(x, z, 12) < 0.14 ? 'moss' : 'stone';
+        return 'grass';
+      }
+      if (y > h - 4) {
+        if (terrainHeight(x, z) <= WORLD.seaLevel + 1) return 'sand';
+        return 'dirt';
+      }
+      return 'stone';
+    }
+
+    function createTexture(type) {
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      function base(hex) {
+        ctx.fillStyle = hex;
+        ctx.fillRect(0, 0, size, size);
+      }
+      function speckles(dark, light, count, alpha = 0.35) {
+        for (let i = 0; i < count; i++) {
+          const x = Math.floor(Math.random() * size);
+          const y = Math.floor(Math.random() * size);
+          const w = 2 + Math.floor(Math.random() * 5);
+          const h = 2 + Math.floor(Math.random() * 5);
+          ctx.fillStyle = Math.random() > 0.5 ? light : dark;
+          ctx.globalAlpha = alpha;
+          ctx.fillRect(x, y, w, h);
+        }
+        ctx.globalAlpha = 1;
+      }
+      function pixels(list) {
+        for (const [x, y, w, h, c] of list) {
+          ctx.fillStyle = c;
+          ctx.fillRect(x, y, w, h);
+        }
+      }
+
+      if (type === 'grass') {
+        base('#5f8f2a');
+        speckles('#2f5d1c', '#9ccf55', 260, 0.55);
+        pixels([
+          [0, 0, 64, 8, '#79b84a'], [8, 7, 6, 4, '#8ed05a'], [22, 4, 8, 5, '#6faf3d'],
+          [42, 8, 5, 4, '#9ed86a'], [55, 3, 7, 6, '#74b94b']
+        ]);
+        base = () => {};
+      } else if (type === 'dirt') {
+        base('#7a4b2a');
+        speckles('#4a2b18', '#a86b3a', 230, 0.55);
+        pixels([[12, 18, 10, 7, '#8d5a32'], [35, 40, 14, 8, '#6b3f24'], [45, 12, 7, 6, '#a86b3a']]);
+      } else if (type === 'stone') {
+        base('#777b82');
+        speckles('#4e535b', '#a2a6ad', 240, 0.45);
+        pixels([[8, 25, 24, 5, '#5f636b'], [34, 18, 16, 4, '#9a9ea5'], [18, 48, 30, 6, '#5d626a']]);
+      } else if (type === 'sand') {
+        base('#d7c47a');
+        speckles('#b99d55', '#f0df9a', 260, 0.45);
+      } else if (type === 'wood') {
+        base('#8a552e');
+        for (let i = 0; i < 9; i++) {
+          ctx.strokeStyle = i % 2 ? '#6d3f22' : '#a76b38';
+          ctx.globalAlpha = 0.45;
+          ctx.beginPath();
+          ctx.moveTo(6 + i * 7, 0);
+          ctx.bezierCurveTo(4 + i * 7, 20, 12 + i * 7, 42, 3 + i * 7, 64);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      } else if (type === 'leaves') {
+        base('#2f7d32');
+        speckles('#1d5b25', '#62b94e', 300, 0.65);
+        pixels([[4, 12, 16, 10, '#3d9142'], [32, 38, 18, 12, '#236c2d'], [43, 9, 14, 12, '#5ca84e']]);
+      } else if (type === 'crystal') {
+        base('#1b245f');
+        speckles('#081234', '#9ee8ff', 180, 0.55);
+        pixels([
+          [8, 8, 8, 48, '#2ee7ff'], [24, 4, 12, 56, '#7cf7ff'], [44, 12, 10, 44, '#38a9ff'],
+          [4, 28, 56, 6, '#b8fbff'], [28, 4, 6, 56, '#ffffff']
+        ]);
+      } else if (type === 'moss') {
+        base('#53604d');
+        speckles('#263624', '#8ca06a', 300, 0.65);
+        pixels([[10, 14, 18, 10, '#6f845d'], [34, 34, 20, 12, '#3f533e'], [43, 10, 12, 8, '#91a970']]);
+      } else if (type === 'gold') {
+        base('#b8860b');
+        speckles('#6b4b00', '#ffd86b', 220, 0.6);
+        pixels([[8, 8, 48, 8, '#ffe082'], [12, 48, 40, 6, '#8a5d00'], [28, 18, 8, 34, '#fff1a8']]);
+      } else {
+        base('#777b82');
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestMipmapNearestFilter;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      return texture;
+    }
+
+    const textures = {};
+    const materials = {};
+    for (const name of Object.keys(BLOCKS)) {
+      if (name === 'air' || name === 'water') continue;
+      textures[name] = createTexture(name);
+      materials[name] = new THREE.MeshLambertMaterial({ map: textures[name] });
+    }
+    materials.water = new THREE.MeshLambertMaterial({
+      color: 0x3aa7ff,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false
+    });
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x88b7ff);
+    scene.fog = new THREE.Fog(0x88b7ff, 48, 150);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 320);
+    camera.position.set(WORLD.spawn.x, WORLD.spawn.y, WORLD.spawn.z);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.body.appendChild(renderer.domElement);
+
+    const hemi = new THREE.HemisphereLight(0xbfe7ff, 0x334020, 1.45);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xfff3c4, 2.1);
+    sun.position.set(70, 110, 35);
+    scene.add(sun);
+    const moon = new THREE.DirectionalLight(0x9bbcff, 0.65);
+    moon.position.set(-80, 60, -40);
+    scene.add(moon);
+
+    const blockGeometry = new THREE.BoxGeometry(1, 1, 1);
+
+    const chunks = new Map();
+    const blocks = new Map();
+    const fantasyBlocks = new Map();
+
+    function getBlock(x, y, z) {
+      const k = key(x, y, z);
+      if (blocks.has(k)) return blocks.get(k);
+      if (fantasyBlocks.has(k)) return fantasyBlocks.get(k);
+      const h = terrainHeight(x, z);
+      if (y < 0) return 'stone';
+      if (y <= h) return surfaceBlock(x, y, z);
+      return 'air';
+    }
+    function setBlock(x, y, z, type) {
+      const k = key(x, y, z);
+      if (type === 'air') {
+        blocks.delete(k);
+        fantasyBlocks.delete(k);
+      } else {
+        blocks.set(k, type);
+        fantasyBlocks.delete(k);
+      }
+      const cx = floorDiv(x, WORLD.chunkSize);
+      const cz = floorDiv(z, WORLD.chunkSize);
+      const ck = chunkKey(cx, cz);
+      if (chunks.has(ck)) {
+        rebuildChunk(cx, cz);
+      }
+    }
+    function isSolidType(type) {
+      return BLOCKS[type] && BLOCKS[type].solid;
+    }
+    function isSolid(x, y, z) {
+      return isSolidType(getBlock(x, y, z));
+    }
+
+    function shouldDrawFace(x, y, z, nx, ny, nz) {
+      const neighbor = getBlock(x + nx, y + ny, z + nz);
+      return !isSolidType(neighbor);
+    }
+
+    function rebuildChunk(cx, cz) {
+      const old = chunks.get(chunkKey(cx, cz));
+      if (old) {
+        for (const mesh of old.meshes) {
+          scene.remove(mesh);
+        }
+        chunks.delete(chunkKey(cx, cz));
+      }
+
+      const startX = cx * WORLD.chunkSize;
+      const startZ = cz * WORLD.chunkSize;
+      const matricesByType = new Map();
+
+      function addBlock(x, y, z, type) {
+        if (!materials[type]) return;
+        let faces = 0;
+        for (const [nx, ny, nz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]) {
+          if (shouldDrawFace(x, y, z, nx, ny, nz)) faces++;
+        }
+        if (!faces) return;
+        if (!matricesByType.has(type)) matricesByType.set(type, []);
+
+        const dummy = new THREE.Object3D();
+        dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
+        dummy.updateMatrix();
+        matricesByType.get(type).push(dummy.matrix.clone());
+      }
+
+      for (let x = startX; x < startX + WORLD.chunkSize; x++) {
+        for (let z = startZ; z < startZ + WORLD.chunkSize; z++) {
+          const h = terrainHeight(x, z);
+          const top = Math.min(WORLD.chunkHeight, h);
+          for (let y = 0; y <= top; y++) {
+            addBlock(x, y, z, getBlock(x, y, z));
+          }
+          if (h <= WORLD.seaLevel && h > 0) {
+            for (let y = h + 1; y <= WORLD.seaLevel; y++) addBlock(x, y, z, 'water');
+          }
+        }
+      }
+
+      const meshes = [];
+      for (const [type, matrices] of matricesByType) {
+        const mesh = new THREE.InstancedMesh(blockGeometry, materials[type], matrices.length);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.castShadow = false;
+        mesh.receiveShadow = true;
+        mesh.count = matrices.length;
+        for (let i = 0; i < matrices.length; i++) mesh.setMatrixAt(i, matrices[i]);
+        mesh.instanceMatrix.needsUpdate = true;
+        scene.add(mesh);
+        meshes.push(mesh);
+      }
+
+      chunks.set(chunkKey(cx, cz), { cx, cz, meshes });
+    }
+
+    function updateChunks() {
+      const pcx = floorDiv(camera.position.x, WORLD.chunkSize);
+      const pcz = floorDiv(camera.position.z, WORLD.chunkSize);
+      const active = new Set();
+      for (let x = pcx - WORLD.renderDistance; x <= pcx + WORLD.renderDistance; x++) {
+        for (let z = pcz - WORLD.renderDistance; z <= pcz + WORLD.renderDistance; z++) {
+          if (Math.hypot(x - pcx, z - pcz) <= WORLD.renderDistance + 0.5) {
+            const ck = chunkKey(x, z);
+            active.add(ck);
+            if (!chunks.has(ck)) rebuildChunk(x, z);
+          }
+        }
+      }
+      for (const ck of [...chunks.keys()]) {
+        if (!active.has(ck)) {
+          const old = chunks.get(ck);
+          for (const mesh of old.meshes) {
+            scene.remove(mesh);
+            }
+          chunks.delete(ck);
+        }
+      }
+    }
+
+    function addDecorations(cx, cz) {
+      const startX = cx * WORLD.chunkSize;
+      const startZ = cz * WORLD.chunkSize;
+      const placed = [];
+      const randAt = (x, z, salt) => rand2(Math.floor(x), Math.floor(z), salt);
+
+      function put(x, y, z, type) {
+        fantasyBlocks.set(key(x, y, z), type);
+        placed.push([x, y, z, type]);
+      }
+      function top(x, z) {
+        let y = terrainHeight(x, z);
+        while (isSolid(x, y + 1, z) && y < WORLD.chunkHeight) y++;
+        return y + 1;
+      }
+      function tree(x, z, scale = 1) {
+        const y = top(x, z);
+        if (y < WORLD.seaLevel || y > WORLD.chunkHeight - 10) return;
+        const trunk = 4 * scale;
+        const canopy = 4 * scale;
+        for (let i = 0; i < trunk; i++) put(x, y + i, z, 'wood');
+        for (let dy = trunk - 2; dy < trunk + canopy; dy++) {
+          const r = Math.max(1, Math.floor((canopy - (dy - trunk)) * 0.8));
+          for (let dx = -r; dx <= r; dx++) {
+            for (let dz = -r; dz <= r; dz++) {
+              if (Math.abs(dx) + Math.abs(dz) <= r + 1 && randAt(x + dx, z + dz, 21) > 0.12) {
+                put(x + dx, y + dy, z + dz, 'leaves');
+              }
+            }
+          }
+        }
+      }
+      function giantTree(x, z) {
+        const y = top(x, z);
+        if (y < WORLD.seaLevel + 4 || y > WORLD.chunkHeight - 18) return;
+        for (let i = 0; i < 9; i++) {
+          put(x, y + i, z, 'wood');
+          if (i < 4) {
+            put(x + 1, y + i, z, 'wood');
+            put(x - 1, y + i, z, 'wood');
+            put(x, y + i, z + 1, 'wood');
+            put(x, y + i, z - 1, 'wood');
+          }
+        }
+        for (let layer = 0; layer < 6; layer++) {
+          const r = 6 - layer;
+          const cy = y + 8 + layer * 2;
+          for (let dx = -r; dx <= r; dx++) {
+            for (let dz = -r; dz <= r; dz++) {
+              if (Math.abs(dx) + Math.abs(dz) <= r + 2 && randAt(x + dx, z + dz, 22) > 0.16) {
+                put(x + dx, cy, z + dz, 'leaves');
+              }
+            }
+          }
+        }
+      }
+      function crystalSpire(x, z, height) {
+        const y = top(x, z);
+        for (let i = 0; i < height; i++) {
+          const r = Math.max(0, Math.floor((height - i) / 3));
+          for (let dx = -r; dx <= r; dx++) {
+            for (let dz = -r; dz <= r; dz++) {
+              if (Math.abs(dx) + Math.abs(dz) <= r + 1) put(x + dx, y + i, z + dz, 'crystal');
+            }
+          }
+        }
+      }
+      function ruinWall(x, z, w, h, rot) {
+        const y = top(x, z);
+        for (let i = 0; i < w; i++) {
+          for (let j = 0; j < h; j++) {
+            if (randAt(x + i, z + j, 23) < 0.18) continue;
+            const xx = rot ? x + j : x + i - w / 2;
+            const zz = rot ? z + i - w / 2 : z + j;
+            put(Math.round(xx), y + j, Math.round(zz), randAt(Math.round(xx), Math.round(zz), 24) < 0.18 ? 'moss' : 'stone');
+          }
+        }
+      }
+      function moonGate(x, z) {
+        const y = top(x, z) + 1;
+        const radius = 4;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const d = Math.hypot(dx, dy);
+            if (Math.abs(d - radius) < 0.72) {
+              put(x + dx, y + dy, z, randAt(x + dx, z + dy, 25) > 0.45 ? 'gold' : 'crystal');
+            }
+          }
+        }
+      }
+      function dragonStatue(x, z) {
+        const y = top(x, z);
+        for (let i = -4; i <= 4; i++) put(x + i, y + 1, z, 'stone');
+        put(x - 5, y + 2, z, 'stone');
+        put(x + 5, y + 2, z, 'stone');
+        put(x - 6, y + 3, z, 'stone');
+        put(x + 6, y + 3, z, 'stone');
+        put(x - 7, y + 4, z, 'gold');
+        put(x + 7, y + 4, z, 'gold');
+        put(x, y + 2, z, 'stone');
+        put(x, y + 3, z, 'stone');
+        put(x, y + 4, z, 'stone');
+        put(x, y + 5, z, 'gold');
+        put(x + 1, y + 5, z, 'gold');
+        put(x + 2, y + 4, z, 'gold');
+        put(x + 2, y + 3, z, 'gold');
+      }
+      function floatingIsland(x, z) {
+        const ground = terrainHeight(x, z);
+        if (ground < WORLD.seaLevel + 8 || ground > 50) return;
+        const y = ground + 18 + Math.floor(randAt(x, z, 26) * 12);
+        const radius = 3 + Math.floor(randAt(x, z, 27) * 4);
+        for (let dx = -radius; dx <= radius; dx++) {
+          for (let dz = -radius; dz <= radius; dz++) {
+            const d = Math.hypot(dx * 1.15, dz);
+            if (d <= radius) {
+              put(x + dx, y, z + dz, randAt(x + dx, z + dz, 28) > 0.35 ? 'grass' : 'moss');
+              put(x + dx, y - 1, z + dz, 'dirt');
+              put(x + dx, y - 2, z + dz, 'stone');
+            }
+            if (d <= radius * 0.55) put(x + dx, y - 3, z + dz, 'stone');
+          }
+        }
+        if (randAt(x, z, 29) > 0.45) tree(x, z + radius, 1);
+      }
+      function elvenBridge(x, z) {
+        const y = top(x, z);
+        for (let i = -7; i <= 7; i++) {
+          const arch = Math.floor(2.8 * (1 - Math.abs(i) / 7));
+          for (let j = 0; j <= arch; j++) {
+            put(x + i, y + j, z, randAt(x + i, z + j, 30) > 0.35 ? 'moss' : 'stone');
+          }
+        }
+      }
+      function waterfall(x, z) {
+        const y = top(x, z) - 1;
+        if (y <= WORLD.seaLevel + 4) return;
+        for (let yy = WORLD.seaLevel + 1; yy <= y; yy++) put(x, yy, z, 'water');
+      }
+
+      for (let x = startX; x < startX + WORLD.chunkSize; x += 8) {
+        for (let z = startZ; z < startZ + WORLD.chunkSize; z += 8) {
+          const roll = perlin.fbm(x * 0.05, z * 0.05, 2, 0.5, 2.0);
+          const r = randAt(x, z, 31);
+          if (roll > 0.18 && r < 0.20) tree(x + Math.floor(randAt(x, z, 32) * 6), z + Math.floor(randAt(x, z, 33) * 6), randAt(x, z, 34) > 0.78 ? 2 : 1);
+          if (roll > 0.55 && r < 0.045) giantTree(x + 2, z + 2);
+          if (biomeAt(x, z) === 'celestial' && roll > 0.35 && r < 0.16) crystalSpire(x, z, 5 + Math.floor(randAt(x, z, 35) * 8));
+          if (biomeAt(x, z) === 'celestial' && roll > 0.62 && randAt(x, z, 36) < 0.10) floatingIsland(x + 3, z + 3);
+          if (terrainHeight(x, z) > WORLD.seaLevel + 9 && randAt(x, z, 37) < 0.025) waterfall(x + 1, z);
+        }
+      }
+
+      const landmarkX = cx * WORLD.chunkSize + 8;
+      const landmarkZ = cz * WORLD.chunkSize + 8;
+      const h = terrainHeight(landmarkX, landmarkZ);
+      if (h > WORLD.seaLevel + 3 && h < 55) {
+        const type = biomeAt(landmarkX, landmarkZ);
+        if (type === 'celestial') {
+          ruinWall(landmarkX, landmarkZ, 9, 5, false);
+          ruinWall(landmarkX, landmarkZ, 9, 5, true);
+          ruinWall(landmarkX + 4, landmarkZ + 4, 5, 4, false);
+          moonGate(landmarkX, landmarkZ - 5);
+          for (let i = -4; i <= 4; i++) put(landmarkX + i, h + 5, landmarkZ, 'gold');
+          put(landmarkX, h + 6, landmarkZ, 'gold');
+        } else if (type === 'elder') {
+          ruinWall(landmarkX, landmarkZ, 12, 4, false);
+          ruinWall(landmarkX, landmarkZ, 8, 6, true);
+          elvenBridge(landmarkX + 1, landmarkZ + 4);
+          for (let i = -3; i <= 3; i++) put(landmarkX + i, h + 4, landmarkZ, 'moss');
+        } else if (randAt(landmarkX, landmarkZ, 38) < 0.42) {
+          dragonStatue(landmarkX, landmarkZ);
+          tree(landmarkX + 7, landmarkZ + 3, 2);
+          tree(landmarkX - 6, landmarkZ - 2, 1);
+        }
+      }
+
+      for (const [x, y, z, type] of placed) {
+        const cx2 = floorDiv(x, WORLD.chunkSize);
+        const cz2 = floorDiv(z, WORLD.chunkSize);
+        addBlockToChunkMeshes(cx2, cz2, x, y, z, type);
+      }
+    }
+
+    function ensureInstanceCapacity(mesh, needed) {
+      if (needed <= mesh.instanceMatrix.count) return;
+      const next = Math.max(needed, mesh.instanceMatrix.count * 2, 64);
+      const oldArray = mesh.instanceMatrix.array;
+      const nextArray = new Float32Array(next * 16);
+      nextArray.set(oldArray.subarray(0, oldArray.length));
+      mesh.instanceMatrix = new THREE.InstancedBufferAttribute(nextArray, 16);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+
+    function addBlockToChunkMeshes(cx, cz, x, y, z, type) {
+      const chunk = chunks.get(chunkKey(cx, cz));
+      if (!chunk || !materials[type]) return;
+      let mesh = chunk.meshes.find(m => m.material === materials[type]);
+      if (!mesh) {
+        mesh = new THREE.InstancedMesh(blockGeometry, materials[type], 64);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.count = 0;
+        scene.add(mesh);
+        chunk.meshes.push(mesh);
+      }
+      const idx = mesh.count;
+      ensureInstanceCapacity(mesh, idx + 1);
+      mesh.count = idx + 1;
+      const dummy = new THREE.Object3D();
+      dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(idx, dummy.matrix);
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+
+    function rebuildAllChunks() {
+      for (const ck of [...chunks.keys()]) {
+        const { x, z } = parseChunkKey(ck);
+        fantasyBlocks.clear();
+        rebuildChunk(x, z);
+      }
+      for (const ck of [...chunks.keys()]) {
+        const { x, z } = parseChunkKey(ck);
+        addDecorations(x, z);
+      }
+    }
+
+    const player = {
+      pos: new THREE.Vector3(WORLD.spawn.x, WORLD.spawn.y, WORLD.spawn.z),
+      vel: new THREE.Vector3(),
+      yaw: 0,
+      pitch: 0,
+      onGround: false,
+      radius: 0.32,
+      height: 1.72,
+      speed: 4.5
+    };
+    camera.position.copy(player.pos);
+
+    const keys = new Set();
+    let pointerLocked = false;
+
+    function lockPointer() {
+      if (!pointerLocked) renderer.domElement.requestPointerLock();
+    }
+    renderer.domElement.addEventListener('click', lockPointer);
+    loading.addEventListener('click', lockPointer);
+    document.addEventListener('pointerlockchange', () => {
+      pointerLocked = document.pointerLockElement === renderer.domElement;
+      loading.style.display = pointerLocked ? 'none' : 'grid';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!pointerLocked) return;
+      player.yaw -= e.movementX * 0.0022;
+      player.pitch -= e.movementY * 0.0022;
+      player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, player.pitch));
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y = player.yaw;
+      camera.rotation.x = player.pitch;
+    });
+
+    document.addEventListener('keydown', (e) => {
+      keys.add(e.code);
+      if (e.code === 'KeyR') {
+        player.pos.set(WORLD.spawn.x, WORLD.spawn.y, WORLD.spawn.z);
+        player.vel.set(0, 0, 0);
+        showMessage('已回到出生点');
+      }
+      const n = Number(e.key);
+      if (n >= 1 && n <= HOTBAR.length) {
+        selectedBlock = HOTBAR[n - 1];
+        updateHotbar();
+        showMessage(`选择：${BLOCKS[selectedBlock].name}`);
+      }
+    });
+    document.addEventListener('keyup', (e) => keys.delete(e.code));
+
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('mousedown', (e) => {
+      if (!pointerLocked) return;
+      if (e.button === 0) breakBlock();
+      if (e.button === 2) placeBlock();
+    });
+
+    function updateHotbar() {
+      hotbar.innerHTML = '';
+      HOTBAR.forEach((name, i) => {
+        const slot = document.createElement('div');
+        slot.className = 'slot' + (name === selectedBlock ? ' active' : '');
+        slot.style.backgroundImage = `url(${textures[name].image.toDataURL('image/png')})`;
+        const span = document.createElement('span');
+        span.textContent = i + 1;
+        slot.appendChild(span);
+        hotbar.appendChild(slot);
+      });
+    }
+    updateHotbar();
+
+    function cameraRay() {
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      return { origin: camera.position.clone(), dir };
+    }
+
+    function raycast(maxDistance = 6) {
+      const { origin, dir } = cameraRay();
+      let t = 0;
+      const step = 0.08;
+      let prev = null;
+      while (t < maxDistance) {
+        const p = origin.clone().addScaledVector(dir, t);
+        const x = Math.floor(p.x);
+        const y = Math.floor(p.y - 0.15);
+        const z = Math.floor(p.z);
+        const type = getBlock(x, y, z);
+        if (isSolidType(type)) {
+          return { hit: { x, y, z, type }, prev };
+        }
+        prev = { x, y, z, type };
+        t += step;
+      }
+      return { hit: null, prev };
+    }
+
+    function breakBlock() {
+      const result = raycast(6);
+      if (!result.hit) return;
+      const { x, y, z, type } = result.hit;
+      if (Math.abs(x + 0.5 - camera.position.x) < 1.2 && Math.abs(y + 0.5 - (camera.position.y - 0.8)) < 1.8 && Math.abs(z + 0.5 - camera.position.z) < 1.2) {
+        showMessage('不能破坏脚下的支撑方块');
+        return;
+      }
+      setBlock(x, y, z, 'air');
+      spawnParticles(x + 0.5, y + 0.6, z + 0.5, type);
+    }
+
+    function placeBlock() {
+      const result = raycast(6);
+      if (!result.prev) return;
+      const { x, y, z } = result.prev;
+      const px = camera.position.x;
+      const py = camera.position.y - 0.85;
+      const pz = camera.position.z;
+      const center = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
+      if (center.distanceTo(new THREE.Vector3(px, py, pz)) < 0.9) {
+        showMessage('不能把方块放在自己身体里');
+        return;
+      }
+      if (!isSolidType(selectedBlock)) return;
+      setBlock(x, y, z, selectedBlock);
+      spawnParticles(x + 0.5, y + 0.6, z + 0.5, selectedBlock);
+    }
+
+    const particles = [];
+    function spawnParticles(x, y, z, type) {
+      const mat = materials[type] || materials.stone;
+      for (let i = 0; i < 12; i++) {
+        const geo = new THREE.BoxGeometry(0.09, 0.09, 0.09);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, y, z);
+        mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+        mesh.userData.vel = new THREE.Vector3(
+          (Math.random() - 0.5) * 2.8,
+          Math.random() * 2.4,
+          (Math.random() - 0.5) * 2.8
+        );
+        mesh.userData.life = 0.8 + Math.random() * 0.5;
+        scene.add(mesh);
+        particles.push(mesh);
+      }
+    }
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.userData.life -= dt;
+        p.userData.vel.y -= 8 * dt;
+        p.position.addScaledVector(p.userData.vel, dt);
+        p.rotation.x += dt * 4;
+        p.rotation.y += dt * 5;
+        if (p.userData.life <= 0 || p.position.y < -20) {
+          scene.remove(p);
+          p.geometry.dispose();
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    function collideAxis(axis, amount) {
+      if (amount === 0) return;
+      const old = player.pos[axis];
+      player.pos[axis] += amount;
+
+      const minX = Math.floor(player.pos.x - player.radius);
+      const maxX = Math.floor(player.pos.x + player.radius);
+      const minY = Math.floor(player.pos.y - player.height);
+      const maxY = Math.floor(player.pos.y + 0.18);
+      const minZ = Math.floor(player.pos.z - player.radius);
+      const maxZ = Math.floor(player.pos.z + player.radius);
+
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          for (let z = minZ; z <= maxZ; z++) {
+            if (isSolid(x, y, z)) {
+              player.pos[axis] = old;
+              player.vel[axis] = 0;
+              return false;
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    function updatePlayer(dt) {
+      const forward = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw)).normalize();
+      const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw)).normalize();
+      const move = new THREE.Vector3();
+      if (keys.has('KeyW')) move.add(forward);
+      if (keys.has('KeyS')) move.sub(forward);
+      if (keys.has('KeyD')) move.add(right);
+      if (keys.has('KeyA')) move.sub(right);
+      if (move.lengthSq() > 0) move.normalize();
+
+      const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 0.45 : 1;
+      const speed = player.speed * sprint;
+      player.vel.x = move.x * speed;
+      player.vel.z = move.z * speed;
+
+      if ((keys.has('Space') || keys.has('ArrowUp')) && player.onGround) {
+        player.vel.y = 7.2;
+        player.onGround = false;
+      }
+
+      player.vel.y -= 18.5 * dt;
+      collideAxis('x', player.vel.x * dt);
+      collideAxis('z', player.vel.z * dt);
+      collideAxis('y', player.vel.y * dt);
+
+      player.onGround = false;
+      const footX = Math.floor(player.pos.x);
+      const footY = Math.floor(player.pos.y - player.height - 0.02);
+      const footZ = Math.floor(player.pos.z);
+      if (isSolid(footX, footY, footZ)) player.onGround = true;
+
+      if (player.pos.y < -40) {
+        player.pos.set(WORLD.spawn.x, WORLD.spawn.y, WORLD.spawn.z);
+        player.vel.set(0, 0, 0);
+        showMessage('你掉出了世界，已回到出生点');
+      }
+
+      camera.position.copy(player.pos);
+    }
+
+    function generateInitialWorld() {
+      const cx = floorDiv(camera.position.x, WORLD.chunkSize);
+      const cz = floorDiv(camera.position.z, WORLD.chunkSize);
+      for (let x = cx - 1; x <= cx + 1; x++) {
+        for (let z = cz - 1; z <= cz + 1; z++) {
+          rebuildChunk(x, z);
+          addDecorations(x, z);
+        }
+      }
+      updateChunks();
+    }
+
+    const clock = new THREE.Clock();
+    let lastChunkX = null;
+    let lastChunkZ = null;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, clock.getDelta());
+      if (pointerLocked) updatePlayer(dt);
+      updateChunks();
+      updateParticles(dt);
+
+      const cx = floorDiv(camera.position.x, WORLD.chunkSize);
+      const cz = floorDiv(camera.position.z, WORLD.chunkSize);
+      if (cx !== lastChunkX || cz !== lastChunkZ) {
+        lastChunkX = cx;
+        lastChunkZ = cz;
+        const h = terrainHeight(Math.floor(camera.position.x), Math.floor(camera.position.z));
+        if (h > WORLD.seaLevel + 14) showMessage('进入高地：远古遗迹与水晶矿脉更常见');
+        else if (h <= WORLD.seaLevel + 2) showMessage('进入水岸：沙地、浅海与漂浮岛可见');
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    generateInitialWorld();
+    animate();
+    showMessage('点击画面锁定鼠标，开始探索神话方块世界');
+  </script>
+</body>
+</html>
