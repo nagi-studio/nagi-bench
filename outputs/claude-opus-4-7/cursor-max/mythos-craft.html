@@ -1,11 +1,2250 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Mythic Realms — A Voxel Pilgrimage</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MythosCraft · 神话之地</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  body {
+    font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+    color: #f0e9d8;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  canvas#game { display: block; width: 100%; height: 100%; cursor: none; }
+
+  /* ===== HUD ===== */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+  #crosshair {
+    position: absolute; left: 50%; top: 50%;
+    width: 18px; height: 18px;
+    transform: translate(-50%, -50%);
+    mix-blend-mode: difference;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: rgba(255,255,255,0.95);
+  }
+  #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+
+  #hotbar {
+    position: absolute;
+    bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 4px;
+    padding: 4px;
+    background: rgba(15,12,20,0.55);
+    border: 2px solid rgba(255,255,255,0.18);
+    border-radius: 4px;
+    backdrop-filter: blur(6px);
+  }
+  .slot {
+    width: 48px; height: 48px;
+    background: rgba(0,0,0,0.4);
+    border: 2px solid rgba(255,255,255,0.08);
+    position: relative;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    overflow: hidden;
+  }
+  .slot.active { border-color: #f8e7a8; box-shadow: 0 0 0 2px rgba(248,231,168,0.4), inset 0 0 0 1px rgba(255,255,255,0.3); transform: translateY(-2px); }
+  .slot-icon { width: 100%; height: 100%; image-rendering: pixelated; }
+  .slot-num { position: absolute; top: 2px; left: 4px; font-size: 10px; color: #f8e7a8; font-weight: 700; text-shadow: 1px 1px 0 #000; }
+
+  #blockname {
+    position: absolute; bottom: 78px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; letter-spacing: 0.04em;
+    color: #f8e7a8;
+    background: rgba(15,12,20,0.7);
+    padding: 4px 10px;
+    border-radius: 3px;
+    opacity: 0; transition: opacity 0.5s ease-out 0.5s;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+  #blockname.show { opacity: 1; transition: opacity 0.1s ease-in; }
+
+  #debug {
+    position: absolute; top: 8px; left: 8px;
+    font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    font-size: 11px;
+    color: #d4e5f0;
+    text-shadow: 1px 1px 0 #000, 0 0 4px rgba(0,0,0,0.9);
+    line-height: 1.5;
+    pointer-events: none;
+    opacity: 0.9;
+  }
+  #debug.hidden { display: none; }
+
+  #compass {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.8);
+    letter-spacing: 0.5em;
+  }
+
+  /* ===== Overlay screens ===== */
+  #overlay {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(140deg, #0d0b1a 0%, #1a1428 50%, #251a35 100%);
+    transition: opacity 0.6s ease;
+  }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  #overlay::before {
+    content: ''; position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(248,231,168,0.08) 0%, transparent 50%),
+      radial-gradient(circle at 75% 70%, rgba(178,141,255,0.08) 0%, transparent 50%);
+  }
+  #overlay > * { position: relative; z-index: 1; }
+
+  .intro {
+    text-align: center; max-width: 720px; padding: 32px;
+  }
+  .intro h1 {
+    font-family: 'Cinzel', 'PingFang SC', serif;
+    font-size: clamp(40px, 7vw, 76px);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    background: linear-gradient(180deg, #fff5d6 0%, #f8c878 50%, #8b6428 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+    margin-bottom: 8px;
+    filter: drop-shadow(0 4px 12px rgba(248,200,120,0.3));
+  }
+  .intro h1 small {
+    display: block;
+    font-family: 'PingFang SC', sans-serif;
+    font-size: 0.35em;
+    font-weight: 300;
+    letter-spacing: 0.6em;
+    color: #b8a98a;
+    margin-top: 4px;
+    background: none;
+    -webkit-text-fill-color: #b8a98a;
+  }
+  .intro p.sub {
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    color: #b8a98a;
+    margin-bottom: 32px;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    font-size: 13px;
+    margin-bottom: 36px;
+    color: #d4c79c;
+  }
+  .controls > div { background: rgba(0,0,0,0.3); border: 1px solid rgba(248,231,168,0.15); padding: 8px 12px; border-radius: 3px; }
+  .controls kbd {
+    display: inline-block;
+    background: linear-gradient(180deg, #3a3550 0%, #251f3a 100%);
+    border: 1px solid rgba(248,231,168,0.3);
+    color: #f8e7a8;
+    padding: 1px 8px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    min-width: 20px; text-align: center;
+    margin-right: 6px;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.4);
+  }
+  #start {
+    pointer-events: auto;
+    font-family: 'Cinzel', 'PingFang SC', serif;
+    font-size: 16px;
+    letter-spacing: 0.3em;
+    font-weight: 700;
+    color: #1a1428;
+    background: linear-gradient(180deg, #f8e7a8 0%, #d4a843 100%);
+    border: none;
+    padding: 14px 48px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 20px rgba(248,200,120,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
+  }
+  #start:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(248,200,120,0.5), inset 0 1px 0 rgba(255,255,255,0.7);
+  }
+  #start:active { transform: translateY(0); }
+
+  #loading { text-align: center; }
+  #loading h2 {
+    font-family: 'Cinzel', serif;
+    font-weight: 400;
+    color: #f8e7a8;
+    margin-bottom: 16px;
+    letter-spacing: 0.2em;
+  }
+  .progress {
+    width: 320px;
+    height: 6px;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(248,231,168,0.2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 0 auto;
+  }
+  #progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #f8e7a8 0%, #d4a843 100%);
+    transition: width 0.2s ease;
+    box-shadow: 0 0 12px rgba(248,200,120,0.6);
+  }
+  #progress-text { margin-top: 12px; font-size: 12px; color: #b8a98a; }
+
+  #pause { display: none; }
+  #pause.show { display: flex; }
+  #pause-card {
+    background: rgba(15,12,20,0.92);
+    border: 1px solid rgba(248,231,168,0.3);
+    padding: 36px 48px;
+    border-radius: 6px;
+    text-align: center;
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+  }
+  #pause-card h2 {
+    font-family: 'Cinzel', serif;
+    color: #f8e7a8;
+    margin-bottom: 24px;
+    letter-spacing: 0.3em;
+  }
+  #pause-card button {
+    pointer-events: auto;
+    background: linear-gradient(180deg, #f8e7a8 0%, #d4a843 100%);
+    color: #1a1428;
+    border: none;
+    padding: 12px 36px;
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+
+  /* ===== Damage / break effect ===== */
+  #break-overlay {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px; height: 80px;
+    pointer-events: none;
+    opacity: 0;
+    border: 2px dashed rgba(255,255,255,0.8);
+    border-radius: 2px;
+  }
+  #break-overlay.show { opacity: 0.6; animation: shake 0.15s; }
+  @keyframes shake {
+    0%,100% { transform: translate(-50%, -50%); }
+    25% { transform: translate(-52%, -50%); }
+    75% { transform: translate(-48%, -50%); }
+  }
+
+  /* Vignette */
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%);
+  }
+</style>
 </head>
 <body>
-<div id="probe">init</div>
+
+<canvas id="game"></canvas>
+
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="debug" class="hidden"></div>
+  <div id="compass"></div>
+  <div id="crosshair"></div>
+  <div id="break-overlay"></div>
+  <div id="blockname"></div>
+  <div id="hotbar"></div>
+</div>
+
+<div id="overlay">
+  <div class="intro" id="intro">
+    <h1>MYTHOS CRAFT<small>神 话 之 地</small></h1>
+    <p class="sub">An ancient world of myths, towers, and dragon-temples</p>
+    <div class="controls">
+      <div><kbd>W A S D</kbd>移动 / Move</div>
+      <div><kbd>SPACE</kbd>跳跃 / Jump</div>
+      <div><kbd>SHIFT</kbd>加速 / Sprint</div>
+      <div><kbd>MOUSE</kbd>视角 / Look</div>
+      <div><kbd>L-CLICK</kbd>破坏 / Break</div>
+      <div><kbd>R-CLICK</kbd>放置 / Place</div>
+      <div><kbd>1 - 9</kbd>选择方块 / Select</div>
+      <div><kbd>F</kbd>飞行 / Fly</div>
+      <div><kbd>F3</kbd>调试信息 / Debug</div>
+      <div><kbd>ESC</kbd>暂停 / Pause</div>
+    </div>
+    <button id="start">点 击 进 入 神 话 之 地</button>
+  </div>
+  <div id="loading" style="display:none">
+    <h2>正 在 生 成 神 话 之 地</h2>
+    <div class="progress"><div id="progress-bar"></div></div>
+    <div id="progress-text">生成地形 chunks...</div>
+  </div>
+</div>
+
+<div id="pause" class="hidden">
+  <div id="pause-card">
+    <h2>已 暂 停</h2>
+    <button id="resume">点 击 继 续 探 索</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+/* =========================================================================
+   Constants
+   ========================================================================= */
+const CHUNK_SIZE = 16;
+const CHUNK_HEIGHT = 96;
+const SEA_LEVEL = 32;
+const RENDER_DISTANCE = 6;
+const WORLD_SEED = 20260613;
+const GRAVITY = 28;
+const JUMP_SPEED = 9.5;
+const WALK_SPEED = 5.0;
+const SPRINT_SPEED = 9.0;
+const FLY_SPEED = 14.0;
+const PLAYER_HEIGHT = 1.7;
+const PLAYER_RADIUS = 0.32;
+const REACH = 6.0;
+
+/* =========================================================================
+   Block Definitions
+   ========================================================================= */
+const Block = Object.freeze({
+  AIR: 0,
+  GRASS: 1,
+  DIRT: 2,
+  STONE: 3,
+  COBBLE: 4,
+  SAND: 5,
+  WOOD: 6,        // oak log
+  LEAVES: 7,
+  PLANKS: 8,
+  GLOWSTONE: 9,
+  CRYSTAL: 10,
+  OBSIDIAN: 11,
+  GOLD: 12,
+  BRICK: 13,
+  MARBLE: 14,
+  WATER: 15,
+  SNOW: 16,
+  LAVA: 17,
+  BEDROCK: 18,
+});
+
+// Each face index points into the texture atlas (16x16 tiles arranged 8 cols x 4 rows)
+// Tex indices:
+//  0:grass_top  1:grass_side 2:dirt 3:stone 4:cobble 5:sand 6:wood_side 7:wood_top
+//  8:leaves     9:planks    10:glow 11:crystal 12:obsidian 13:gold 14:brick 15:marble
+// 16:water     17:snow      18:lava 19:bedrock
+const BLOCK_TEX = {
+  [Block.GRASS]:    { top: 0,  side: 1,  bottom: 2 },
+  [Block.DIRT]:     { all: 2 },
+  [Block.STONE]:    { all: 3 },
+  [Block.COBBLE]:   { all: 4 },
+  [Block.SAND]:     { all: 5 },
+  [Block.WOOD]:     { top: 7,  side: 6,  bottom: 7 },
+  [Block.LEAVES]:   { all: 8 },
+  [Block.PLANKS]:   { all: 9 },
+  [Block.GLOWSTONE]:{ all: 10 },
+  [Block.CRYSTAL]:  { all: 11 },
+  [Block.OBSIDIAN]: { all: 12 },
+  [Block.GOLD]:     { all: 13 },
+  [Block.BRICK]:    { all: 14 },
+  [Block.MARBLE]:   { all: 15 },
+  [Block.WATER]:    { all: 16 },
+  [Block.SNOW]:     { all: 17 },
+  [Block.LAVA]:     { all: 18 },
+  [Block.BEDROCK]:  { all: 19 },
+};
+
+const BLOCK_NAME = {
+  [Block.GRASS]:    ['草方块', 'Grass Block'],
+  [Block.DIRT]:     ['泥土',   'Dirt'],
+  [Block.STONE]:    ['石头',   'Stone'],
+  [Block.COBBLE]:   ['圆石',   'Cobblestone'],
+  [Block.SAND]:     ['沙子',   'Sand'],
+  [Block.WOOD]:     ['橡木原木','Oak Log'],
+  [Block.LEAVES]:   ['橡树叶', 'Oak Leaves'],
+  [Block.PLANKS]:   ['橡木板', 'Oak Planks'],
+  [Block.GLOWSTONE]:['萤石',   'Glowstone'],
+  [Block.CRYSTAL]:  ['水晶矿', 'Crystal Ore'],
+  [Block.OBSIDIAN]: ['黑曜石', 'Obsidian'],
+  [Block.GOLD]:     ['金块',   'Gold Block'],
+  [Block.BRICK]:    ['红砖',   'Bricks'],
+  [Block.MARBLE]:   ['大理石', 'Marble'],
+  [Block.WATER]:    ['水',     'Water'],
+  [Block.SNOW]:     ['雪',     'Snow'],
+  [Block.LAVA]:     ['熔岩',   'Lava'],
+  [Block.BEDROCK]:  ['基岩',   'Bedrock'],
+};
+
+const EMISSIVE_BLOCKS = new Set([Block.GLOWSTONE, Block.LAVA, Block.CRYSTAL]);
+
+const isAir = id => id === Block.AIR;
+const isLiquid = id => id === Block.WATER || id === Block.LAVA;
+const isOpaque = id => id !== Block.AIR && !isLiquid(id);
+const isSolid = id => id !== Block.AIR && !isLiquid(id); // player collides
+
+/* =========================================================================
+   Texture Atlas (procedural pixel-art textures)
+   ========================================================================= */
+const ATLAS = (function makeAtlas() {
+  const T = 16, COLS = 8, ROWS = 4;
+  const W = COLS * T, H = ROWS * T;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+
+  // Seeded RNG (Mulberry32) for deterministic textures
+  let state = 0x12345678 >>> 0;
+  const seed = (s) => { state = s >>> 0; };
+  const rnd = () => {
+    state |= 0; state = (state + 0x6D2B79F5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = t + Math.imul(t ^ (t >>> 7), 61 | t) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  function tile(idx, fn) {
+    const col = idx % COLS;
+    const row = Math.floor(idx / COLS);
+    const ox = col * T, oy = row * T;
+    seed(idx * 9301 + 49297); // unique deterministic seed per tile
+    for (let y = 0; y < T; y++) {
+      for (let x = 0; x < T; x++) {
+        const c = fn(x, y);
+        if (!c) continue;
+        const [r, g, b, a = 255] = c;
+        const rr = Math.max(0, Math.min(255, r | 0));
+        const gg = Math.max(0, Math.min(255, g | 0));
+        const bb = Math.max(0, Math.min(255, b | 0));
+        if (a < 255) ctx.fillStyle = `rgba(${rr},${gg},${bb},${(a/255).toFixed(3)})`;
+        else ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
+        ctx.fillRect(ox + x, oy + y, 1, 1);
+      }
+    }
+  }
+
+  // 0: grass top
+  tile(0, () => {
+    const v = rnd();
+    const dark = rnd() < 0.15;
+    const r = (dark ? 25 : 45) + v * 25;
+    const g = (dark ? 95 : 135) + v * 35;
+    const b = (dark ? 20 : 35) + v * 18;
+    return [r, g, b];
+  });
+
+  // 1: grass side (top portion green, rest dirt)
+  tile(1, (x, y) => {
+    const grassTopHeight = 3 + ((x * 31 + 11) % 13) / 13 * 2;
+    if (y < grassTopHeight || (y < grassTopHeight + 1 && rnd() < 0.5)) {
+      const v = rnd();
+      return [45 + v * 25, 135 + v * 35, 35 + v * 18];
+    }
+    const v = rnd();
+    return [115 + v * 25, 78 + v * 18, 50 + v * 12];
+  });
+
+  // 2: dirt
+  tile(2, () => {
+    const v = rnd();
+    const dark = rnd() < 0.18;
+    const k = dark ? 0.75 : 1;
+    return [(120 + v * 28) * k, (78 + v * 22) * k, (50 + v * 15) * k];
+  });
+
+  // 3: stone
+  tile(3, () => {
+    const v = rnd();
+    const dark = rnd() < 0.15;
+    const k = dark ? 0.75 : 1.0;
+    const g = (122 + v * 28) * k;
+    return [g, g, g + 4];
+  });
+
+  // 4: cobblestone (chunky stones with mortar)
+  tile(4, (x, y) => {
+    // Pseudo-random chunk pattern
+    const cx = Math.floor((x + 1) / 4);
+    const cy = Math.floor((y + 0) / 4);
+    const cseed = ((cx * 73 + cy * 41) % 7);
+    const onEdge = (x % 4 === 0 || y % 4 === 0);
+    const v = rnd();
+    if (onEdge && rnd() < 0.6) {
+      const g = 60 + v * 25;
+      return [g, g, g];
+    }
+    const base = 110 + cseed * 12;
+    const k = 0.85 + v * 0.3;
+    const g = base * k;
+    return [g, g, g + 6];
+  });
+
+  // 5: sand
+  tile(5, () => {
+    const v = rnd();
+    const dark = rnd() < 0.1;
+    const k = dark ? 0.85 : 1;
+    return [(225 + v * 20) * k, (200 + v * 22) * k, (140 + v * 25) * k];
+  });
+
+  // 6: wood side (bark)
+  tile(6, (x, y) => {
+    const vline = Math.sin(x * 1.7 + 0.3) * 0.4 + 0.6;
+    const knot = (x === 8 && y > 6 && y < 10) ? 0.4 : 1;
+    const v = rnd() * 0.3 + vline * 0.6;
+    const k = knot * (0.8 + v * 0.4);
+    return [(95 + v * 35) * k, (60 + v * 25) * k, (28 + v * 18) * k];
+  });
+
+  // 7: wood top (concentric rings)
+  tile(7, (x, y) => {
+    const cx = 8, cy = 8;
+    const dx = x - cx + 0.5, dy = y - cy + 0.5;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    const ring = Math.sin(d * 1.6) * 0.5 + 0.5;
+    const v = ring * 0.6 + rnd() * 0.4;
+    return [140 + v * 50, 95 + v * 35, 55 + v * 22];
+  });
+
+  // 8: leaves (mostly opaque with some gaps)
+  tile(8, () => {
+    const r = rnd();
+    if (r < 0.07) return [0, 0, 0, 0]; // small transparent holes for depth
+    const v = rnd();
+    const dark = rnd() < 0.35;
+    const k = dark ? 0.65 : 1;
+    return [(35 + v * 25) * k, (105 + v * 55) * k, (35 + v * 22) * k, 255];
+  });
+
+  // 9: planks (horizontal boards)
+  tile(9, (x, y) => {
+    const plankH = 4;
+    const inPlank = y % plankH;
+    const grain = Math.sin((y % plankH) * 1.5 + x * 0.3) * 0.2;
+    const v = rnd() * 0.25 + grain;
+    let k = 1;
+    if (inPlank === plankH - 1) k = 0.65;
+    return [(170 + v * 30) * k, (122 + v * 25) * k, (72 + v * 20) * k];
+  });
+
+  // 10: glowstone (luminous yellow with bright sparkles)
+  tile(10, () => {
+    const r = rnd();
+    if (r > 0.78) return [255, 235 + rnd() * 20, 165 + rnd() * 40];
+    if (r > 0.55) return [240 + rnd() * 15, 190 + rnd() * 25, 80 + rnd() * 35];
+    return [210 + rnd() * 25, 155 + rnd() * 25, 60 + rnd() * 25];
+  });
+
+  // 11: crystal/diamond ore
+  tile(11, (x, y) => {
+    const r = rnd();
+    // Stone base
+    const base = 105 + rnd() * 25;
+    let rr = base, gg = base + 6, bb = base + 10;
+    if (r > 0.55) {
+      // Crystal cluster
+      const v = rnd();
+      if (r > 0.85) { rr = 220 + v * 35; gg = 245; bb = 255; }
+      else { rr = 95 + v * 50; gg = 200 + v * 40; bb = 230 + v * 25; }
+    }
+    return [rr, gg, bb];
+  });
+
+  // 12: obsidian (very dark, purple highlights)
+  tile(12, () => {
+    const r = rnd();
+    const v = rnd();
+    if (r > 0.92) return [60 + v * 25, 25 + v * 15, 80 + v * 30]; // purple sparkle
+    return [16 + v * 14, 10 + v * 8, 22 + v * 18];
+  });
+
+  // 13: gold
+  tile(13, () => {
+    const r = rnd();
+    const v = rnd();
+    if (r > 0.85) return [255, 250 + v * 5, 200 + v * 30]; // bright sparkle
+    if (r < 0.2) return [200 + v * 20, 140 + v * 20, 35 + v * 25]; // darker spots
+    return [245 + v * 10, 205 + v * 20, 65 + v * 30];
+  });
+
+  // 14: brick
+  tile(14, (x, y) => {
+    const brickH = 4, brickW = 8;
+    const yRow = Math.floor(y / brickH);
+    const xOff = (yRow % 2) * 4;
+    const xMod = (x + xOff) % brickW;
+    const yMod = y % brickH;
+    const isMortar = yMod === brickH - 1 || xMod === brickW - 1;
+    if (isMortar) {
+      const g = 175 + rnd() * 20;
+      return [g, g - 10, g - 30];
+    }
+    const v = rnd();
+    return [155 + v * 35, 70 + v * 22, 50 + v * 15];
+  });
+
+  // 15: marble (white with grey veins)
+  tile(15, (x, y) => {
+    const n = Math.sin(x * 0.45 + y * 0.3) * Math.cos(y * 0.55 + x * 0.2);
+    const vein = Math.abs(n) < 0.12 ? 0.7 : 1;
+    const v = rnd() * 0.1 + 0.9;
+    const g = 240 * v * vein;
+    return [g, g + 2, g - 4];
+  });
+
+  // 16: water
+  tile(16, (x, y) => {
+    const wave = Math.sin(x * 0.7 + y * 0.4) * 0.15 + 0.85;
+    const v = rnd() * 0.15 + wave;
+    return [35 * v, 95 * v, 195 * v, 215];
+  });
+
+  // 17: snow
+  tile(17, () => {
+    const v = rnd() * 0.08 + 0.92;
+    const g = 245 * v;
+    return [g, g, g + 4];
+  });
+
+  // 18: lava (flowing red/orange)
+  tile(18, (x, y) => {
+    const wave = Math.sin(x * 0.4 + y * 0.3) * Math.cos(y * 0.25 + x * 0.5) * 0.4 + 0.6;
+    const v = rnd() * 0.3 + wave;
+    return [240 * v + 20, 110 * v + 10, 25 * v + 5];
+  });
+
+  // 19: bedrock
+  tile(19, () => {
+    const v = rnd();
+    const g = 35 + v * 30;
+    return [g, g - 2, g + 2];
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestMipmapNearestFilter;
+  texture.generateMipmaps = true;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+
+  return { texture, canvas, COLS, ROWS, T };
+})();
+
+// UV helpers
+function uvForTile(idx) {
+  const col = idx % ATLAS.COLS;
+  const row = Math.floor(idx / ATLAS.COLS);
+  // Inset by a tiny amount to avoid bleeding between tiles
+  const inset = 0.5 / (ATLAS.COLS * ATLAS.T * 8);
+  const u0 = col / ATLAS.COLS + inset;
+  const u1 = (col + 1) / ATLAS.COLS - inset;
+  const v0 = 1 - (row + 1) / ATLAS.ROWS + inset;
+  const v1 = 1 - row / ATLAS.ROWS - inset;
+  return [u0, v0, u1, v1];
+}
+function texForFace(blockId, face) {
+  const def = BLOCK_TEX[blockId];
+  if (!def) return 3;
+  if (def.all !== undefined) return def.all;
+  if (face === 'top') return def.top;
+  if (face === 'bottom') return def.bottom;
+  return def.side;
+}
+
+/* =========================================================================
+   Face definitions (CCW from outside)
+   ========================================================================= */
+const FACES = [
+  { name: 'top',    nx: 0,  ny: 1,  nz: 0,  verts: [[0,1,0],[0,1,1],[1,1,1],[1,1,0]] },
+  { name: 'bottom', nx: 0,  ny: -1, nz: 0,  verts: [[0,0,0],[1,0,0],[1,0,1],[0,0,1]] },
+  { name: 'east',   nx: 1,  ny: 0,  nz: 0,  verts: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]] },
+  { name: 'west',   nx: -1, ny: 0,  nz: 0,  verts: [[0,0,0],[0,0,1],[0,1,1],[0,1,0]] },
+  { name: 'south',  nx: 0,  ny: 0,  nz: 1,  verts: [[0,0,1],[1,0,1],[1,1,1],[0,1,1]] },
+  { name: 'north',  nx: 0,  ny: 0,  nz: -1, verts: [[1,0,0],[0,0,0],[0,1,0],[1,1,0]] },
+];
+// Ambient occlusion shading: top brightest, bottom darkest, sides medium
+const FACE_AO = {
+  top: 1.0,
+  bottom: 0.55,
+  east: 0.78,
+  west: 0.82,
+  south: 0.72,
+  north: 0.86,
+};
+
+/* =========================================================================
+   Perlin Noise
+   ========================================================================= */
+class Perlin {
+  constructor(seed = 0) {
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    let rng = seed || 1;
+    for (let i = 255; i > 0; i--) {
+      rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0;
+      const j = rng % (i + 1);
+      [p[i], p[j]] = [p[j], p[i]];
+    }
+    this.perm = new Uint8Array(512);
+    for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+  }
+  fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  lerp(a, b, t) { return a + t * (b - a); }
+  grad2(h, x, y) {
+    h &= 7;
+    const u = h < 4 ? x : y;
+    const v = h < 4 ? y : x;
+    return ((h & 1) ? -u : u) + ((h & 2) ? -2 * v : 2 * v);
+  }
+  grad3(h, x, y, z) {
+    h &= 15;
+    const u = h < 8 ? x : y;
+    const v = h < 4 ? y : (h === 12 || h === 14 ? x : z);
+    return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+  }
+  noise2(x, y) {
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+    x -= Math.floor(x); y -= Math.floor(y);
+    const u = this.fade(x), v = this.fade(y);
+    const A = this.perm[X] + Y, B = this.perm[X + 1] + Y;
+    return this.lerp(
+      this.lerp(this.grad2(this.perm[A], x, y), this.grad2(this.perm[B], x - 1, y), u),
+      this.lerp(this.grad2(this.perm[A + 1], x, y - 1), this.grad2(this.perm[B + 1], x - 1, y - 1), u),
+      v
+    );
+  }
+  noise3(x, y, z) {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+    x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+    const u = this.fade(x), v = this.fade(y), w = this.fade(z);
+    const A = this.perm[X] + Y, AA = this.perm[A] + Z, AB = this.perm[A + 1] + Z;
+    const B = this.perm[X + 1] + Y, BA = this.perm[B] + Z, BB = this.perm[B + 1] + Z;
+    return this.lerp(
+      this.lerp(
+        this.lerp(this.grad3(this.perm[AA], x, y, z), this.grad3(this.perm[BA], x - 1, y, z), u),
+        this.lerp(this.grad3(this.perm[AB], x, y - 1, z), this.grad3(this.perm[BB], x - 1, y - 1, z), u),
+        v),
+      this.lerp(
+        this.lerp(this.grad3(this.perm[AA + 1], x, y, z - 1), this.grad3(this.perm[BA + 1], x - 1, y, z - 1), u),
+        this.lerp(this.grad3(this.perm[AB + 1], x, y - 1, z - 1), this.grad3(this.perm[BB + 1], x - 1, y - 1, z - 1), u),
+        v),
+      w);
+  }
+  fbm2(x, y, octaves = 4, lacunarity = 2, persistence = 0.5) {
+    let t = 0, freq = 1, amp = 1, max = 0;
+    for (let i = 0; i < octaves; i++) {
+      t += this.noise2(x * freq, y * freq) * amp;
+      max += amp;
+      amp *= persistence;
+      freq *= lacunarity;
+    }
+    return t / max;
+  }
+}
+
+const noise = new Perlin(WORLD_SEED);
+const caveNoise = new Perlin(WORLD_SEED ^ 0xabcdef);
+const biomeNoise = new Perlin(WORLD_SEED ^ 0x12345);
+
+/* =========================================================================
+   World / Chunk
+   ========================================================================= */
+class Chunk {
+  constructor(cx, cz) {
+    this.cx = cx;
+    this.cz = cz;
+    this.blocks = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
+    this.mesh = null;
+    this.waterMesh = null;
+    this.group = new THREE.Group();
+    this.group.position.set(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE);
+    this.generated = false;
+    this.meshed = false;
+    this.dirty = false;
+  }
+  idx(x, y, z) { return (y * CHUNK_SIZE + z) * CHUNK_SIZE + x; }
+  get(x, y, z) { return this.blocks[this.idx(x, y, z)]; }
+  set(x, y, z, id) { this.blocks[this.idx(x, y, z)] = id; }
+}
+
+class World {
+  constructor() {
+    this.chunks = new Map();
+    this.scene = null;
+    this.opaqueMat = null;
+    this.waterMat = null;
+    this.placedStructures = new Set();
+  }
+
+  key(cx, cz) { return `${cx},${cz}`; }
+  getChunk(cx, cz) { return this.chunks.get(this.key(cx, cz)); }
+
+  ensureChunk(cx, cz) {
+    const k = this.key(cx, cz);
+    let c = this.chunks.get(k);
+    if (!c) {
+      c = new Chunk(cx, cz);
+      this.chunks.set(k, c);
+    }
+    return c;
+  }
+
+  // Public block access (world coordinates)
+  getBlock(x, y, z) {
+    if (y < 0 || y >= CHUNK_HEIGHT) return Block.AIR;
+    const cx = Math.floor(x / CHUNK_SIZE);
+    const cz = Math.floor(z / CHUNK_SIZE);
+    const c = this.getChunk(cx, cz);
+    if (!c || !c.generated) return Block.AIR;
+    const lx = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+    const lz = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+    return c.get(lx, y, lz);
+  }
+
+  setBlock(x, y, z, id, dirtyMark = true) {
+    if (y < 0 || y >= CHUNK_HEIGHT) return;
+    const cx = Math.floor(x / CHUNK_SIZE);
+    const cz = Math.floor(z / CHUNK_SIZE);
+    const c = this.ensureChunk(cx, cz);
+    const lx = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+    const lz = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+    c.set(lx, y, lz, id);
+    if (dirtyMark) {
+      c.dirty = true;
+      if (lx === 0) { const n = this.getChunk(cx - 1, cz); if (n) n.dirty = true; }
+      if (lx === CHUNK_SIZE - 1) { const n = this.getChunk(cx + 1, cz); if (n) n.dirty = true; }
+      if (lz === 0) { const n = this.getChunk(cx, cz - 1); if (n) n.dirty = true; }
+      if (lz === CHUNK_SIZE - 1) { const n = this.getChunk(cx, cz + 1); if (n) n.dirty = true; }
+    }
+  }
+
+  // Terrain height function for a world XZ coordinate
+  terrainHeight(x, z) {
+    const continent = noise.fbm2(x * 0.0035, z * 0.0035, 4, 2, 0.5);
+    const hills = noise.fbm2(x * 0.012, z * 0.012, 4, 2, 0.5);
+    const detail = noise.noise2(x * 0.07, z * 0.07);
+    const mountainMask = Math.max(0, noise.fbm2(x * 0.002, z * 0.002, 3, 2, 0.5));
+    const mountains = mountainMask * mountainMask * 22;
+    let base = SEA_LEVEL - 2 + continent * 10 + hills * 6 + detail * 1.2 + mountains;
+    // Spawn island: lift terrain near origin so the spawn area is reliably above sea level
+    // (smooth radial bump from 12 blocks above sea at center fading out by ~80 blocks)
+    const distFromOrigin = Math.sqrt(x * x + z * z);
+    const islandLift = Math.max(0, (90 - distFromOrigin) / 90);
+    base += islandLift * islandLift * 14;
+    return Math.max(2, Math.min(CHUNK_HEIGHT - 6, Math.floor(base)));
+  }
+
+  // 0 = plains, 1 = forest, 2 = desert, 3 = mountains
+  biomeAt(x, z) {
+    const b = biomeNoise.fbm2(x * 0.005, z * 0.005, 3, 2, 0.5);
+    const m = noise.fbm2(x * 0.002, z * 0.002, 3, 2, 0.5);
+    if (m > 0.4) return 3;
+    if (b < -0.2) return 2;
+    if (b > 0.1) return 1;
+    return 0;
+  }
+
+  // Generate the base terrain for a single chunk (no mesh yet)
+  generateChunk(c) {
+    if (c.generated) return;
+    const baseX = c.cx * CHUNK_SIZE;
+    const baseZ = c.cz * CHUNK_SIZE;
+
+    for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        const x = baseX + lx, z = baseZ + lz;
+        const h = this.terrainHeight(x, z);
+        const biome = this.biomeAt(x, z);
+
+        for (let y = 0; y <= h; y++) {
+          let id = Block.STONE;
+          if (y === 0) id = Block.BEDROCK;
+          else if (y === h) {
+            if (biome === 2) id = Block.SAND;
+            else if (biome === 3 && y > SEA_LEVEL + 16) id = Block.SNOW;
+            else if (h <= SEA_LEVEL + 1) id = Block.SAND;
+            else id = Block.GRASS;
+          } else if (y >= h - 3) {
+            if (biome === 2) id = Block.SAND;
+            else id = Block.DIRT;
+          }
+
+          // 3D cave carving
+          if (id !== Block.BEDROCK && y > 2 && y < h - 1) {
+            const cv = caveNoise.fbm2(x * 0.06, z * 0.06, 2, 2, 0.5);
+            const cv2 = caveNoise.noise3(x * 0.08, y * 0.13, z * 0.08);
+            if (cv2 > 0.55 && cv > -0.1) id = Block.AIR;
+          }
+
+          c.set(lx, y, lz, id);
+        }
+
+        // Fill water up to sea level
+        if (h < SEA_LEVEL) {
+          for (let y = h + 1; y <= SEA_LEVEL; y++) {
+            if (c.get(lx, y, lz) === Block.AIR) c.set(lx, y, lz, Block.WATER);
+          }
+        }
+
+        // Surface decoration
+        if (h > SEA_LEVEL && biome === 1 && c.get(lx, h, lz) === Block.GRASS) {
+          // Pseudo-random tree placement
+          const r = (Math.abs(noise.noise2(x * 1.7 + 0.1, z * 1.3 + 0.2)) * 1000) % 1;
+          if (r < 0.014) this.tryPlaceTree(x, h + 1, z);
+        }
+
+        // Crystal ore veins underground
+        for (let y = 8; y < h - 5; y++) {
+          if (c.get(lx, y, lz) === Block.STONE) {
+            const ore = noise.noise3(x * 0.2 + 100, y * 0.25 + 50, z * 0.2 - 100);
+            if (ore > 0.7) c.set(lx, y, lz, Block.CRYSTAL);
+            else if (ore < -0.72) c.set(lx, y, lz, Block.GOLD);
+          }
+        }
+      }
+    }
+
+    c.generated = true;
+    c.dirty = true;
+  }
+
+  tryPlaceTree(x, y, z) {
+    const h = 4 + Math.floor(Math.abs(noise.noise2(x * 7.3, z * 5.1)) * 3);
+    for (let i = 0; i < h; i++) this.setBlock(x, y + i, z, Block.WOOD, false);
+    const ty = y + h;
+    for (let dy = -1; dy <= 2; dy++) {
+      const r = dy === -1 || dy === 2 ? 1 : 2;
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx === 0 && dz === 0 && dy < 2) continue;
+          if (Math.abs(dx) === r && Math.abs(dz) === r && dy !== 0) continue;
+          const cur = this.getBlock(x + dx, ty + dy, z + dz);
+          if (cur === Block.AIR) this.setBlock(x + dx, ty + dy, z + dz, Block.LEAVES, false);
+        }
+      }
+    }
+  }
+
+  /* ===== Mythological structures ===== */
+  // Each structure is keyed by a world-space integer position. After being placed once,
+  // it won't be placed again. Structures are placed when their root chunk first generates,
+  // but may span into other chunks (which will already be generated due to pre-load).
+
+  placeStructuresIfNeeded(c) {
+    for (const s of STRUCTURES) {
+      const sk = `${s.id}`;
+      if (this.placedStructures.has(sk)) continue;
+      const scx = Math.floor(s.x / CHUNK_SIZE);
+      const scz = Math.floor(s.z / CHUNK_SIZE);
+      if (scx === c.cx && scz === c.cz) {
+        this.placedStructures.add(sk);
+        s.build(this);
+      }
+    }
+  }
+}
+
+/* =========================================================================
+   Mesher: convert a chunk's blocks into a BufferGeometry
+   ========================================================================= */
+function meshChunk(world, c) {
+  const posOpaque = [];
+  const norOpaque = [];
+  const uvOpaque = [];
+  const colOpaque = [];
+  const idxOpaque = [];
+
+  const posWater = [];
+  const norWater = [];
+  const uvWater = [];
+  const colWater = [];
+  const idxWater = [];
+
+  let vCountOpaque = 0;
+  let vCountWater = 0;
+
+  const baseX = c.cx * CHUNK_SIZE;
+  const baseZ = c.cz * CHUNK_SIZE;
+
+  for (let y = 0; y < CHUNK_HEIGHT; y++) {
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const id = c.get(x, y, z);
+        if (id === Block.AIR) continue;
+        const isWater = id === Block.WATER;
+        const wx = baseX + x, wy = y, wz = baseZ + z;
+
+        for (const f of FACES) {
+          const nx = x + f.nx, ny = y + f.ny, nz = z + f.nz;
+          let neighborId;
+          if (ny < 0 || ny >= CHUNK_HEIGHT) {
+            neighborId = Block.AIR;
+          } else if (nx >= 0 && nx < CHUNK_SIZE && nz >= 0 && nz < CHUNK_SIZE) {
+            neighborId = c.get(nx, ny, nz);
+          } else {
+            neighborId = world.getBlock(baseX + nx, ny, baseZ + nz);
+          }
+
+          let show = false;
+          if (isWater) {
+            show = neighborId === Block.AIR;
+          } else if (id === Block.LEAVES) {
+            // Leaves: visible against air/water/other leaves to give density
+            show = !isOpaque(neighborId) || neighborId === Block.LEAVES;
+            if (id === neighborId && f.ny < 0) show = false;
+          } else {
+            show = !isOpaque(neighborId);
+          }
+          if (!show) continue;
+
+          const tex = texForFace(id, f.name);
+          const [u0, v0, u1, v1] = uvForTile(tex);
+          const aoBase = FACE_AO[f.name];
+          // light = base AO + small variation per-block from world coords
+          const tinyVar = (Math.sin((wx + wy * 7 + wz * 13) * 1.3) * 0.5 + 0.5) * 0.02;
+          let light = aoBase - tinyVar;
+          if (EMISSIVE_BLOCKS.has(id)) light = Math.min(1, light + 0.15);
+
+          const targetPos = isWater ? posWater : posOpaque;
+          const targetNor = isWater ? norWater : norOpaque;
+          const targetUv  = isWater ? uvWater  : uvOpaque;
+          const targetCol = isWater ? colWater : colOpaque;
+          const targetIdx = isWater ? idxWater : idxOpaque;
+          let vCount = isWater ? vCountWater : vCountOpaque;
+
+          for (let i = 0; i < 4; i++) {
+            const v = f.verts[i];
+            // For water top, lower slightly so it doesn't reach full block top
+            const yAdjust = (isWater && f.name === 'top' && v[1] === 1) ? -0.12 : 0;
+            // Use chunk-local coords for vertices; chunk.group.position handles the world offset
+            targetPos.push(x + v[0], y + v[1] + yAdjust, z + v[2]);
+            targetNor.push(f.nx, f.ny, f.nz);
+            // UV order: (0,v0), (1,v0), (1,v1), (0,v1) wraps texture upright on side faces
+            const uvs = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+            targetUv.push(uvs[i][0], uvs[i][1]);
+            targetCol.push(light, light, light);
+          }
+          targetIdx.push(vCount, vCount + 1, vCount + 2, vCount, vCount + 2, vCount + 3);
+          vCount += 4;
+          if (isWater) vCountWater = vCount; else vCountOpaque = vCount;
+        }
+      }
+    }
+  }
+
+  // Build opaque geometry
+  if (c.mesh) {
+    c.group.remove(c.mesh);
+    c.mesh.geometry.dispose();
+    c.mesh = null;
+  }
+  if (c.waterMesh) {
+    c.group.remove(c.waterMesh);
+    c.waterMesh.geometry.dispose();
+    c.waterMesh = null;
+  }
+
+  if (posOpaque.length > 0) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(posOpaque, 3));
+    geo.setAttribute('normal',   new THREE.Float32BufferAttribute(norOpaque, 3));
+    geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvOpaque, 2));
+    geo.setAttribute('color',    new THREE.Float32BufferAttribute(colOpaque, 3));
+    geo.setIndex(idxOpaque);
+    geo.computeBoundingSphere();
+    const m = new THREE.Mesh(geo, world.opaqueMat);
+    m.position.set(0, 0, 0);
+    c.mesh = m;
+    c.group.add(m);
+  }
+
+  if (posWater.length > 0) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(posWater, 3));
+    geo.setAttribute('normal',   new THREE.Float32BufferAttribute(norWater, 3));
+    geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvWater, 2));
+    geo.setAttribute('color',    new THREE.Float32BufferAttribute(colWater, 3));
+    geo.setIndex(idxWater);
+    geo.computeBoundingSphere();
+    const m = new THREE.Mesh(geo, world.waterMat);
+    m.renderOrder = 1;
+    c.waterMesh = m;
+    c.group.add(m);
+  }
+
+  c.meshed = true;
+  c.dirty = false;
+}
+
+/* =========================================================================
+   Mythological Structures
+   ========================================================================= */
+function structureBlock(world, x, y, z, id, overwriteOnlyAir = false) {
+  if (y < 0 || y >= CHUNK_HEIGHT) return;
+  if (overwriteOnlyAir) {
+    const cur = world.getBlock(x, y, z);
+    if (cur !== Block.AIR && cur !== Block.WATER) return;
+  }
+  world.setBlock(x, y, z, id, false);
+}
+
+// Helper: highest non-air block (top surface)
+function surfaceY(world, x, z) {
+  // World may not have terrain for this column yet; use terrainHeight
+  return world.terrainHeight(x, z);
+}
+
+// === Structure 1: Stonehenge at origin ===
+function buildStonehenge(world, ox, oz) {
+  const cy = surfaceY(world, ox, oz);
+  // Flatten the ring area plus a south spawn courtyard
+  for (let dx = -9; dx <= 9; dx++) {
+    for (let dz = -9; dz <= 14; dz++) {
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      const inRing = dist <= 7;
+      const inSouthPlaza = dx >= -4 && dx <= 4 && dz >= 0 && dz <= 13;
+      if (!inRing && !inSouthPlaza) continue;
+      const h = world.terrainHeight(ox + dx, oz + dz);
+      // Clear any blocks above cy (trees, dirt cliffs) in the courtyard
+      for (let y = cy + 1; y <= Math.max(h, cy + 5); y++) {
+        structureBlock(world, ox + dx, y, oz + dz, Block.AIR);
+      }
+      // Center stripe of the south path is marble; rest is grass
+      const isPath = (dx === 0 && dz > 7 && dz <= 13);
+      structureBlock(world, ox + dx, cy, oz + dz, isPath ? Block.MARBLE : Block.GRASS);
+      structureBlock(world, ox + dx, cy - 1, oz + dz, Block.DIRT);
+    }
+  }
+  // Stone ring (8 pillars)
+  const ringR = 5;
+  const ringCount = 8;
+  for (let i = 0; i < ringCount; i++) {
+    const a = (i / ringCount) * Math.PI * 2;
+    const px = ox + Math.round(Math.cos(a) * ringR);
+    const pz = oz + Math.round(Math.sin(a) * ringR);
+    for (let y = 1; y <= 4; y++) structureBlock(world, px, cy + y, pz, Block.COBBLE);
+    // Lintel/top stone
+    structureBlock(world, px, cy + 5, pz, Block.MARBLE);
+    // Connecting lintel to next pillar (top ring)
+    const aNext = ((i + 1) / ringCount) * Math.PI * 2;
+    const nx = ox + Math.round(Math.cos(aNext) * ringR);
+    const nz = oz + Math.round(Math.sin(aNext) * ringR);
+    // Bresenham-ish line
+    const steps = Math.max(Math.abs(nx - px), Math.abs(nz - pz));
+    for (let s = 1; s < steps; s++) {
+      const t = s / steps;
+      const lx = Math.round(px + (nx - px) * t);
+      const lz = Math.round(pz + (nz - pz) * t);
+      structureBlock(world, lx, cy + 5, lz, Block.MARBLE);
+    }
+  }
+  // Central altar
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      structureBlock(world, ox + dx, cy + 1, oz + dz, Block.OBSIDIAN);
+    }
+  }
+  structureBlock(world, ox, cy + 2, oz, Block.GOLD);
+  structureBlock(world, ox, cy + 3, oz, Block.GLOWSTONE);
+  // 4 gold corner accents
+  structureBlock(world, ox + 1, cy + 2, oz + 1, Block.GOLD);
+  structureBlock(world, ox - 1, cy + 2, oz - 1, Block.GOLD);
+  structureBlock(world, ox + 1, cy + 2, oz - 1, Block.GOLD);
+  structureBlock(world, ox - 1, cy + 2, oz + 1, Block.GOLD);
+  // Paved pathway from altar to north
+  for (let dz = 2; dz < 5; dz++) {
+    structureBlock(world, ox, cy, oz + dz, Block.MARBLE);
+  }
+}
+
+// === Structure 2: Sacred Tree of Life ===
+function buildSacredTree(world, ox, oz) {
+  const cy = surfaceY(world, ox, oz);
+  // Massive trunk: 5x5 core, 50 blocks tall
+  const trunkR = 2;
+  const trunkH = 30;
+  for (let y = 0; y < trunkH; y++) {
+    for (let dx = -trunkR; dx <= trunkR; dx++) {
+      for (let dz = -trunkR; dz <= trunkR; dz++) {
+        // Tapered at top
+        const taper = 1 - (y / trunkH) * 0.3;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist <= trunkR * taper + 0.1) {
+          structureBlock(world, ox + dx, cy + y, oz + dz, Block.WOOD);
+        }
+      }
+    }
+    // Hollow core: glowstone heart
+    if (y > 4 && y < trunkH - 2 && y % 7 === 0) {
+      structureBlock(world, ox, cy + y, oz, Block.GLOWSTONE);
+    } else if (y > 1 && y < trunkH - 2 && (y > 4)) {
+      structureBlock(world, ox, cy + y, oz, Block.CRYSTAL);
+    }
+  }
+  // Massive leaf canopy
+  const canopyR = 11;
+  const canopyTop = cy + trunkH + 6;
+  for (let y = cy + trunkH - 8; y < canopyTop + 2; y++) {
+    const relY = (y - (cy + trunkH - 8)) / (canopyTop + 2 - (cy + trunkH - 8));
+    const radius = canopyR * Math.sin(relY * Math.PI) * 0.95 + 1;
+    for (let dx = -canopyR; dx <= canopyR; dx++) {
+      for (let dz = -canopyR; dz <= canopyR; dz++) {
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist <= radius && dist > 0.5 + (radius * 0.1)) {
+          // Some leaves missing (organic look)
+          const r = (Math.sin(dx * 1.3 + dz * 2.1 + y) * 0.5 + 0.5);
+          if (r > 0.15) {
+            structureBlock(world, ox + dx, y, oz + dz, Block.LEAVES, true);
+          }
+        }
+      }
+    }
+  }
+  // Roots radiating out
+  for (let dir = 0; dir < 8; dir++) {
+    const a = (dir / 8) * Math.PI * 2;
+    const dx = Math.cos(a), dz = Math.sin(a);
+    for (let r = 1; r < 8; r++) {
+      const x = ox + Math.round(dx * r);
+      const z = oz + Math.round(dz * r);
+      structureBlock(world, x, cy, z, Block.WOOD);
+      if (r < 4) structureBlock(world, x, cy - 1, z, Block.WOOD);
+    }
+  }
+}
+
+// === Structure 3: Stepped Sand Pyramid ===
+function buildPyramid(world, ox, oz) {
+  const cy = surfaceY(world, ox, oz);
+  const size = 11;
+  // Flatten/sand foundation
+  for (let dx = -size - 1; dx <= size + 1; dx++) {
+    for (let dz = -size - 1; dz <= size + 1; dz++) {
+      const h = world.terrainHeight(ox + dx, oz + dz);
+      for (let y = cy + 1; y <= h; y++) structureBlock(world, ox + dx, y, oz + dz, Block.AIR);
+      structureBlock(world, ox + dx, cy, oz + dz, Block.SAND);
+    }
+  }
+  // Build pyramid steps
+  for (let layer = 0; layer < size; layer++) {
+    const half = size - layer;
+    for (let dx = -half; dx <= half; dx++) {
+      for (let dz = -half; dz <= half; dz++) {
+        const id = (layer % 2 === 0) ? Block.SAND : Block.BRICK;
+        structureBlock(world, ox + dx, cy + 1 + layer, oz + dz, id);
+      }
+    }
+  }
+  // Hollow internal chamber
+  const cAir = (x, y, z) => structureBlock(world, x, y, z, Block.AIR);
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dy = 1; dy <= 3; dy++) cAir(ox + dx, cy + dy, oz + dz);
+    }
+  }
+  // Treasure room
+  structureBlock(world, ox, cy + 1, oz, Block.GOLD);
+  structureBlock(world, ox + 2, cy + 1, oz + 2, Block.GOLD);
+  structureBlock(world, ox - 2, cy + 1, oz - 2, Block.GOLD);
+  structureBlock(world, ox + 2, cy + 1, oz - 2, Block.GOLD);
+  structureBlock(world, ox - 2, cy + 1, oz + 2, Block.GOLD);
+  // Glowing ceiling
+  structureBlock(world, ox, cy + 3, oz, Block.GLOWSTONE);
+  // Entrance corridor going south
+  for (let dz = 3; dz <= size + 1; dz++) {
+    for (let dy = 1; dy <= 2; dy++) cAir(ox, cy + dy, oz + dz);
+    for (let dy = 1; dy <= 2; dy++) cAir(ox + 1, cy + dy, oz + dz);
+    for (let dy = 1; dy <= 2; dy++) cAir(ox - 1, cy + dy, oz + dz);
+  }
+  // Capstone tip
+  structureBlock(world, ox, cy + size + 1, oz, Block.CRYSTAL);
+}
+
+// === Structure 4: Wizard Tower ===
+function buildWizardTower(world, ox, oz) {
+  const cy = surfaceY(world, ox, oz);
+  const towerR = 4;
+  const towerH = 26;
+  // Foundation
+  for (let dx = -towerR - 1; dx <= towerR + 1; dx++) {
+    for (let dz = -towerR - 1; dz <= towerR + 1; dz++) {
+      if (Math.sqrt(dx * dx + dz * dz) < towerR + 1.5) {
+        structureBlock(world, ox + dx, cy, oz + dz, Block.COBBLE);
+      }
+    }
+  }
+  // Cylindrical tower body
+  for (let y = 1; y <= towerH; y++) {
+    for (let dx = -towerR; dx <= towerR; dx++) {
+      for (let dz = -towerR; dz <= towerR; dz++) {
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > towerR - 0.4 && dist < towerR + 0.4) {
+          const id = (y % 5 === 0) ? Block.MARBLE : Block.COBBLE;
+          structureBlock(world, ox + dx, cy + y, oz + dz, id);
+        }
+      }
+    }
+  }
+  // Hollow inside, with floors at intervals
+  for (let y = 1; y < towerH; y++) {
+    for (let dx = -towerR + 1; dx <= towerR - 1; dx++) {
+      for (let dz = -towerR + 1; dz <= towerR - 1; dz++) {
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < towerR - 0.5) {
+          if (y % 6 === 0) {
+            structureBlock(world, ox + dx, cy + y, oz + dz, Block.PLANKS);
+          } else {
+            structureBlock(world, ox + dx, cy + y, oz + dz, Block.AIR);
+          }
+        }
+      }
+    }
+  }
+  // Door (south side)
+  structureBlock(world, ox, cy + 1, oz + towerR, Block.AIR);
+  structureBlock(world, ox, cy + 2, oz + towerR, Block.AIR);
+  // Windows at intervals
+  for (let lvl = 1; lvl < towerH / 6; lvl++) {
+    const yy = cy + lvl * 6 + 2;
+    structureBlock(world, ox + towerR, yy, oz, Block.AIR);
+    structureBlock(world, ox - towerR, yy, oz, Block.AIR);
+    structureBlock(world, ox, yy, oz + towerR, Block.AIR);
+    structureBlock(world, ox, yy, oz - towerR, Block.AIR);
+  }
+  // Glowstone interior lighting
+  for (let lvl = 1; lvl < towerH / 6; lvl++) {
+    const yy = cy + lvl * 6 + 3;
+    structureBlock(world, ox, yy, oz, Block.GLOWSTONE);
+  }
+  // Conical roof of crystal
+  for (let y = 0; y < towerR + 3; y++) {
+    const r = towerR - y * 0.7;
+    for (let dx = -towerR; dx <= towerR; dx++) {
+      for (let dz = -towerR; dz <= towerR; dz++) {
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist <= r + 0.3 && dist > r - 0.7) {
+          structureBlock(world, ox + dx, cy + towerH + y, oz + dz, Block.CRYSTAL);
+        } else if (dist <= r - 0.7) {
+          structureBlock(world, ox + dx, cy + towerH + y, oz + dz, Block.AIR);
+        }
+      }
+    }
+  }
+  // Spire tip
+  structureBlock(world, ox, cy + towerH + towerR + 3, oz, Block.GLOWSTONE);
+  structureBlock(world, ox, cy + towerH + towerR + 4, oz, Block.CRYSTAL);
+}
+
+// === Structure 5: Sky Temple (floating island with marble temple) ===
+function buildSkyTemple(world, ox, oz) {
+  const groundY = surfaceY(world, ox, oz);
+  const islandY = Math.min(CHUNK_HEIGHT - 18, groundY + 25);
+  // Floating island shape - rough disk
+  const radius = 9;
+  for (let dx = -radius - 1; dx <= radius + 1; dx++) {
+    for (let dz = -radius - 1; dz <= radius + 1; dz++) {
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > radius) continue;
+      // Top surface
+      structureBlock(world, ox + dx, islandY, oz + dz, Block.MARBLE);
+      structureBlock(world, ox + dx, islandY - 1, oz + dz, Block.STONE);
+      // Tapered bottom
+      const taperDepth = Math.max(1, Math.round((1 - dist / radius) * 4));
+      for (let d = 2; d < taperDepth + 2; d++) {
+        structureBlock(world, ox + dx, islandY - d, oz + dz, Block.STONE);
+      }
+    }
+  }
+  // Temple in center: 6x6 footprint with 4 marble columns + golden roof
+  const tR = 3;
+  // Floor
+  for (let dx = -tR; dx <= tR; dx++) {
+    for (let dz = -tR; dz <= tR; dz++) {
+      structureBlock(world, ox + dx, islandY + 1, oz + dz, Block.MARBLE);
+    }
+  }
+  // 4 corner columns
+  const cornerOffsets = [[-tR, -tR], [tR, -tR], [-tR, tR], [tR, tR]];
+  for (const [cx, cz] of cornerOffsets) {
+    for (let y = 1; y <= 5; y++) {
+      structureBlock(world, ox + cx, islandY + y, oz + cz, Block.MARBLE);
+    }
+  }
+  // Roof of gold + crystal trim
+  for (let dx = -tR; dx <= tR; dx++) {
+    for (let dz = -tR; dz <= tR; dz++) {
+      if (Math.abs(dx) === tR || Math.abs(dz) === tR) {
+        structureBlock(world, ox + dx, islandY + 6, oz + dz, Block.GOLD);
+      } else {
+        structureBlock(world, ox + dx, islandY + 6, oz + dz, Block.MARBLE);
+      }
+    }
+  }
+  // Pyramidal roof above
+  for (let y = 0; y < 3; y++) {
+    const r = tR - y - 1;
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dz = -r; dz <= r; dz++) {
+        if (Math.abs(dx) === r || Math.abs(dz) === r) {
+          structureBlock(world, ox + dx, islandY + 7 + y, oz + dz, Block.GOLD);
+        }
+      }
+    }
+  }
+  // Center altar
+  structureBlock(world, ox, islandY + 2, oz, Block.GOLD);
+  structureBlock(world, ox, islandY + 3, oz, Block.CRYSTAL);
+  structureBlock(world, ox, islandY + 4, oz, Block.GLOWSTONE);
+  // Crystal spike on tip
+  structureBlock(world, ox, islandY + 10, oz, Block.CRYSTAL);
+  structureBlock(world, ox, islandY + 11, oz, Block.CRYSTAL);
+  // Floating crystal pillars around the island edge
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const px = ox + Math.round(Math.cos(a) * (radius - 1));
+    const pz = oz + Math.round(Math.sin(a) * (radius - 1));
+    for (let y = 0; y < 3; y++) {
+      structureBlock(world, px, islandY + 1 + y, pz, Block.CRYSTAL);
+    }
+  }
+  // Small floating stones around to give a sense of ascension
+  for (let i = 0; i < 5; i++) {
+    const a = i * 1.3 + 0.4;
+    const r = 12 + i * 2;
+    const px = ox + Math.round(Math.cos(a) * r);
+    const pz = oz + Math.round(Math.sin(a) * r);
+    const py = islandY - 6 - i * 2;
+    if (py > groundY + 2) {
+      structureBlock(world, px, py, pz, Block.MARBLE);
+      structureBlock(world, px + 1, py, pz, Block.MARBLE);
+      structureBlock(world, px, py, pz + 1, Block.MARBLE);
+    }
+  }
+}
+
+// === Structure 6: Dragon Altar ===
+function buildDragonAltar(world, ox, oz) {
+  const cy = surfaceY(world, ox, oz);
+  // Flatten 13x13 area
+  for (let dx = -7; dx <= 7; dx++) {
+    for (let dz = -7; dz <= 7; dz++) {
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > 8) continue;
+      const h = world.terrainHeight(ox + dx, oz + dz);
+      for (let y = cy + 1; y <= h; y++) structureBlock(world, ox + dx, y, oz + dz, Block.AIR);
+      structureBlock(world, ox + dx, cy, oz + dz, Block.OBSIDIAN);
+    }
+  }
+  // Tiered altar pedestal
+  for (let layer = 0; layer < 3; layer++) {
+    const half = 4 - layer;
+    for (let dx = -half; dx <= half; dx++) {
+      for (let dz = -half; dz <= half; dz++) {
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist <= half + 0.2) {
+          structureBlock(world, ox + dx, cy + 1 + layer, oz + dz, Block.OBSIDIAN);
+        }
+      }
+    }
+  }
+  // 4 gold pillars
+  const pillarOffs = [[5, 0], [-5, 0], [0, 5], [0, -5]];
+  for (const [px, pz] of pillarOffs) {
+    for (let y = 1; y <= 7; y++) {
+      structureBlock(world, ox + px, cy + y, oz + pz, Block.GOLD);
+    }
+    structureBlock(world, ox + px, cy + 8, oz + pz, Block.GLOWSTONE);
+  }
+  // Lava channels (4 radial)
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    for (let r = 4; r <= 6; r++) {
+      structureBlock(world, ox + dx * r, cy + 1, oz + dz * r, Block.LAVA);
+    }
+  }
+  // Central altar
+  structureBlock(world, ox, cy + 4, oz, Block.GOLD);
+  structureBlock(world, ox, cy + 5, oz, Block.CRYSTAL);
+  // Dragon claw motifs (gold blocks in NSEW corners outer)
+  const motifs = [[6, 6], [-6, 6], [6, -6], [-6, -6]];
+  for (const [mx, mz] of motifs) {
+    structureBlock(world, ox + mx, cy + 1, oz + mz, Block.GOLD);
+    structureBlock(world, ox + mx, cy + 2, oz + mz, Block.OBSIDIAN);
+  }
+}
+
+const STRUCTURES = [
+  { id: 'stonehenge',    x: 0,    z: 0,    build: w => buildStonehenge(w, 0, 0) },
+  { id: 'sacred_tree',   x: -40,  z: -32,  build: w => buildSacredTree(w, -40, -32) },
+  { id: 'pyramid',       x: 56,   z: 48,   build: w => buildPyramid(w, 56, 48) },
+  { id: 'wizard_tower',  x: -50,  z: 36,   build: w => buildWizardTower(w, -50, 36) },
+  { id: 'sky_temple',    x: 40,   z: -50,  build: w => buildSkyTemple(w, 40, -50) },
+  { id: 'dragon_altar',  x: -8,   z: 60,   build: w => buildDragonAltar(w, -8, 60) },
+];
+
+/* =========================================================================
+   Renderer / Scene setup
+   ========================================================================= */
+const canvas = document.getElementById('game');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9bb8d4);
+scene.fog = new THREE.Fog(0x9bb8d4, RENDER_DISTANCE * CHUNK_SIZE * 0.55, RENDER_DISTANCE * CHUNK_SIZE * 1.05);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, SEA_LEVEL + 12, 14);
+
+// Sky gradient via skydome (simple vertex-colored sphere)
+const skyGeo = new THREE.SphereGeometry(600, 32, 16);
+const skyMat = new THREE.ShaderMaterial({
+  uniforms: {
+    topColor: { value: new THREE.Color(0x4070b4) },
+    midColor: { value: new THREE.Color(0xa8c5e0) },
+    bottomColor: { value: new THREE.Color(0xf2dfb8) },
+  },
+  vertexShader: `
+    varying vec3 vWorldPos;
+    void main() {
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vWorldPos = wp.xyz;
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vWorldPos;
+    uniform vec3 topColor;
+    uniform vec3 midColor;
+    uniform vec3 bottomColor;
+    void main() {
+      float h = normalize(vWorldPos).y;
+      vec3 c;
+      if (h > 0.0) c = mix(midColor, topColor, smoothstep(0.0, 1.0, h));
+      else c = mix(midColor, bottomColor, smoothstep(0.0, -0.5, h));
+      gl_FragColor = vec4(c, 1.0);
+    }
+  `,
+  side: THREE.BackSide,
+  depthWrite: false,
+});
+const sky = new THREE.Mesh(skyGeo, skyMat);
+scene.add(sky);
+
+// Lighting: sun + hemisphere + tiny ambient
+const sun = new THREE.DirectionalLight(0xfff4d6, 1.05);
+sun.position.set(80, 140, 50);
+scene.add(sun);
+
+const ambient = new THREE.AmbientLight(0xc4d6e8, 0.45);
+scene.add(ambient);
+
+const hemiLight = new THREE.HemisphereLight(0xa8c5e0, 0x4b3a2a, 0.35);
+scene.add(hemiLight);
+
+/* Block materials */
+const opaqueMaterial = new THREE.MeshLambertMaterial({
+  map: ATLAS.texture,
+  vertexColors: true,
+  side: THREE.FrontSide,
+  alphaTest: 0.5,
+});
+const waterMaterial = new THREE.MeshLambertMaterial({
+  map: ATLAS.texture,
+  vertexColors: true,
+  side: THREE.DoubleSide,
+  transparent: true,
+  opacity: 0.78,
+  depthWrite: false,
+});
+
+const world = new World();
+world.scene = scene;
+world.opaqueMat = opaqueMaterial;
+world.waterMat = waterMaterial;
+
+/* =========================================================================
+   Block break/place highlight box
+   ========================================================================= */
+const highlightGeo = new THREE.BoxGeometry(1.002, 1.002, 1.002);
+const highlightEdges = new THREE.EdgesGeometry(highlightGeo);
+const highlightMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2, transparent: true, opacity: 0.55 });
+const highlightLines = new THREE.LineSegments(highlightEdges, highlightMat);
+highlightLines.visible = false;
+scene.add(highlightLines);
+
+/* =========================================================================
+   Player & Controls
+   ========================================================================= */
+const controls = new PointerLockControls(camera, document.body);
+scene.add(controls.getObject());
+
+const playerState = {
+  velocity: new THREE.Vector3(),
+  onGround: false,
+  flying: false,
+  inWater: false,
+  walkPhase: 0,
+  bobY: 0,
+};
+
+const keys = new Set();
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  keys.add(e.code);
+
+  if (e.code === 'F3') {
+    document.getElementById('debug').classList.toggle('hidden');
+    e.preventDefault();
+  }
+  if (e.code === 'KeyF') {
+    playerState.flying = !playerState.flying;
+    playerState.velocity.set(0, 0, 0);
+  }
+  if (e.code === 'Space' && playerState.onGround && !playerState.flying) {
+    playerState.velocity.y = JUMP_SPEED;
+  }
+  // Hotbar 1-9
+  for (let i = 1; i <= 9; i++) {
+    if (e.code === `Digit${i}`) {
+      setHotbarIndex(i - 1);
+      e.preventDefault();
+    }
+  }
+});
+window.addEventListener('keyup', (e) => {
+  keys.delete(e.code);
+});
+
+// Mouse wheel scrolls hotbar
+window.addEventListener('wheel', (e) => {
+  if (!controls.isLocked) return;
+  const dir = e.deltaY > 0 ? 1 : -1;
+  setHotbarIndex((HOTBAR_INDEX + dir + HOTBAR.length) % HOTBAR.length);
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (!controls.isLocked) return;
+  if (e.button === 0) handleBreak();
+  else if (e.button === 2) handlePlace();
+});
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+/* =========================================================================
+   Hotbar
+   ========================================================================= */
+const HOTBAR = [
+  Block.GRASS, Block.DIRT, Block.STONE, Block.COBBLE,
+  Block.WOOD,  Block.PLANKS, Block.LEAVES, Block.GLOWSTONE, Block.CRYSTAL,
+];
+let HOTBAR_INDEX = 0;
+
+function buildHotbarUI() {
+  const hb = document.getElementById('hotbar');
+  hb.innerHTML = '';
+  HOTBAR.forEach((blockId, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (i === HOTBAR_INDEX ? ' active' : '');
+    slot.dataset.index = String(i);
+    const num = document.createElement('div'); num.className = 'slot-num'; num.textContent = String(i + 1);
+    slot.appendChild(num);
+    // Icon: render a tiny canvas from atlas
+    const ic = document.createElement('canvas');
+    ic.className = 'slot-icon';
+    ic.width = ic.height = 48;
+    const ctx = ic.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    drawBlockIcon(ctx, blockId, 48);
+    slot.appendChild(ic);
+    hb.appendChild(slot);
+  });
+}
+
+function drawBlockIcon(ctx, blockId, size) {
+  // Render an isometric-like preview using the atlas tile for the top + side
+  const topIdx = texForFace(blockId, 'top');
+  const sideIdx = texForFace(blockId, 'side');
+  const t = ATLAS.T;
+  const topCol = topIdx % ATLAS.COLS;
+  const topRow = Math.floor(topIdx / ATLAS.COLS);
+  const sideCol = sideIdx % ATLAS.COLS;
+  const sideRow = Math.floor(sideIdx / ATLAS.COLS);
+  // Background
+  ctx.clearRect(0, 0, size, size);
+  // Draw top face as a parallelogram-ish: just scale the top texture to fill upper half
+  const half = size / 2;
+  ctx.drawImage(ATLAS.canvas, topCol * t, topRow * t, t, t, 0, 0, size, half);
+  ctx.globalAlpha = 0.85;
+  ctx.drawImage(ATLAS.canvas, sideCol * t, sideRow * t, t, t, 0, half, size, half);
+  ctx.globalAlpha = 1;
+}
+
+function setHotbarIndex(i) {
+  HOTBAR_INDEX = i;
+  document.querySelectorAll('.slot').forEach((el, idx) => {
+    el.classList.toggle('active', idx === i);
+  });
+  const blockId = HOTBAR[i];
+  const [zh, en] = BLOCK_NAME[blockId];
+  const lbl = document.getElementById('blockname');
+  lbl.textContent = `${zh} · ${en}`;
+  lbl.classList.add('show');
+  clearTimeout(setHotbarIndex._t);
+  setHotbarIndex._t = setTimeout(() => lbl.classList.remove('show'), 1500);
+}
+
+/* =========================================================================
+   Raycast for break/place
+   ========================================================================= */
+function raycastBlock() {
+  // Use camera direction
+  const origin = camera.getWorldPosition(new THREE.Vector3());
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  // DDA voxel traversal
+  const stepX = Math.sign(dir.x);
+  const stepY = Math.sign(dir.y);
+  const stepZ = Math.sign(dir.z);
+  let x = Math.floor(origin.x);
+  let y = Math.floor(origin.y);
+  let z = Math.floor(origin.z);
+  const tDeltaX = stepX !== 0 ? Math.abs(1 / dir.x) : Infinity;
+  const tDeltaY = stepY !== 0 ? Math.abs(1 / dir.y) : Infinity;
+  const tDeltaZ = stepZ !== 0 ? Math.abs(1 / dir.z) : Infinity;
+  let tMaxX = stepX > 0 ? (x + 1 - origin.x) * tDeltaX : stepX < 0 ? (origin.x - x) * tDeltaX : Infinity;
+  let tMaxY = stepY > 0 ? (y + 1 - origin.y) * tDeltaY : stepY < 0 ? (origin.y - y) * tDeltaY : Infinity;
+  let tMaxZ = stepZ > 0 ? (z + 1 - origin.z) * tDeltaZ : stepZ < 0 ? (origin.z - z) * tDeltaZ : Infinity;
+  let t = 0;
+  let face = null;
+  while (t <= REACH) {
+    const id = world.getBlock(x, y, z);
+    if (id !== Block.AIR && id !== Block.WATER) {
+      return { x, y, z, face, id };
+    }
+    if (tMaxX < tMaxY && tMaxX < tMaxZ) {
+      t = tMaxX; tMaxX += tDeltaX; x += stepX;
+      face = stepX > 0 ? 'west' : 'east';
+    } else if (tMaxY < tMaxZ) {
+      t = tMaxY; tMaxY += tDeltaY; y += stepY;
+      face = stepY > 0 ? 'bottom' : 'top';
+    } else {
+      t = tMaxZ; tMaxZ += tDeltaZ; z += stepZ;
+      face = stepZ > 0 ? 'north' : 'south';
+    }
+  }
+  return null;
+}
+
+function handleBreak() {
+  const hit = raycastBlock();
+  if (!hit) return;
+  if (hit.id === Block.BEDROCK) return; // unbreakable
+  world.setBlock(hit.x, hit.y, hit.z, Block.AIR);
+  spawnBreakParticles(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, hit.id);
+  // Flash break overlay
+  const bo = document.getElementById('break-overlay');
+  bo.classList.remove('show'); void bo.offsetWidth; bo.classList.add('show');
+  setTimeout(() => bo.classList.remove('show'), 150);
+}
+
+function handlePlace() {
+  const hit = raycastBlock();
+  if (!hit) return;
+  const offsets = {
+    top:    [0, 1, 0],
+    bottom: [0, -1, 0],
+    east:   [1, 0, 0],
+    west:   [-1, 0, 0],
+    south:  [0, 0, 1],
+    north:  [0, 0, -1],
+  };
+  const off = offsets[hit.face];
+  if (!off) return;
+  const px = hit.x + off[0], py = hit.y + off[1], pz = hit.z + off[2];
+  // Check player intersection
+  if (playerIntersects(px, py, pz)) return;
+  if (world.getBlock(px, py, pz) !== Block.AIR) return;
+  world.setBlock(px, py, pz, HOTBAR[HOTBAR_INDEX]);
+}
+
+function playerIntersects(bx, by, bz) {
+  const p = controls.getObject().position;
+  const r = PLAYER_RADIUS + 0.05;
+  const top = p.y + 0.2;
+  const bot = p.y - PLAYER_HEIGHT;
+  // Block AABB: (bx, by, bz) to (bx+1, by+1, bz+1)
+  if (p.x + r < bx || p.x - r > bx + 1) return false;
+  if (p.z + r < bz || p.z - r > bz + 1) return false;
+  if (top < by || bot > by + 1) return false;
+  return true;
+}
+
+/* =========================================================================
+   Particles (for block breaking)
+   ========================================================================= */
+const particles = [];
+const particleGroup = new THREE.Group();
+scene.add(particleGroup);
+
+function spawnBreakParticles(x, y, z, blockId) {
+  const topIdx = texForFace(blockId, 'top');
+  const tCol = topIdx % ATLAS.COLS;
+  const tRow = Math.floor(topIdx / ATLAS.COLS);
+  // Sample colors from canvas
+  const c = ATLAS.canvas.getContext('2d');
+  for (let i = 0; i < 6; i++) {
+    const px = tCol * ATLAS.T + Math.floor(Math.random() * ATLAS.T);
+    const py = tRow * ATLAS.T + Math.floor(Math.random() * ATLAS.T);
+    const d = c.getImageData(px, py, 1, 1).data;
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(`rgb(${d[0]},${d[1]},${d[2]})`) });
+    const geo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x + (Math.random() - 0.5) * 0.4, y + (Math.random() - 0.5) * 0.4, z + (Math.random() - 0.5) * 0.4);
+    const part = {
+      mesh,
+      vel: new THREE.Vector3((Math.random() - 0.5) * 4, 4 + Math.random() * 3, (Math.random() - 0.5) * 4),
+      life: 0.7 + Math.random() * 0.3,
+    };
+    particles.push(part);
+    particleGroup.add(mesh);
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      particleGroup.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+      particles.splice(i, 1);
+      continue;
+    }
+    p.vel.y -= 20 * dt;
+    p.mesh.position.x += p.vel.x * dt;
+    p.mesh.position.y += p.vel.y * dt;
+    p.mesh.position.z += p.vel.z * dt;
+    p.mesh.rotation.x += dt * 4;
+    p.mesh.rotation.z += dt * 3;
+    p.mesh.material.opacity = Math.min(1, p.life * 1.3);
+    p.mesh.material.transparent = true;
+  }
+}
+
+/* =========================================================================
+   Physics
+   ========================================================================= */
+function checkBlock(x, y, z) {
+  return isSolid(world.getBlock(Math.floor(x), Math.floor(y), Math.floor(z)));
+}
+
+function aabbCollides(x, y, z) {
+  const r = PLAYER_RADIUS;
+  const yMin = y - PLAYER_HEIGHT;
+  const yMax = y + 0.2;
+  for (let bx = Math.floor(x - r); bx <= Math.floor(x + r); bx++) {
+    for (let bz = Math.floor(z - r); bz <= Math.floor(z + r); bz++) {
+      for (let by = Math.floor(yMin); by <= Math.floor(yMax); by++) {
+        if (isSolid(world.getBlock(bx, by, bz))) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function updatePlayerPhysics(dt) {
+  const obj = controls.getObject();
+  // Strip any previous bob offset so physics works on the base position
+  obj.position.y -= playerState.bobY;
+  playerState.bobY = 0;
+
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward); forward.y = 0; forward.normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+  let dx = 0, dz = 0;
+  if (keys.has('KeyW')) { dx += forward.x; dz += forward.z; }
+  if (keys.has('KeyS')) { dx -= forward.x; dz -= forward.z; }
+  if (keys.has('KeyA')) { dx -= right.x;   dz -= right.z; }
+  if (keys.has('KeyD')) { dx += right.x;   dz += right.z; }
+
+  const mag = Math.hypot(dx, dz);
+  if (mag > 0) { dx /= mag; dz /= mag; }
+
+  const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight');
+  let speed = playerState.flying ? FLY_SPEED : (sprint ? SPRINT_SPEED : WALK_SPEED);
+  if (playerState.inWater) speed *= 0.55;
+
+  if (playerState.flying) {
+    playerState.velocity.x = dx * speed;
+    playerState.velocity.z = dz * speed;
+    if (keys.has('Space')) playerState.velocity.y = speed;
+    else if (keys.has('ControlLeft') || keys.has('ControlRight')) playerState.velocity.y = -speed;
+    else playerState.velocity.y = 0;
+  } else {
+    playerState.velocity.x = dx * speed;
+    playerState.velocity.z = dz * speed;
+    playerState.velocity.y -= GRAVITY * dt;
+    if (playerState.inWater) {
+      playerState.velocity.y = Math.max(playerState.velocity.y, -3);
+      if (keys.has('Space')) playerState.velocity.y = 4;
+    }
+    playerState.velocity.y = Math.max(playerState.velocity.y, -55);
+  }
+
+  const newPos = obj.position.clone();
+
+  newPos.x += playerState.velocity.x * dt;
+  if (aabbCollides(newPos.x, newPos.y, newPos.z)) {
+    newPos.x = obj.position.x;
+    playerState.velocity.x = 0;
+  }
+  newPos.z += playerState.velocity.z * dt;
+  if (aabbCollides(newPos.x, newPos.y, newPos.z)) {
+    newPos.z = obj.position.z;
+    playerState.velocity.z = 0;
+  }
+  newPos.y += playerState.velocity.y * dt;
+  if (aabbCollides(newPos.x, newPos.y, newPos.z)) {
+    if (playerState.velocity.y < 0) {
+      playerState.onGround = true;
+    }
+    newPos.y = obj.position.y;
+    playerState.velocity.y = 0;
+  } else {
+    playerState.onGround = false;
+  }
+
+  obj.position.copy(newPos);
+
+  // Water detection (player feet in water)
+  const feetBlock = world.getBlock(Math.floor(obj.position.x), Math.floor(obj.position.y - PLAYER_HEIGHT + 0.5), Math.floor(obj.position.z));
+  playerState.inWater = feetBlock === Block.WATER;
+
+  // Subtle walk bob applied as a transient offset (does not affect physics state)
+  const walking = (Math.abs(playerState.velocity.x) > 0.5 || Math.abs(playerState.velocity.z) > 0.5);
+  if (controls.isLocked && walking && playerState.onGround && !playerState.flying) {
+    playerState.walkPhase += dt * 8;
+    playerState.bobY = Math.sin(playerState.walkPhase) * 0.05;
+  } else {
+    playerState.walkPhase *= 0.85;
+  }
+  obj.position.y += playerState.bobY;
+
+  // Falling into the void
+  if (obj.position.y < -10) {
+    obj.position.set(0, SEA_LEVEL + 8, 14);
+    playerState.velocity.set(0, 0, 0);
+    playerState.bobY = 0;
+  }
+}
+
+/* =========================================================================
+   Chunk streaming
+   ========================================================================= */
+const generationQueue = [];
+
+function queueChunks(playerX, playerZ) {
+  const pcx = Math.floor(playerX / CHUNK_SIZE);
+  const pcz = Math.floor(playerZ / CHUNK_SIZE);
+  // Add needed chunks sorted by distance
+  const pending = [];
+  for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
+    for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+      const cx = pcx + dx, cz = pcz + dz;
+      const dist = dx * dx + dz * dz;
+      const k = world.key(cx, cz);
+      const c = world.chunks.get(k);
+      if (!c || !c.generated || c.dirty || !c.meshed) {
+        pending.push({ cx, cz, dist });
+      }
+    }
+  }
+  pending.sort((a, b) => a.dist - b.dist);
+  for (const p of pending) {
+    const k = world.key(p.cx, p.cz);
+    if (!generationQueue.find(q => q.key === k)) {
+      generationQueue.push({ key: k, cx: p.cx, cz: p.cz });
+    }
+  }
+
+  // Hide chunks that are too far
+  for (const [k, c] of world.chunks) {
+    const dx = Math.abs(c.cx - pcx);
+    const dz = Math.abs(c.cz - pcz);
+    if (Math.max(dx, dz) > RENDER_DISTANCE + 1) {
+      if (c.group.parent === scene) scene.remove(c.group);
+    } else {
+      if (c.group.parent !== scene) scene.add(c.group);
+    }
+  }
+}
+
+function processGeneration(maxMs = 6) {
+  const start = performance.now();
+  while (generationQueue.length > 0 && performance.now() - start < maxMs) {
+    const task = generationQueue.shift();
+    const c = world.ensureChunk(task.cx, task.cz);
+    if (!c.generated) {
+      world.generateChunk(c);
+      world.placeStructuresIfNeeded(c);
+    }
+    if (c.dirty || !c.meshed) {
+      meshChunk(world, c);
+      if (c.group.parent !== scene) scene.add(c.group);
+    }
+  }
+}
+
+/* =========================================================================
+   Pre-generate spawn area (around origin to include all structures)
+   ========================================================================= */
+async function preloadSpawn(progressCb) {
+  // Spawn radius covers all known structures within ~64 blocks of origin
+  const R = 6; // 13x13 chunks
+  const tasks = [];
+  for (let dz = -R; dz <= R; dz++) {
+    for (let dx = -R; dx <= R; dx++) {
+      tasks.push({ cx: dx, cz: dz });
+    }
+  }
+  // Sort by distance from origin
+  tasks.sort((a, b) => (a.cx * a.cx + a.cz * a.cz) - (b.cx * b.cx + b.cz * b.cz));
+
+  // Pass 1: generate base terrain
+  for (let i = 0; i < tasks.length; i++) {
+    const c = world.ensureChunk(tasks[i].cx, tasks[i].cz);
+    world.generateChunk(c);
+    if (i % 8 === 0) {
+      progressCb(0.4 * i / tasks.length, '生成地形 · Generating terrain');
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  // Pass 2: place structures
+  for (let i = 0; i < tasks.length; i++) {
+    const c = world.chunks.get(world.key(tasks[i].cx, tasks[i].cz));
+    if (c) world.placeStructuresIfNeeded(c);
+    if (i % 16 === 0) {
+      progressCb(0.4 + 0.2 * i / tasks.length, '建造神话遗迹 · Erecting myth-temples');
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  // Pass 3: mesh chunks
+  for (let i = 0; i < tasks.length; i++) {
+    const c = world.chunks.get(world.key(tasks[i].cx, tasks[i].cz));
+    if (c) {
+      meshChunk(world, c);
+      scene.add(c.group);
+    }
+    if (i % 4 === 0) {
+      progressCb(0.6 + 0.4 * i / tasks.length, '编织网格 · Weaving meshes');
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  progressCb(1, '完成 · Ready');
+}
+
+/* =========================================================================
+   Game loop
+   ========================================================================= */
+const clock = new THREE.Clock();
+let fpsAccum = 0, fpsFrames = 0, fpsDisplay = 0;
+
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.066);
+
+  if (controls.isLocked) {
+    updatePlayerPhysics(dt);
+  }
+  updateParticles(dt);
+
+  const obj = controls.getObject();
+  queueChunks(obj.position.x, obj.position.z);
+  processGeneration(8);
+
+  // Block highlight
+  const hit = raycastBlock();
+  if (hit) {
+    highlightLines.visible = true;
+    highlightLines.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
+  } else {
+    highlightLines.visible = false;
+  }
+
+  // Sun position follows the world a bit
+  sun.position.set(obj.position.x + 80, 140, obj.position.z + 50);
+
+  // Sky moves with player
+  sky.position.copy(obj.position);
+
+  renderer.render(scene, camera);
+
+  // FPS
+  fpsAccum += dt; fpsFrames++;
+  if (fpsAccum >= 0.5) {
+    fpsDisplay = Math.round(fpsFrames / fpsAccum);
+    fpsAccum = 0; fpsFrames = 0;
+    updateDebug();
+  }
+
+  requestAnimationFrame(animate);
+}
+
+function updateDebug() {
+  const dbg = document.getElementById('debug');
+  if (dbg.classList.contains('hidden')) return;
+  const p = controls.getObject().position;
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const compass = (function() {
+    const a = (Math.atan2(dir.x, -dir.z) * 180 / Math.PI + 360) % 360;
+    if (a < 22.5 || a >= 337.5) return 'N';
+    if (a < 67.5) return 'NE';
+    if (a < 112.5) return 'E';
+    if (a < 157.5) return 'SE';
+    if (a < 202.5) return 'S';
+    if (a < 247.5) return 'SW';
+    if (a < 292.5) return 'W';
+    return 'NW';
+  })();
+  dbg.innerHTML = `
+    <div>MythosCraft · ${fpsDisplay} FPS</div>
+    <div>XYZ: ${p.x.toFixed(1)} / ${p.y.toFixed(1)} / ${p.z.toFixed(1)}</div>
+    <div>Chunk: ${Math.floor(p.x / CHUNK_SIZE)} / ${Math.floor(p.z / CHUNK_SIZE)} · loaded ${world.chunks.size}</div>
+    <div>Facing: ${compass} (${dir.x.toFixed(2)}, ${dir.z.toFixed(2)})</div>
+    <div>Mode: ${playerState.flying ? '飞行 / Flying' : (playerState.inWater ? '游泳 / Swimming' : '步行 / Walking')}</div>
+    <div>Hotbar: ${BLOCK_NAME[HOTBAR[HOTBAR_INDEX]][0]} · ${BLOCK_NAME[HOTBAR[HOTBAR_INDEX]][1]}</div>
+  `;
+}
+
+// Compass at top
+function updateCompass() {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const a = (Math.atan2(dir.x, -dir.z) * 180 / Math.PI + 360) % 360;
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  document.getElementById('compass').textContent = dirs[Math.round(a / 45) % 8];
+  requestAnimationFrame(updateCompass);
+}
+updateCompass();
+
+/* =========================================================================
+   Resize
+   ========================================================================= */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* =========================================================================
+   Init & start flow
+   ========================================================================= */
+const overlay = document.getElementById('overlay');
+const introEl = document.getElementById('intro');
+const loadingEl = document.getElementById('loading');
+const pauseEl = document.getElementById('pause');
+
+buildHotbarUI();
+setHotbarIndex(0);
+
+document.getElementById('start').addEventListener('click', async () => {
+  introEl.style.display = 'none';
+  loadingEl.style.display = 'block';
+  const bar = document.getElementById('progress-bar');
+  const ptext = document.getElementById('progress-text');
+
+  await preloadSpawn((p, text) => {
+    bar.style.width = (p * 100).toFixed(0) + '%';
+    ptext.textContent = text;
+  });
+
+  // Spawn on the south plaza of Stonehenge, facing the altar.
+  const sx = 0, sz = 11;
+  // Find the true ground (skip non-solid and tree blocks)
+  let groundY = CHUNK_HEIGHT - 1;
+  while (groundY > 0) {
+    const b = world.getBlock(sx, groundY, sz);
+    if (b !== Block.AIR && b !== Block.WATER && b !== Block.LEAVES && b !== Block.WOOD) break;
+    groundY--;
+  }
+  // Clear a wider 5x5x4 safe area above ground so trees never block the spawn view
+  for (let dy = 1; dy <= 4; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        const cur = world.getBlock(sx + dx, groundY + dy, sz + dz);
+        if (cur !== Block.AIR && cur !== Block.WATER) {
+          world.setBlock(sx + dx, groundY + dy, sz + dz, Block.AIR);
+        }
+      }
+    }
+  }
+  const feetY = groundY + 1;
+  controls.getObject().position.set(sx + 0.5, feetY + PLAYER_HEIGHT, sz + 0.5);
+  playerState.velocity.set(0, 0, 0);
+  playerState.bobY = 0;
+
+  // Aim the camera at the Stonehenge altar (looking slightly down at it, facing -Z)
+  camera.rotation.set(-0.18, 0, 0);
+  camera.quaternion.setFromEuler(camera.rotation);
+
+  overlay.classList.add('hidden');
+  setTimeout(() => { overlay.style.display = 'none'; }, 600);
+  controls.lock();
+
+  clock.start();
+  animate();
+});
+
+// Expose for debugging
+window.__mythos = { controls, camera, world, scene, playerState, Block };
+
+controls.addEventListener('lock', () => {
+  pauseEl.classList.remove('show');
+});
+controls.addEventListener('unlock', () => {
+  // Only show pause if we've started the game
+  if (overlay.style.display === 'none') pauseEl.classList.add('show');
+});
+document.getElementById('resume').addEventListener('click', () => controls.lock());
+
+</script>
 </body>
 </html>
