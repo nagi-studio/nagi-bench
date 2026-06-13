@@ -40,7 +40,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
-| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 01 |
+| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 01 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 
