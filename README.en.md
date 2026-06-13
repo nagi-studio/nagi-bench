@@ -44,7 +44,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 01 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 
-Pending: GLM-5.1 (PRs welcome)
+Pending: GLM-5.1 · GLM-5.2 (PRs welcome)
 
 > This table is a hand-maintained snapshot; the site's registry section is generated live from `models/*.json` and is authoritative.
 

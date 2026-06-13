@@ -44,7 +44,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 01 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 
-待测：GLM-5.1（欢迎 PR 补充）
+待测：GLM-5.1 · GLM-5.2（欢迎 PR 补充）
 
 > 此表为人工维护的快照；站点上的「模型阵容」表由 `models/*.json` 实时生成，以站点为准。
 
