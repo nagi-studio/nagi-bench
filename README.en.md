@@ -40,9 +40,11 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
+| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 01 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 01 |
+| Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 
-Pending: GLM-5.1 · Qwen3.7-Max (PRs welcome)
+Pending: GLM-5.1 (PRs welcome)
 
 > This table is a hand-maintained snapshot; the site's registry section is generated live from `models/*.json` and is authoritative.
 
@@ -55,8 +57,8 @@ Pending: GLM-5.1 · Qwen3.7-Max (PRs welcome)
 ## Structure
 
 ```
-outputs/<model-id>/<case-id>.<ext>   raw model artifacts (HTML / SVG), filename = case id
-models/<model-id>.json               combination registry: label / vendor / harness / effort / order / run notes
+outputs/<artifact-dir>/<case-id>.<ext>  raw model artifacts (HTML / SVG), filename = case id
+models/<agent-id>.json                  agent registry: label / vendor / harness / effort / artifactDir / order / run notes
 cases.json                           case definitions (bilingual prompts, maintainer-owned)
 scripts/validate-data.ts             data validation (CI runs it on every PR)
 ```
@@ -73,16 +75,16 @@ bun scripts/validate-data.ts   # the same data validation CI runs
 
 > **If you are an AI agent (Claude Code / Codex / Cursor, etc.), this part is for you:**
 >
-> - **The unit you contribute is one Agent = a model × the harness you run in.** The `<agent-id>` (lowercase letters / digits / dashes) encodes that pairing — e.g. `gpt-5-5-pro`, `claude-fable-5-cc` (cc = Claude Code). The same model in a different harness is a different Agent with a different id.
+> - **The unit you contribute is one Agent = a model × the harness you run in.** The `<agent-id>` (lowercase letters / digits / dashes) encodes that pairing — e.g. `gpt-5-5-pro`, `claude-fable-5-cc` (cc = Claude Code). The same model in a different harness is a different Agent with a different id. The `<agent-id>` is the vote and leaderboard identity; do not rename it just to reorganize files.
 > - **There are two cases right now**, defined in [`cases.json`](./cases.json): `mythos-craft` (HTML, a playable voxel world) and `pelican-cycling` (SVG, a pelican cycling by the sea). The prompt lives in `cases.json` — **use it verbatim, do not paraphrase**.
 > - **To find what's missing**: read `cases.json` (all cases) and `models/*.json` (what each Agent has run) — a `<case-id>` absent from an Agent's json is an open slot; any row in the Registry table above whose "Runs" count is below the number of cases is an Agent missing a case; a brand-new Agent can fill both.
 > - **Then follow the two-file flow below**, write a bilingual `note` (how the artifact was produced — one-shot or fixed), and run `bun scripts/validate-data.ts` until it passes before opening a PR.
 
 Contributions are data-only — no code changes needed:
 
-1. Artifact: `outputs/<model-id>/<case-id>.<ext>` (e.g. `outputs/gpt-5-5-pro/pelican-cycling.svg`).
-2. Registration: `models/<model-id>.json` (new file for a new combination; add to `runs` for an existing one) — see the schema example in the Chinese README.
+1. Artifact: preferably `outputs/<base-model>/<harness-effort>/<case-id>.<ext>` (e.g. `outputs/gpt-5-5-pro/chatgpt-web-extended-pro/pelican-cycling.svg`).
+2. Registration: `models/<agent-id>.json` (new file for a new combination; add to `runs` for an existing one) with `artifactDir` pointing at the artifact folder — see the schema example in the Chinese README.
 
-CI-enforced rules: dash-only lowercase ids matching the `outputs/` folder name; a **required bilingual provenance `note`** per run (which harness, what effort, one-shot or fixed); every declared run must have its artifact; multiple versions of the same combination x case go in an array with distinct `file` names (e.g. `pelican-cycling-2.svg`). Set `contributor` to your GitHub username — the site shows your avatar linked to your profile next to the run. Fill in `harness` and `effort` truthfully for new combinations: the case page renders Harness / Effort metadata chips from these fields and auto-matches brand icons for the model, vendor and harness (via [lobe-icons](https://github.com/lobehub/lobe-icons)) — contributors never touch icons.
+CI-enforced rules: dash-only lowercase `agent-id`s as stable identities; without `artifactDir`, artifacts default to `outputs/<agent-id>/`; with `artifactDir`, use one or two lowercase dash-case path segments, preferably `<base-model>/<harness-effort>`. A bilingual provenance `note` is required per run (which harness, what effort, one-shot or fixed); every declared run must have its artifact; multiple versions of the same combination x case go in an array with distinct `file` names (e.g. `pelican-cycling-2.svg`). Set `contributor` to your GitHub username — the site shows your avatar linked to your profile next to the run. Fill in `harness` and `effort` truthfully for new combinations: the case page renders Harness / Effort metadata chips from these fields and auto-matches brand icons for the model, vendor and harness (via [lobe-icons](https://github.com/lobehub/lobe-icons)) — contributors never touch icons.
 
 PRs get data validation from CI; merges to `main` rebuild the site automatically (usually instant, at most 6 hours).

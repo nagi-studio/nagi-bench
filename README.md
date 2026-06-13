@@ -40,9 +40,11 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
+| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 01 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 01 |
+| Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 
-待测：GLM-5.1 · Qwen3.7-Max（欢迎 PR 补充）
+待测：GLM-5.1（欢迎 PR 补充）
 
 > 此表为人工维护的快照；站点上的「模型阵容」表由 `models/*.json` 实时生成，以站点为准。
 
@@ -55,8 +57,8 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 ## 结构 / Structure
 
 ```
-outputs/<model-id>/<case-id>.<ext>   模型产出原文件（HTML / SVG），文件名 = 案例 id
-models/<model-id>.json               组合登记：label / vendor / harness / effort / order / 各案例运行备注
+outputs/<artifact-dir>/<case-id>.<ext>  模型产出原文件（HTML / SVG），文件名 = 案例 id
+models/<agent-id>.json                  Agent 登记：label / vendor / harness / effort / artifactDir / order / 各案例运行备注
 cases.json                           案例定义：双语标题与提示词（维护者维护）
 scripts/validate-data.ts             数据校验（CI 对每个 PR 自动执行）
 ```
@@ -73,15 +75,15 @@ bun scripts/validate-data.ts   # 与 CI 相同的数据校验
 
 > **如果你是一个 AI Agent（Claude Code / Codex / Cursor 等），这一段是给你看的：**
 >
-> - **你贡献的单位是一个 Agent = 模型 × 你所在的 Harness。** `<agent-id>`（小写字母 / 数字 / 连字符）就编码这个组合，如 `gpt-5-5-pro`、`claude-fable-5-cc`（cc = Claude Code）。同一模型换个 Harness 就是另一个 Agent、另一个 id。
+> - **你贡献的单位是一个 Agent = 模型 × 你所在的 Harness。** `<agent-id>`（小写字母 / 数字 / 连字符）就编码这个组合，如 `gpt-5-5-pro`、`claude-fable-5-cc`（cc = Claude Code）。同一模型换个 Harness 就是另一个 Agent、另一个 id。`<agent-id>` 是投票与榜单身份，不要为了整理文件夹而改它。
 > - **当前有两个案例**，定义在 [`cases.json`](./cases.json)：`mythos-craft`（HTML，可玩体素世界）与 `pelican-cycling`（SVG，海边骑车的鹈鹕）。提示词以 `cases.json` 为准，**逐字使用、不要改写**。
 > - **想知道还缺哪些**：读 `cases.json`（全部案例）与 `models/*.json`（每个 Agent 跑过的案例）——某个 Agent 的 json 里缺某个 `<case-id>` 就是一个空位；上面 Registry 表里「产出」数小于案例总数的行，就是还缺案例的 Agent；全新 Agent 则两个案例都可补。
 > - **然后照下面两文件流程做**，写好双语 `note`（说明产出怎么来的、是否一次生成、是否有修复），提交前用 `bun scripts/validate-data.ts` 自检通过再发 PR。
 
 贡献**不需要改任何代码**，只涉及两类文件：
 
-1. 产出文件：`outputs/<model-id>/<case-id>.<ext>`（如 `outputs/gpt-5-5-pro/pelican-cycling.svg`）。
-2. 组合登记：`models/<model-id>.json`（新组合新建文件；已有组合在 `runs` 里加一条）：
+1. 产出文件：推荐放在 `outputs/<base-model>/<harness-effort>/<case-id>.<ext>`（如 `outputs/gpt-5-5-pro/chatgpt-web-extended-pro/pelican-cycling.svg`）。
+2. Agent 登记：`models/<agent-id>.json`（新组合新建文件；已有组合在 `runs` 里加一条），并用 `artifactDir` 指向产出目录：
 
 ```json
 {
@@ -89,6 +91,7 @@ bun scripts/validate-data.ts   # 与 CI 相同的数据校验
   "vendor": "OpenAI",
   "harness": "ChatGPT Web",
   "effort": "Extended Pro",
+  "artifactDir": "gpt-5-5-pro/chatgpt-web-extended-pro",
   "order": 20,
   "runs": {
     "pelican-cycling": {
@@ -103,7 +106,8 @@ bun scripts/validate-data.ts   # 与 CI 相同的数据校验
 ```
 
 规则（CI 自动校验，不满足会挂）：
-- `model-id` 只用小写字母/数字/连字符（如 `doubao-seed-2-0-pro`），文件名与 `outputs/` 目录名一致；
+- `agent-id` 只用小写字母/数字/连字符（如 `doubao-seed-2-0-pro`），它是稳定身份；没有 `artifactDir` 时默认读取 `outputs/<agent-id>/`；
+- `artifactDir` 只用一层或两层小写 dash-case 路径（推荐 `<base-model>/<harness-effort>`），它只是产出文件位置，不影响投票与榜单身份；
 - 每条 run 的 `note` **双语必填**——这是本仓库的可信度来源，必须写明产出怎么来的；
 - 声明的 run 必须有对应的产出文件；
 - 同一组合对同一案例可提交多个版本：`runs.<case-id>` 写成数组，第二个版本起必须用 `file` 指定不同文件名（如 `pelican-cycling-2.svg`）；

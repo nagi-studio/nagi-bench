@@ -16,6 +16,7 @@ const cases = JSON.parse(readFileSync(join(root, 'cases.json'), 'utf8')) as Arra
 const caseKind = new Map(cases.map((c) => [c.id, c.kind]))
 
 const ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/
+const ARTIFACT_DIR_RE = /^[a-z0-9]+(-[a-z0-9]+)*(\/[a-z0-9]+(-[a-z0-9]+)*)?$/
 const errors: string[] = []
 
 const isBilingual = (v: unknown): boolean => {
@@ -25,15 +26,23 @@ const isBilingual = (v: unknown): boolean => {
 }
 
 const modelIds = new Set<string>()
+const artifactDirs = new Map<string, string>()
+const declaredArtifacts = new Set<string>()
 for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
   const id = f.replace(/\.json$/, '')
   modelIds.add(id)
   if (!ID_RE.test(id)) {
-    errors.push(`models/${f}: id "${id}" must be lowercase letters/digits/dashes only (it doubles as the outputs/ folder name)`)
+    errors.push(`models/${f}: id "${id}" must be lowercase letters/digits/dashes only (it is the stable voting key and default outputs folder)`)
   }
 
   type RunJson = { note?: unknown; file?: unknown; contributor?: unknown }
-  let def: { label?: unknown; vendor?: unknown; order?: unknown; runs?: Record<string, RunJson | RunJson[]> }
+  let def: {
+    label?: unknown
+    vendor?: unknown
+    artifactDir?: unknown
+    order?: unknown
+    runs?: Record<string, RunJson | RunJson[]>
+  }
   try {
     def = JSON.parse(readFileSync(join(modelsDir, f), 'utf8'))
   } catch (e) {
@@ -44,6 +53,19 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
   if (typeof def.label !== 'string' || !def.label.trim()) errors.push(`models/${f}: "label" is required`)
   if (typeof def.vendor !== 'string' || !def.vendor.trim()) errors.push(`models/${f}: "vendor" is required`)
   if (def.order !== undefined && typeof def.order !== 'number') errors.push(`models/${f}: "order" must be a number`)
+  if (def.artifactDir !== undefined && typeof def.artifactDir !== 'string') {
+    errors.push(`models/${f}: "artifactDir" must be a string`)
+  }
+  const artifactDir = typeof def.artifactDir === 'string' && def.artifactDir.trim() ? def.artifactDir.trim() : id
+  if (!ARTIFACT_DIR_RE.test(artifactDir)) {
+    errors.push(`models/${f}: artifactDir "${artifactDir}" must be one or two lowercase dash-case path segments, e.g. "claude-fable-5/claude-code-max"`)
+  }
+  const dirOwner = artifactDirs.get(artifactDir)
+  if (dirOwner) {
+    errors.push(`models/${f}: artifactDir "${artifactDir}" is already used by models/${dirOwner}.json`)
+  } else {
+    artifactDirs.set(artifactDir, id)
+  }
 
   for (const [caseId, runRaw] of Object.entries(def.runs ?? {})) {
     if (!caseKind.has(caseId)) {
@@ -61,6 +83,12 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
       if (run?.file !== undefined && typeof run.file !== 'string') {
         errors.push(`models/${f}: ${where}.file must be a string`)
       }
+      if (
+        typeof run?.file === 'string' &&
+        (run.file.includes('/') || run.file.includes('\\') || run.file.includes('..'))
+      ) {
+        errors.push(`models/${f}: ${where}.file must be a filename, not a path`)
+      }
       if (run?.contributor !== undefined && (typeof run.contributor !== 'string' || !run.contributor.trim())) {
         errors.push(`models/${f}: ${where}.contributor must be a non-empty GitHub username`)
       }
@@ -69,39 +97,31 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
         errors.push(`models/${f}: ${where} resolves to the same artifact "${file}" as another variant — extra variants must set a distinct "file"`)
       }
       seenFiles.add(file)
-      if (!existsSync(join(outputsDir, id, file))) {
-        errors.push(`models/${f}: ${where} declared but artifact missing: outputs/${id}/${file}`)
+      const artifact = `${artifactDir}/${file}`
+      declaredArtifacts.add(artifact)
+      if (!existsSync(join(outputsDir, artifactDir, file))) {
+        errors.push(`models/${f}: ${where} declared but artifact missing: outputs/${artifact}`)
       }
     })
   }
 }
 
-for (const entry of readdirSync(outputsDir, { withFileTypes: true })) {
-  if (entry.isDirectory() && !modelIds.has(entry.name)) {
-    errors.push(`outputs/${entry.name}/ exists but models/${entry.name}.json is missing`)
-  }
-}
-
-// Every file under outputs/<id>/ must be declared by a run — loose artifacts
-// would otherwise ship without provenance.
-for (const id of modelIds) {
-  const dir = join(outputsDir, id)
-  if (!existsSync(dir)) continue
-  const def = JSON.parse(readFileSync(join(modelsDir, `${id}.json`), 'utf8')) as {
-    runs?: Record<string, { file?: string } | Array<{ file?: string }>>
-  }
-  const declared = new Set<string>()
-  for (const [caseId, runRaw] of Object.entries(def.runs ?? {})) {
-    for (const run of Array.isArray(runRaw) ? runRaw : [runRaw]) {
-      declared.add(run?.file ?? `${caseId}.${caseKind.get(caseId)}`)
-    }
-  }
-  for (const file of readdirSync(dir)) {
-    if (!declared.has(file)) {
-      errors.push(`outputs/${id}/${file} is not declared by any run in models/${id}.json`)
+// Every file under outputs/ must be declared by a run — loose artifacts would
+// otherwise ship without provenance.
+// `artifactDir` can be one or two path segments, so scan recursively and compare
+// against the concrete paths declared above.
+function walkOutputs(dir: string, prefix = '') {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name
+    if (entry.isDirectory()) {
+      walkOutputs(join(dir, entry.name), rel)
+    } else if (!declaredArtifacts.has(rel)) {
+      errors.push(`outputs/${rel} is not declared by any run in models/*.json`)
     }
   }
 }
+if (existsSync(outputsDir)) walkOutputs(outputsDir)
 
 if (errors.length) {
   console.error(`Data validation failed (${errors.length}):\n- ${errors.join('\n- ')}`)
