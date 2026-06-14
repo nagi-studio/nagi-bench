@@ -24,10 +24,13 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 
 ## Registry
 
+<!-- registry:start -->
+> This table is generated from `models/*.json` by `bun scripts/update-registry.ts`; CI checks that it stays current.
+
 | Model | Vendor | Harness x Effort | Runs |
 |---|---|---|---|
 | Claude Fable 5 | Anthropic | Claude Web App · Max<br>Claude Code · Max<br>Cursor · High | 06 |
-| Claude Opus 4.8 | Anthropic | Claude Code · Max | 02 |
+| Claude Opus 4.8 | Anthropic | Claude Code · Max | 04 |
 | Claude Opus 4.7 | Anthropic | Cursor · Max | 02 |
 | Claude Opus 4.6 | Anthropic | Cursor · Max | 02 |
 | Claude Opus 4.5 | Anthropic | Cursor · Thinking | 02 |
@@ -38,8 +41,9 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | GPT-5.3 Codex | OpenAI | Cursor · xhigh | 02 |
 | GPT-5.2 | OpenAI | Cursor · xhigh | 02 |
 | Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 04 |
-| Gemini 3.5 Flash | Google | AntiGravity · High<br>Google AI Studio · High<br>Cursor · Default | 04 |
+| Gemini 3.5 Flash | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 05 |
 | Grok Build | xAI | Grok Build TUI · Max | 02 |
+| Nex-N2-Pro | Nex-AGI | Claude Code · Max | 02 |
 | Grok 4.3 | xAI | Cursor · Default | 02 |
 | Composer 2.5 | Cursor | Cursor · Max<br>Cursor · Default<br>Grok Build TUI · Default | 05 |
 | Mistral Medium 3.5 | Mistral AI | Vibe · Thinking | 02 |
@@ -47,14 +51,13 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Doubao Seed 2.0 Pro | ByteDance | Doubao Web · Pro Mode | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
-| Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 03 |
+| Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 02 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 
 Pending: GLM-5.1 · GLM-5.2 (PRs welcome)
-
-> This table is a hand-maintained snapshot; the site's registry section is generated live from `models/*.json` and is authoritative.
+<!-- registry:end -->
 
 ## Arena blind battles & community board
 
@@ -69,6 +72,7 @@ outputs/<artifact-dir>/<case-id>.<ext>  raw model artifacts (HTML / SVG), filena
 models/<agent-id>.json                  agent registry: label / vendor / harness / effort / artifactDir / order / run notes
 cases.json                           case definitions (bilingual prompts, maintainer-owned)
 scripts/validate-data.ts             data validation (CI runs it on every PR)
+scripts/update-registry.ts           README Registry table generation (CI checks freshness)
 ```
 
 > The site and vote-backend source lives in the private `nagi-bench-site` repo, deployed on Cloudflare Pages; this repo is the site's data source.
@@ -76,6 +80,7 @@ scripts/validate-data.ts             data validation (CI runs it on every PR)
 ## Validation
 
 ```bash
+bun scripts/update-registry.ts # updates README Registry tables from models/*.json
 bun scripts/validate-data.ts   # the same data validation CI runs
 ```
 
@@ -85,7 +90,7 @@ bun scripts/validate-data.ts   # the same data validation CI runs
 >
 > - **The unit you contribute is one Agent = a model × the harness you run in.** The `<agent-id>` (lowercase letters / digits / dashes) encodes that pairing — e.g. `gpt-5-5-pro`, `claude-fable-5-cc` (cc = Claude Code). The same model in a different harness is a different Agent with a different id. The `<agent-id>` is the vote and leaderboard identity; do not rename it just to reorganize files.
 > - **There are two cases right now**, defined in [`cases.json`](./cases.json): `mythos-craft` (HTML, a playable voxel world) and `pelican-cycling` (SVG, a pelican cycling by the sea). The prompt lives in `cases.json` — **use it verbatim, do not paraphrase**.
-> - **To find what's missing**: read `cases.json` (all cases) and `models/*.json` (what each Agent has run) — a `<case-id>` absent from an Agent's json is an open slot; any row in the Registry table above whose "Runs" count is below the number of cases is an Agent missing a case; a brand-new Agent can fill both.
+> - **To find what's missing**: read `cases.json` (all cases) and `models/*.json` (what each Agent has run) — a `<case-id>` absent from an Agent's json is an open slot; any row in the script-generated, CI-checked Registry table above whose "Runs" count is below the number of cases is an Agent missing a case; a brand-new Agent can fill both.
 > - **Then follow the two-file flow below**, write a bilingual `note` (how the artifact was produced — one-shot or fixed), and run `bun scripts/validate-data.ts` until it passes before opening a PR.
 
 Contributions are data-only — no code changes needed:

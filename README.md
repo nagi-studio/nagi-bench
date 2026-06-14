@@ -24,10 +24,13 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 
 ## 已测组合 / Registry
 
+<!-- registry:start -->
+> 此表由 `bun scripts/update-registry.ts` 从 `models/*.json` 自动生成；CI 会检查它是否最新。
+
 | 模型 | 厂商 | 运行环境（Harness）× 思考配额 | 产出 |
 |---|---|---|---|
 | Claude Fable 5 | Anthropic | Claude Web App · Max<br>Claude Code · Max<br>Cursor · High | 06 |
-| Claude Opus 4.8 | Anthropic | Claude Code · Max | 02 |
+| Claude Opus 4.8 | Anthropic | Claude Code · Max | 04 |
 | Claude Opus 4.7 | Anthropic | Cursor · Max | 02 |
 | Claude Opus 4.6 | Anthropic | Cursor · Max | 02 |
 | Claude Opus 4.5 | Anthropic | Cursor · Thinking | 02 |
@@ -38,8 +41,9 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | GPT-5.3 Codex | OpenAI | Cursor · xhigh | 02 |
 | GPT-5.2 | OpenAI | Cursor · xhigh | 02 |
 | Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 04 |
-| Gemini 3.5 Flash | Google | AntiGravity · High<br>Google AI Studio · High<br>Cursor · Default | 04 |
+| Gemini 3.5 Flash | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 05 |
 | Grok Build | xAI | Grok Build TUI · Max | 02 |
+| Nex-N2-Pro | Nex-AGI | Claude Code · Max | 02 |
 | Grok 4.3 | xAI | Cursor · Default | 02 |
 | Composer 2.5 | Cursor | Cursor · Max<br>Cursor · Default<br>Grok Build TUI · Default | 05 |
 | Mistral Medium 3.5 | Mistral AI | Vibe · Thinking | 02 |
@@ -47,14 +51,13 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | Doubao Seed 2.0 Pro | ByteDance | Doubao Web · Pro Mode | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
-| Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 03 |
+| Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 02 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 
 待测：GLM-5.1 · GLM-5.2（欢迎 PR 补充）
-
-> 此表为人工维护的快照；站点上的「模型阵容」表由 `models/*.json` 实时生成，以站点为准。
+<!-- registry:end -->
 
 ## Arena 盲评与社区榜单
 
@@ -69,6 +72,7 @@ outputs/<artifact-dir>/<case-id>.<ext>  模型产出原文件（HTML / SVG），
 models/<agent-id>.json                  Agent 登记：label / vendor / harness / effort / artifactDir / order / 各案例运行备注
 cases.json                           案例定义：双语标题与提示词（维护者维护）
 scripts/validate-data.ts             数据校验（CI 对每个 PR 自动执行）
+scripts/update-registry.ts           README Registry 表生成（CI 检查是否最新）
 ```
 
 > 站点与投票后端的源码在私有仓库 `nagi-bench-site` 中，部署于 Cloudflare Pages；本仓库是站点的数据源。
@@ -76,6 +80,7 @@ scripts/validate-data.ts             数据校验（CI 对每个 PR 自动执行
 ## 本地校验 / Validation
 
 ```bash
+bun scripts/update-registry.ts # 从 models/*.json 更新 README Registry 表
 bun scripts/validate-data.ts   # 与 CI 相同的数据校验
 ```
 
@@ -85,7 +90,7 @@ bun scripts/validate-data.ts   # 与 CI 相同的数据校验
 >
 > - **你贡献的单位是一个 Agent = 模型 × 你所在的 Harness。** `<agent-id>`（小写字母 / 数字 / 连字符）就编码这个组合，如 `gpt-5-5-pro`、`claude-fable-5-cc`（cc = Claude Code）。同一模型换个 Harness 就是另一个 Agent、另一个 id。`<agent-id>` 是投票与榜单身份，不要为了整理文件夹而改它。
 > - **当前有两个案例**，定义在 [`cases.json`](./cases.json)：`mythos-craft`（HTML，可玩体素世界）与 `pelican-cycling`（SVG，海边骑车的鹈鹕）。提示词以 `cases.json` 为准，**逐字使用、不要改写**。
-> - **想知道还缺哪些**：读 `cases.json`（全部案例）与 `models/*.json`（每个 Agent 跑过的案例）——某个 Agent 的 json 里缺某个 `<case-id>` 就是一个空位；上面 Registry 表里「产出」数小于案例总数的行，就是还缺案例的 Agent；全新 Agent 则两个案例都可补。
+> - **想知道还缺哪些**：读 `cases.json`（全部案例）与 `models/*.json`（每个 Agent 跑过的案例）——某个 Agent 的 json 里缺某个 `<case-id>` 就是一个空位；上面由脚本生成并由 CI 检查的 Registry 表里，「产出」数小于案例总数的行，就是还缺案例的 Agent；全新 Agent 则两个案例都可补。
 > - **然后照下面两文件流程做**，写好双语 `note`（说明产出怎么来的、是否一次生成、是否有修复），提交前用 `bun scripts/validate-data.ts` 自检通过再发 PR。
 
 贡献**不需要改任何代码**，只涉及两类文件：
