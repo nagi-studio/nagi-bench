@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mythos Craft — 神话境界</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { overflow: hidden; background: #000; font-family: 'Georgia', serif; }
+#info {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  color: #f0e6d3; font-size: 18px; text-shadow: 0 0 10px #8b6914, 0 2px 4px rgba(0,0,0,0.8);
+  pointer-events: none; z-index: 10; text-align: center; letter-spacing: 2px;
+}
+#crosshair {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 24px; height: 24px; pointer-events: none; z-index: 10;
+}
+#crosshair::before, #crosshair::after {
+  content: ''; position: absolute; background: rgba(255,255,255,0.7);
+}
+#crosshair::before { left: 11px; top: 0; width: 2px; height: 24px; }
+#crosshair::after { top: 11px; left: 0; width: 24px; height: 2px; }
+#hud {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 4px; z-index: 10;
+}
+.hud-slot {
+  width: 52px; height: 52px; border: 3px solid rgba(255,255,255,0.15);
+  background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: #ccc; border-radius: 4px; transition: all 0.2s; cursor: pointer;
+  position: relative;
+}
+.hud-slot.active { border-color: #fff; background: rgba(255,255,255,0.2); transform: scale(1.1); }
+.hud-slot canvas { width: 40px; height: 40px; }
+#instructions {
+  position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+  color: rgba(255,255,255,0.5); font-size: 12px; z-index: 10;
+  pointer-events: none; text-align: center;
+}
+#lock-screen {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  flex-direction: column; gap: 20px;
+}
+#lock-screen h1 { color: #f0e6d3; font-size: 48px; text-shadow: 0 0 20px #8b6914; letter-spacing: 4px; }
+#lock-screen p { color: #ccc; font-size: 18px; }
+#teleport-msg {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  color: #ffd700; font-size: 24px; text-shadow: 0 0 15px #ffd700;
+  pointer-events: none; z-index: 15; opacity: 0; transition: opacity 0.3s;
+}
+#loading {
+  position: fixed; inset: 0; background: #000; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  color: #ffd700; font-size: 18px; flex-direction: column; gap: 15px;
+}
+#loading .bar { width: 200px; height: 4px; background: #333; border-radius: 2px; overflow: hidden; }
+#loading .bar div { height: 100%; background: #ffd700; transition: width 0.3s; width: 0%; }
+</style>
+</head>
+<body>
+<div id="loading"><div>🏛️ 正在生成神话境界...</div><div class="bar"><div id="loadBar"></div></div></div>
+<div id="info">🏛️ MYTHOS CRAFT · 神话境界</div>
+<div id="crosshair"></div>
+<div id="hud"></div>
+<div id="instructions">🖱️ 点击屏幕开始 | WASD 移动 | 空格上浮 | Shift 下潜 | 鼠标环视<br>左键破坏方块 | 右键放置方块 | 1-9 选择方块 | G 传送至神话建筑</div>
+<div id="teleport-msg"></div>
+<div id="lock-screen">
+  <h1>🏛️ MYTHOS CRAFT</h1>
+  <p>点击开始探索神话境界</p>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ---- Perlin Noise ----
+class Perlin {
+  constructor() { this.p = new Uint8Array(512); const q = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) q[i] = i;
+    for (let i = 255; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [q[i], q[j]] = [q[j], q[i]]; }
+    for (let i = 0; i < 512; i++) this.p[i] = q[i & 255];
+  }
+  fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  lerp(a, b, t) { return a + t * (b - a); }
+  grad(h, x, y, z) { const hh = h & 15; const u = hh < 8 ? x : y; const v = hh < 4 ? y : (hh === 12 || hh === 14 ? x : z);
+    return ((hh & 1) ? -u : u) + ((hh & 2) ? -v : v); }
+  noise3D(x, y, z) {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+    x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+    const u = this.fade(x), v = this.fade(y), w = this.fade(z);
+    const p = this.p;
+    const A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z;
+    const B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+    return this.lerp(this.lerp(this.lerp(this.grad(p[AA], x, y, z), this.grad(p[BA], x - 1, y, z), u), this.lerp(this.grad(p[AB], x, y - 1, z), this.grad(p[BB], x - 1, y - 1, z), u), v), this.lerp(this.lerp(this.grad(p[AA + 1], x, y, z - 1), this.grad(p[BA + 1], x - 1, y, z - 1), u), this.lerp(this.grad(p[AB + 1], x, y - 1, z - 1), this.grad(p[BB + 1], x - 1, y - 1, z - 1), u), v), w);
+  }
+  fbm(x, y, z, octaves = 4, lacunarity = 2, gain = 0.5) {
+    let val = 0, amp = 1, freq = 1, max = 0;
+    for (let i = 0; i < octaves; i++) { val += amp * this.noise3D(x * freq, y * freq, z * freq); max += amp; amp *= gain; freq *= lacunarity; }
+    return val / max;
+  }
+}
+
+const perlin = new Perlin();
+
+// ---- Scene Setup ----
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 100, 300);
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.5, 400);
+camera.position.set(0, 40, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+// ---- Lighting ----
+const sun = new THREE.DirectionalLight(0xffeedd, 3.5);
+sun.position.set(100, 120, 60);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 400;
+sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
+sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0x8899cc, 1.2));
+scene.add(new THREE.HemisphereLight(0x8899cc, 0x445522, 0.8));
+
+// ---- Block Types ----
+const BLOCK_TYPES = [
+  { id: 1, name: '草地', color: 0x7ec850, top: 0x8dd858, side: 0x6a8e3a },
+  { id: 2, name: '泥土', color: 0x8b6914, top: 0x967a2e, side: 0x8b6914 },
+  { id: 3, name: '石头', color: 0x808080, top: 0x8a8a8a, side: 0x808080 },
+  { id: 4, name: '原木', color: 0x8b5a2b, top: 0x7a4a1b, side: 0x8b5a2b },
+  { id: 5, name: '树叶', color: 0x3a8c3a, top: 0x4a9c4a, side: 0x3a8c3a },
+  { id: 6, name: '沙子', color: 0xf0d890, top: 0xf5e0a0, side: 0xf0d890 },
+  { id: 7, name: '水', color: 0x3388ff, top: 0x4499ff, side: 0x3388ff },
+  { id: 8, name: '黑曜石', color: 0x1a1025, top: 0x2a1540, side: 0x1a1025 },
+  { id: 9, name: '水晶', color: 0x88ddff, top: 0xaaeeff, side: 0x88ddff },
+];
+
+function createBlockTex(color, sideColor, typeId) {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  const ctx = c.getContext('2d');
+  const hex = c16 => '#' + new THREE.Color(c16).getHexString();
+  ctx.fillStyle = hex(sideColor); ctx.fillRect(0, 0, 64, 64);
+  if (typeId === 1) {
+    ctx.fillStyle = hex(color); ctx.fillRect(0, 0, 64, 8);
+    ctx.fillStyle = '#5a7a2a'; for (let i = 0; i < 12; i++) { const h = 50 + Math.random() * 10; ctx.fillRect(i * 6, 60 - h, 2, h); }
+  } else if (typeId === 4) {
+    ctx.strokeStyle = '#6a4a1b'; ctx.lineWidth = 1; for (let y = 8; y < 56; y += 12) { ctx.beginPath(); ctx.moveTo(8, y); ctx.lineTo(56, y); ctx.stroke(); }
+  } else if (typeId === 5) {
+    for (let i = 0; i < 40; i++) { ctx.fillStyle = `rgba(${40 + Math.random() * 30},${100 + Math.random() * 60},${40 + Math.random() * 30},0.6)`; ctx.fillRect(Math.random() * 55, Math.random() * 55, 8 + Math.random() * 10, 8 + Math.random() * 10); }
+  } else if (typeId === 6) {
+    for (let i = 0; i < 200; i++) { ctx.fillStyle = `rgba(${200 + Math.random() * 55},${180 + Math.random() * 55},${100 + Math.random() * 40},0.3)`; ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2); }
+  } else if (typeId === 7) {
+    for (let i = 0; i < 15; i++) { ctx.strokeStyle = `rgba(100,180,255,0.3)`; ctx.lineWidth = 1 + Math.random(); ctx.beginPath(); ctx.arc(32, 32, 10 + i * 4, 0, Math.PI * 2); ctx.stroke(); }
+  } else if (typeId === 8) {
+    for (let i = 0; i < 8; i++) { ctx.strokeStyle = `rgba(80,40,120,0.4)`; ctx.lineWidth = 2 + Math.random() * 3; ctx.beginPath(); ctx.moveTo(i * 8, 0); ctx.lineTo(i * 8 + 16, 64); ctx.stroke(); }
+  } else if (typeId === 9) {
+    ctx.fillStyle = 'rgba(136,221,255,0.4)'; ctx.fillRect(0, 0, 64, 64);
+    for (let i = 0; i < 6; i++) { ctx.strokeStyle = `rgba(255,255,255,0.6)`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(32, 0); ctx.lineTo(10 + i * 10, 64); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(200,240,255,0.5)'; ctx.beginPath(); ctx.moveTo(32, 10); ctx.lineTo(40, 54); ctx.lineTo(24, 54); ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(0,0,0,0.05)'; for (let i = 0; i < 20; i++) ctx.fillRect(Math.random() * 64, Math.random() * 64, 3, 3);
+  }
+  const tex = new THREE.CanvasTexture(c); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+  return new THREE.MeshLambertMaterial({ map: tex });
+}
+
+const blockMats = {};
+BLOCK_TYPES.forEach(bt => { blockMats[bt.id] = createBlockTex(bt.color, bt.side, bt.id); });
+
+// ---- World Data ----
+const WS = 128, WH = 64;
+const W2 = WS / 2;
+const blocks = new Uint8Array(WS * WH * WS);
+const meshMap = {};
+
+function k(x, y, z) { return ((y * WS) + z) * WS + x; }
+function getBlock(x, y, z) { if (x < 0 || x >= WS || y < 0 || y >= WH || z < 0 || z >= WS) return 0; return blocks[k(x, y, z)]; }
+function setBlock(x, y, z, v) { if (x >= 0 && x < WS && y >= 0 && y < WH && z >= 0 && z < WS) blocks[k(x, y, z)] = v; }
+
+const blockGeom = new THREE.BoxGeometry(1, 1, 1);
+const highlightGeom = new THREE.BoxGeometry(1.02, 1.02, 1.02);
+const highlightMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthTest: true });
+const worldGroup = new THREE.Group();
+const highlightBox = new THREE.Mesh(highlightGeom, highlightMat);
+highlightBox.visible = false;
+worldGroup.add(highlightBox);
+scene.add(worldGroup);
+
+// ---- Terrain Generation ----
+function generateTerrain() {
+  for (let x = 0; x < WS; x++) {
+    for (let z = 0; z < WS; z++) {
+      const nx = x / WS * 4, nz = z / WS * 4;
+      let h = perlin.fbm(nx, 0, nz, 5, 2.0, 0.5) * 20 + 25;
+      h += perlin.noise3D(nx * 0.5, 0, nz * 0.5) * 10;
+      const ridge = 1 - Math.abs(perlin.noise3D(nx * 0.8, 0, nz * 0.8));
+      h += ridge * 8;
+      h = Math.max(2, Math.floor(h));
+      for (let y = 0; y < h; y++) {
+        let bt = 3;
+        if (y === h - 1) bt = 1;
+        else if (y >= h - 4) bt = 2;
+        if (y < 3) bt = 8;
+        setBlock(x, y, z, bt);
+      }
+      if (h <= 34) for (let y = h - 1; y >= h - 3 && y >= 0; y--) setBlock(x, y, z, 6);
+    }
+  }
+}
+
+// ---- Mythic Structures ----
+function placeStructure(cx, cy, cz, type) {
+  if (type === 'crystal_tower') {
+    for (let y = 0; y < 30; y++) {
+      const r = Math.max(2, 8 - y * 0.2);
+      for (let dx = -r; dx <= r; dx++)
+        for (let dz = -r; dz <= r; dz++)
+          if (dx * dx + dz * dz <= r * r) setBlock(cx + dx, cy + y, cz + dz, 9);
+    }
+    for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) setBlock(cx + dx, cy - 1, cz + dz, 8);
+  } else if (type === 'stone_circle') {
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const sx = Math.floor(cx + Math.cos(a) * 10), sz = Math.floor(cz + Math.sin(a) * 10);
+      for (let y = 0; y < 7; y++) setBlock(sx, cy + y, sz, 3);
+      setBlock(sx, cy + 7, sz, 3);
+      if (i % 2 === 0) setBlock(sx, cy + 6, sz, 9);
+    }
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) setBlock(cx + dx, cy, cz + dz, 8);
+  } else if (type === 'dragon_skeleton') {
+    for (let seg = 0; seg < 15; seg++) {
+      const sx = cx + seg, sy = cy + Math.floor(Math.sin(seg * 0.5) * 4), sz = cz + Math.floor(Math.cos(seg * 0.3) * 3);
+      for (let rx = -3; rx <= 3; rx++) for (let ry = -2; ry <= 2; ry++)
+        if (Math.abs(rx) === 3 || Math.abs(ry) === 2) setBlock(sx + rx, sy + ry, sz, 4);
+      setBlock(sx, sy - 1, sz, 4); setBlock(sx, sy + 3, sz, 4);
+    }
+    for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) for (let dz = -2; dz <= 2; dz++)
+      if (dx * dx + dy * dy + dz * dz <= 6) setBlock(cx + dx + 16, cy + dy, cz + dz, 4);
+  } else if (type === 'sky_ruins') {
+    const by = cy + 20;
+    for (let dx = -10; dx <= 10; dx++) for (let dz = -10; dz <= 10; dz++)
+      if (dx * dx + dz * dz <= 100 && (dx * dx + dz * dz >= 64 || Math.random() < 0.7))
+        for (let dy = -3; dy <= 0; dy++) setBlock(cx + dx, by + dy, cz + dz, 3);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      for (let y = 0; y < 10; y++) { setBlock(Math.floor(cx + Math.cos(a) * 6), by + y + 1, Math.floor(cz + Math.sin(a) * 6), 3); }
+    }
+    for (let y = 0; y < 5; y++) setBlock(cx, by + y + 1, cz, 9);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      const ax = Math.floor(cx + Math.cos(a) * 8), az = Math.floor(cz + Math.sin(a) * 8);
+      for (let y = 3; y < 8; y++) { setBlock(ax, by + y, az, 3); setBlock(ax + 1, by + y, az, 3); }
+    }
+  }
+}
+
+generateTerrain();
+placeStructure(30, Math.floor(30 + perlin.noise3D(0.94, 0, 0.94) * 10), 30, 'crystal_tower');
+placeStructure(80, Math.floor(28 + perlin.noise3D(2.5, 0, 2.5) * 8), 50, 'stone_circle');
+placeStructure(90, Math.floor(30 + perlin.noise3D(2.8, 0, 2.8) * 6), 95, 'dragon_skeleton');
+placeStructure(50, Math.floor(32 + perlin.noise3D(1.6, 0, 1.6) * 5), 85, 'sky_ruins');
+
+// ---- Trees ----
+function placeTree(tx, tz, baseY) {
+  for (let y = 0; y < 6; y++) setBlock(tx, baseY + y, tz, 4);
+  for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+    for (let dy = 3; dy < 8; dy++)
+      if (dx * dx + dz * dz + (dy - 5.5) * (dy - 5.5) * 0.5 < 4) setBlock(tx + dx, baseY + dy, tz + dz, 5);
+}
+
+for (let i = 0; i < 60; i++) {
+  const tx = 5 + Math.floor(Math.random() * (WS - 10)), tz = 5 + Math.floor(Math.random() * (WS - 10));
+  let y = 0;
+  for (let yy = WH - 1; yy >= 0; yy--) { const b = getBlock(tx, yy, tz); if (b !== 0 && b !== 7) { y = yy + 1; break; } }
+  if (y > 30 && y < 50) placeTree(tx, tz, y);
+}
+
+// ---- Build Initial Meshes (efficient: only surface-visible blocks) ----
+function isExposed(x, y, z) {
+  return !getBlock(x, y + 1, z) || !getBlock(x, y - 1, z) || !getBlock(x + 1, y, z) ||
+    !getBlock(x - 1, y, z) || !getBlock(x, y, z + 1) || !getBlock(x, y, z - 1);
+}
+
+function addBlockMesh(x, y, z) {
+  const bt = getBlock(x, y, z);
+  if (bt === 0 || bt === 7) return;
+  const mat = blockMats[bt] || blockMats[3];
+  const mesh = new THREE.Mesh(blockGeom, mat);
+  mesh.position.set(x - W2, y, z - W2);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  mesh.userData = { bx: x, by: y, bz: z };
+  worldGroup.add(mesh);
+  meshMap[k(x, y, z)] = mesh;
+}
+
+function removeBlockMesh(x, y, z) {
+  const key = k(x, y, z);
+  const mesh = meshMap[key];
+  if (mesh) { worldGroup.remove(mesh); if (mesh.geometry !== blockGeom) mesh.geometry.dispose(); delete meshMap[key]; }
+}
+
+function updateBlockMesh(x, y, z) {
+  removeBlockMesh(x, y, z);
+  const bt = getBlock(x, y, z);
+  if (bt === 0 || bt === 7) return;
+  addBlockMesh(x, y, z);
+  // Update neighbors (they may become exposed/occluded)
+  for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
+    const nx = x + dx, ny = y + dy, nz = z + dz;
+    const nb = getBlock(nx, ny, nz);
+    if (nb === 0 || nb === 7) removeBlockMesh(nx, ny, nz);
+    else { removeBlockMesh(nx, ny, nz); addBlockMesh(nx, ny, nz); }
+  }
+}
+
+function buildAllMeshes() {
+  const total = WS * WH * WS;
+  let count = 0;
+  const bar = document.getElementById('loadBar');
+  for (let x = 0; x < WS; x++) {
+    for (let y = 0; y < WH; y++) {
+      for (let z = 0; z < WS; z++) {
+        const bt = getBlock(x, y, z);
+        if (bt === 0 || bt === 7) continue;
+        if (isExposed(x, y, z)) { addBlockMesh(x, y, z); count++; }
+      }
+    }
+    if (x % 16 === 0) { bar.style.width = (x / WS * 100) + '%'; }
+  }
+  bar.style.width = '100%';
+  // Water plane
+  const wGeom = new THREE.PlaneGeometry(WS, WS);
+  const wMat = new THREE.MeshLambertMaterial({ color: 0x3388ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+  const water = new THREE.Mesh(wGeom, wMat);
+  water.rotation.x = -Math.PI / 2; water.position.set(0, 34.5, 0); water.receiveShadow = true;
+  water.userData = { bx: -1, by: -1, bz: -1 }; // mark as water
+  worldGroup.add(water);
+  console.log('Meshes built:', count);
+}
+
+// Build meshes async to avoid blocking
+setTimeout(() => {
+  buildAllMeshes();
+  document.getElementById('loading').style.display = 'none';
+}, 10);
+
+// ---- Camera Controls ----
+const PI_2 = Math.PI / 2;
+let yaw = 0, pitch = 0;
+const moveState = {};
+let pointerLocked = false;
+let selectedBlock = 1;
+const raycaster = new THREE.Raycaster();
+
+document.getElementById('lock-screen').addEventListener('click', () => {
+  renderer.domElement.requestPointerLock();
+});
+
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = !!document.pointerLockElement;
+  document.getElementById('lock-screen').style.display = pointerLocked ? 'none' : 'flex';
+});
+
+document.addEventListener('mousemove', e => {
+  if (!pointerLocked) return;
+  yaw -= e.movementX * 0.002;
+  pitch = Math.max(-PI_2 + 0.1, Math.min(PI_2 - 0.1, pitch - e.movementY * 0.002));
+});
+
+document.addEventListener('keydown', e => {
+  if (!pointerLocked) return;
+  const kk = e.key.toLowerCase();
+  if (kk === 'w' || kk === 'a' || kk === 's' || kk === 'd' || kk === ' ' || kk === 'shift') { moveState[kk] = true; e.preventDefault(); }
+  if (kk >= '1' && kk <= '9') { selectedBlock = parseInt(kk); updateHUD(); e.preventDefault(); }
+  if (kk === 'g') { teleportToLandmark(); e.preventDefault(); }
+});
+
+document.addEventListener('keyup', e => {
+  const kk = e.key.toLowerCase();
+  if (kk === 'w' || kk === 'a' || kk === 's' || kk === 'd' || kk === ' ' || kk === 'shift') { moveState[kk] = false; }
+});
+
+function getTargetBlock() {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  raycaster.set(camera.position, dir);
+  const hits = raycaster.intersectObjects(worldGroup.children.filter(c => c !== highlightBox && c.userData.bx !== undefined));
+  if (hits.length > 0 && hits[0].distance < 8) return hits[0];
+  return null;
+}
+
+document.addEventListener('mousedown', e => {
+  if (!pointerLocked) return;
+  const hit = getTargetBlock();
+  if (!hit) return;
+  const obj = hit.object;
+  const bx = obj.userData.bx, by = obj.userData.by, bz = obj.userData.bz;
+  if (bx === undefined) return;
+
+  if (e.button === 0) {
+    // Break block
+    setBlock(bx, by, bz, 0);
+    updateBlockMesh(bx, by, bz);
+  } else if (e.button === 2) {
+    // Place block
+    const face = hit.face;
+    const nx = bx + Math.round(face.normal.x);
+    const ny = by + Math.round(face.normal.y);
+    const nz = bz + Math.round(face.normal.z);
+    if (getBlock(nx, ny, nz) !== 0 && getBlock(nx, ny, nz) !== 7) return;
+    const ppX = camera.position.x + W2, ppY = camera.position.y, ppZ = camera.position.z + W2;
+    if (Math.abs(nx - Math.round(ppX)) < 1 && Math.abs(ny - Math.round(ppY)) < 2 && Math.abs(nz - Math.round(ppZ)) < 1) return;
+    setBlock(nx, ny, nz, selectedBlock);
+    updateBlockMesh(nx, ny, nz);
+  }
+  e.preventDefault();
+});
+
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---- Teleport ----
+const landmarks = [
+  { name: '水晶塔', x: 30, z: 30 },
+  { name: '石环阵', x: 80, z: 50 },
+  { name: '龙骨遗迹', x: 90, z: 95 },
+  { name: '天空遗迹', x: 50, z: 85 },
+];
+let lmIdx = 0;
+
+function teleportToLandmark() {
+  const lm = landmarks[lmIdx]; lmIdx = (lmIdx + 1) % landmarks.length;
+  camera.position.set(lm.x - W2, 40, lm.z - W2);
+  const msg = document.getElementById('teleport-msg');
+  msg.textContent = '传送至: ' + lm.name;
+  msg.style.opacity = '1';
+  setTimeout(() => msg.style.opacity = '0', 2000);
+}
+
+// ---- HUD ----
+function updateHUD() {
+  const hud = document.getElementById('hud');
+  hud.innerHTML = '';
+  BLOCK_TYPES.forEach((bt, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'hud-slot' + (bt.id === selectedBlock ? ' active' : '');
+    const cvs = document.createElement('canvas'); cvs.width = 40; cvs.height = 40;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = '#' + new THREE.Color(bt.top).getHexString(); ctx.fillRect(8, 4, 24, 24);
+    ctx.fillStyle = '#' + new THREE.Color(bt.side).getHexString(); ctx.fillRect(8, 16, 24, 12);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.strokeRect(8, 4, 24, 24);
+    slot.appendChild(cvs);
+    const num = document.createElement('span');
+    num.textContent = String(i + 1);
+    num.style.cssText = 'position:absolute;bottom:2px;font-size:9px;color:#aaa;';
+    slot.appendChild(num);
+    slot.addEventListener('click', () => { selectedBlock = bt.id; updateHUD(); });
+    hud.appendChild(slot);
+  });
+}
+updateHUD();
+
+// ---- Game Loop ----
+let lastTime = 0;
+function animate(time) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((time - lastTime) / 1000, 0.1);
+  lastTime = time;
+
+  if (pointerLocked) {
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = yaw;
+    camera.rotation.x = pitch;
+
+    const speed = moveState['shift'] ? 25 : 12;
+    const mov = new THREE.Vector3();
+    if (moveState['w']) mov.z -= 1;
+    if (moveState['s']) mov.z += 1;
+    if (moveState['a']) mov.x -= 1;
+    if (moveState['d']) mov.x += 1;
+    if (moveState[' ']) mov.y += 1;
+    if (moveState['shift']) mov.y -= 1;
+
+    if (mov.length() > 0) mov.normalize();
+    mov.multiplyScalar(speed * dt);
+
+    const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const rgt = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const hMov = new THREE.Vector3();
+    hMov.addScaledVector(fwd, -mov.z);
+    hMov.addScaledVector(rgt, mov.x);
+
+    const np = camera.position.clone();
+    np.x += hMov.x; np.y += mov.y; np.z += hMov.z;
+
+    const wx = np.x + W2, wz = np.z + W2;
+    if (wx > 1 && wx < WS - 1 && wz > 1 && wz < WS - 1 && np.y > 1 && np.y < WH) {
+      camera.position.copy(np);
+    }
+
+    // Highlight
+    const hit = getTargetBlock();
+    if (hit) { highlightBox.position.copy(hit.object.position); highlightBox.visible = true; }
+    else { highlightBox.visible = false; }
+  }
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
