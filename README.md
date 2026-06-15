@@ -58,7 +58,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | MiniMax M2.7 | MiniMax | MiniMax Code Web · Thinking | 01 |
 | GLM-5 Turbo | Zhipu AI | ZCode · Thinking | 03 |
 | GLM-5.2 | Zhipu AI | ZCode · Max | 03 |
-| Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
+| Qwen3.7-Max | Alibaba | Qoder · Default<br>QoderWork · Default | 04 |
 
 待测：GLM-5.1（欢迎 PR 补充）
 <!-- registry:end -->
