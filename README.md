@@ -53,6 +53,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
 | Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 02 |
+| MiMo v2.5 Pro UltraSpeed | Xiaomi | Web · Default | 04 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 02 |
 | MiniMax M2.7 | MiniMax | MiniMax Code Web · Thinking | 01 |
