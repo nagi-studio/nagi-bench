@@ -18,9 +18,9 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 
 > **Model + Harness = Agent** — a model is just weights; wrap it in a runtime and it becomes an agent that can actually do the work. That agent is the unit this bench evaluates.
 
-- **Model**: the weights and inference engine itself — GPT-5.5, Gemini 3.1 Pro, Claude Fable 5.
+- **Model**: the weights and inference engine itself — GPT-5.5, Gemini 3.1 Pro, Claude Fable 5. Reasoning effort is a capability dial of the model itself: the same weights at high vs low effort reason at depths that feel like two different models, so effort belongs to the "model" dimension alongside the weights — judging a model while ignoring its effort isn't fair play. This bench defaults to max and labels the effort of every combination.
 - **Harness**: the product/scaffolding wrapping the model — Codex CLI, Cursor, AntiGravity, the Claude web app. It controls tool calls, system prompts, context management and continuation strategy, and often shapes the outcome as much as the model does.
-- The unit of evaluation here is therefore an **Agent**: the same model under a different harness is a different agent and a separate entry (GPT-5.5 Pro and GPT-5.5 running in Codex CLI at xhigh are two agents from the same model family). Effort is a parameter of that agent, defaulting to max.
+- The unit of evaluation here is therefore an **Agent**: the same model (including its effort) under a different harness is a different agent and a separate entry (GPT-5.5 Pro and GPT-5.5 running in Codex CLI at xhigh are two agents from the same model family).
 
 ## Registry
 
@@ -30,9 +30,9 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Model | Vendor | Harness x Effort | Runs |
 |---|---|---|---|
 | Claude Fable 5 | Anthropic | Claude Web App · Max<br>Claude Code · Max<br>Cursor · High | 06 |
-| Claude Opus 4.6 | Anthropic | Claude Code · Max<br>Cursor · Max | 04 |
-| Claude Opus 4.7 | Anthropic | Claude Code · Max<br>Cursor · Max | 05 |
 | Claude Opus 4.8 | Anthropic | Claude Code · Max | 05 |
+| Claude Opus 4.7 | Anthropic | Claude Code · Max<br>Cursor · Max | 05 |
+| Claude Opus 4.6 | Anthropic | Claude Code · Max<br>Cursor · Max | 04 |
 | Claude Opus 4.5 | Anthropic | Cursor · Thinking | 02 |
 | Claude Sonnet 4.6 | Anthropic | Claude Code · Max<br>Cursor · High | 03 |
 | Claude Haiku 4.5 | Anthropic | Claude Code · Default | 02 |
@@ -52,13 +52,13 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Doubao Seed 2.0 Pro | ByteDance | Doubao Web · Pro Mode | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
-| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiMo v2.5 Pro UltraSpeed | Xiaomi | Web · Default | 04 |
+| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 02 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 02 |
 | MiniMax M2.7 | MiniMax | MiniMax Code Web · Thinking | 01 |
-| GLM-5 Turbo | Zhipu AI | ZCode · Thinking | 03 |
 | GLM-5.2 | Zhipu AI | ZCode · Max | 03 |
+| GLM-5 Turbo | Zhipu AI | ZCode · Thinking | 03 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 | Step 3.7 Flash | StepFun | Claude Code · High | 02 |
 

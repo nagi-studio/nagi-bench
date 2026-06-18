@@ -18,9 +18,9 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 
 > **Model + Harness = Agent** —— 模型只是权重，套上运行环境才成为一个能干活的智能体（Agent）。本仓库的测评单位就是一个 Agent。
 
-- **模型（Model）**：权重与推理引擎本身，如 GPT-5.5、Gemini 3.1 Pro、Claude Fable 5。
+- **模型（Model）**：权重与推理引擎本身，如 GPT-5.5、Gemini 3.1 Pro、Claude Fable 5。思考配额（effort）是模型自身的能力旋钮——同一份权重在高/低思考强度下的推理深度判若两个模型，因此它和权重同属「模型」这一维度，脱离 effort 谈模型表现并不公允；本仓库默认拉满（Max），并在每个组合里如实标注。
 - **Harness（运行环境）**：包裹模型的产品/脚手架，如 Codex CLI、Cursor、AntiGravity、Claude 网页版——它决定工具调用、系统提示词、上下文管理与续写策略，对最终产出的影响往往不亚于模型本身。
-- 因此本仓库的测评单位是一个 **Agent**：同一个模型换一个 Harness，就是另一个 Agent，记为不同条目（例如 GPT-5.5 Pro 与跑在 Codex CLI 里的 GPT-5.5（xhigh）是同一模型家族的两个 Agent）。思考配额（effort）是这个 Agent 的一个参数，默认拉满（Max）。
+- 因此本仓库的测评单位是一个 **Agent**：同一个模型（含其思考配额）换一个 Harness，就是另一个 Agent，记为不同条目（例如 GPT-5.5 Pro 与跑在 Codex CLI 里的 GPT-5.5（xhigh）是同一模型家族的两个 Agent）。
 
 ## 已测组合 / Registry
 
@@ -30,9 +30,9 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | 模型 | 厂商 | 运行环境（Harness）× 思考配额 | 产出 |
 |---|---|---|---|
 | Claude Fable 5 | Anthropic | Claude Web App · Max<br>Claude Code · Max<br>Cursor · High | 06 |
-| Claude Opus 4.6 | Anthropic | Claude Code · Max<br>Cursor · Max | 04 |
-| Claude Opus 4.7 | Anthropic | Claude Code · Max<br>Cursor · Max | 05 |
 | Claude Opus 4.8 | Anthropic | Claude Code · Max | 05 |
+| Claude Opus 4.7 | Anthropic | Claude Code · Max<br>Cursor · Max | 05 |
+| Claude Opus 4.6 | Anthropic | Claude Code · Max<br>Cursor · Max | 04 |
 | Claude Opus 4.5 | Anthropic | Cursor · Thinking | 02 |
 | Claude Sonnet 4.6 | Anthropic | Claude Code · Max<br>Cursor · High | 03 |
 | Claude Haiku 4.5 | Anthropic | Claude Code · Default | 02 |
@@ -52,13 +52,13 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | Doubao Seed 2.0 Pro | ByteDance | Doubao Web · Pro Mode | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
-| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiMo v2.5 Pro UltraSpeed | Xiaomi | Web · Default | 04 |
+| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 02 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 02 |
 | MiniMax M2.7 | MiniMax | MiniMax Code Web · Thinking | 01 |
-| GLM-5 Turbo | Zhipu AI | ZCode · Thinking | 03 |
 | GLM-5.2 | Zhipu AI | ZCode · Max | 03 |
+| GLM-5 Turbo | Zhipu AI | ZCode · Thinking | 03 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 | Step 3.7 Flash | StepFun | Claude Code · High | 02 |
 
