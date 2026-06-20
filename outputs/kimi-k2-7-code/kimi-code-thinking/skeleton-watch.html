@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>镂空机械表 · 3D 交互展示</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --gold: #d4af37;
+      --rose: #c27e60;
+      --steel: #a8b5c4;
+      --lume: #c8ffaa;
+      --glass: rgba(20, 22, 26, 0.72);
+      --glass-border: rgba(255, 255, 255, 0.10);
+    }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 35%, #1f242c 0%, #0d1014 55%, #050608 100%);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #f0f0f0;
+      user-select: none;
+    }
+    #canvas-container {
+      position: absolute; inset: 0;
+      z-index: 1;
+    }
+    #loading {
+      position: absolute; inset: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: center;
+      background: #050608; color: var(--gold);
+      font-size: 1.2rem; letter-spacing: 0.2em;
+      transition: opacity 0.8s ease;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+
+    /* UI Overlay */
+    .ui-layer {
+      position: absolute; z-index: 10;
+      pointer-events: none;
+    }
+    .title-card {
+      top: 26px; left: 30px;
+      pointer-events: auto;
+    }
+    .title-card h1 {
+      font-size: 1.55rem; font-weight: 300;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      background: linear-gradient(90deg, #fff 0%, var(--gold) 55%, #fff 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-shadow: 0 2px 18px rgba(212,175,55,0.25);
+    }
+    .title-card p {
+      margin-top: 6px; font-size: 0.78rem;
+      color: rgba(255,255,255,0.55); letter-spacing: 0.08em;
+    }
+
+    /* Controls */
+    .controls {
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; gap: 10px;
+      pointer-events: auto;
+      padding: 8px 12px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 999px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+    }
+    .btn {
+      display: flex; align-items: center; gap: 7px;
+      padding: 9px 16px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.9);
+      font-size: 0.8rem; cursor: pointer;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+    }
+    .btn:hover {
+      background: rgba(212,175,55,0.14);
+      border-color: rgba(212,175,55,0.35);
+      transform: translateY(-1px);
+    }
+    .btn.active {
+      background: rgba(212,175,55,0.22);
+      border-color: rgba(212,175,55,0.55);
+      color: #fff;
+      box-shadow: 0 0 18px rgba(212,175,55,0.18);
+    }
+
+    /* Info Panel */
+    #info-panel {
+      top: 26px; right: 30px; width: 300px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      backdrop-filter: blur(16px);
+      padding: 22px;
+      pointer-events: auto;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+      transform: translateX(30px);
+      opacity: 0; transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
+    }
+    #info-panel.visible { transform: translateX(0); opacity: 1; }
+    #info-panel .part-icon {
+      width: 46px; height: 46px; border-radius: 12px;
+      background: linear-gradient(135deg, rgba(212,175,55,0.25), rgba(194,126,96,0.15));
+      border: 1px solid rgba(212,175,55,0.25);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; margin-bottom: 14px;
+    }
+    #info-panel h2 {
+      font-size: 1.15rem; font-weight: 500; margin-bottom: 6px;
+      letter-spacing: 0.04em;
+    }
+    #info-panel .meta {
+      font-size: 0.7rem; color: rgba(255,255,255,0.45);
+      text-transform: uppercase; letter-spacing: 0.12em;
+      margin-bottom: 14px;
+    }
+    #info-panel p {
+      font-size: 0.86rem; line-height: 1.65;
+      color: rgba(255,255,255,0.72);
+    }
+    #info-panel .close {
+      position: absolute; top: 14px; right: 16px;
+      width: 28px; height: 28px; border-radius: 50%;
+      border: none; background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.7); cursor: pointer;
+      font-size: 1rem; line-height: 1;
+      transition: background 0.2s;
+    }
+    #info-panel .close:hover { background: rgba(255,255,255,0.18); }
+
+    /* Floating label */
+    #tooltip {
+      position: absolute; z-index: 12;
+      padding: 7px 12px;
+      background: rgba(10,12,15,0.82);
+      border: 1px solid rgba(212,175,55,0.35);
+      border-radius: 8px;
+      color: #fff; font-size: 0.8rem;
+      pointer-events: none; opacity: 0;
+      transform: translate(-50%, -130%);
+      transition: opacity 0.18s ease;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+    #tooltip::after {
+      content: ''; position: absolute;
+      bottom: -5px; left: 50%; transform: translateX(-50%);
+      border-width: 5px 5px 0; border-style: solid;
+      border-color: rgba(212,175,55,0.5) transparent transparent;
+    }
+
+    /* Stats / helper text */
+    .helper {
+      bottom: 92px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.72rem; color: rgba(255,255,255,0.38);
+      letter-spacing: 0.06em;
+      text-align: center;
+    }
+
+    /* Part label lines overlay */
+    #labels-overlay {
+      position: absolute; inset: 0; z-index: 9;
+      pointer-events: none;
+    }
+    .part-label {
+      position: absolute;
+      padding: 4px 10px;
+      background: rgba(10,12,15,0.75);
+      border: 1px solid rgba(212,175,55,0.3);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.9);
+      font-size: 0.72rem;
+      transform: translate(-50%, -50%);
+      opacity: 0; transition: opacity 0.25s ease;
+      pointer-events: none;
+    }
+    .part-label.active { opacity: 1; }
+
+    @media (max-width: 720px) {
+      .title-card { left: 16px; top: 16px; }
+      .title-card h1 { font-size: 1.15rem; }
+      #info-panel { width: calc(100% - 32px); right: 16px; top: auto; bottom: 100px; }
+      .controls { bottom: 16px; flex-wrap: wrap; justify-content: center; width: calc(100% - 32px); border-radius: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">ASSEMBLING MOVEMENT…</div>
+  <div id="canvas-container"></div>
+
+  <div class="ui-layer title-card">
+    <h1>Skeleton Tourbillon</h1>
+    <p>镂空机械机芯 · 实时交互展示</p>
+  </div>
+
+  <div class="ui-layer helper">
+    拖拽旋转 · 滚轮缩放 · 悬停查看零件 · 点击显示详情
+  </div>
+
+  <div class="ui-layer controls">
+    <button class="btn" id="btn-explode" title="切换爆炸视图">💥 爆炸视图</button>
+    <button class="btn" id="btn-auto" title="自动旋转">🔄 自动旋转</button>
+    <button class="btn active" id="btn-lume" title="切换夜光">✨ 夜光效果</button>
+    <button class="btn" id="btn-reset" title="重置视角">⌂ 重置</button>
+  </div>
+
+  <div id="info-panel">
+    <button class="close" id="info-close">×</button>
+    <div class="part-icon" id="info-icon">⚙️</div>
+    <h2 id="info-title">零件名称</h2>
+    <div class="meta" id="info-meta">COMPONENT</div>
+    <p id="info-desc">点击零件查看详细说明。</p>
+  </div>
+
+  <div id="tooltip">零件</div>
+  <div id="labels-overlay"></div>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+    // ===== Configuration =====
+    const CONFIG = {
+      scale: 1,
+      lumeIntensity: 2.2,
+      bloomStrength: 0.08,
+      bloomRadius: 0.55,
+      bloomThreshold: 0.88,
+      autoRotateSpeed: 0.35,
+      explodeDistance: 2.4,
+      shadowMapSize: 2048
+    };
+
+    // ===== State =====
+    const state = {
+      exploded: false,
+      autoRotate: false,
+      lumeOn: true,
+      hovered: null,
+      selected: null,
+      paused: false,
+      explodeFactor: 0
+    };
+
+    // ===== Scene setup =====
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0c0f);
+    scene.fog = new THREE.FogExp2(0x0a0c0f, 0.035);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 14);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.85;
+    container.appendChild(renderer.domElement);
+
+    // Environment for reflections
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+    const roomEnv = new RoomEnvironment();
+    scene.environment = pmremGenerator.fromScene(roomEnv).texture;
+    roomEnv.dispose();
+
+    // Post-processing
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      CONFIG.bloomStrength, CONFIG.bloomRadius, CONFIG.bloomThreshold
+    );
+    composer.addPass(bloomPass);
+    const outputPass = new OutputPass();
+    composer.addPass(outputPass);
+
+    // Controls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.055;
+    controls.minDistance = 5;
+    controls.maxDistance = 22;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = CONFIG.autoRotateSpeed;
+
+    // ===== Lighting =====
+    const ambient = new THREE.AmbientLight(0xffffff, 0.45);
+    scene.add(ambient);
+
+    const keyLight = new THREE.SpotLight(0xfff4e0, 8);
+    keyLight.position.set(14, 18, 13);
+    keyLight.angle = Math.PI / 6;
+    keyLight.penumbra = 0.65;
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(CONFIG.shadowMapSize, CONFIG.shadowMapSize);
+    keyLight.shadow.bias = -0.0001;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.PointLight(0xc8e0ff, 4);
+    fillLight.position.set(-10, 4, 8);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.SpotLight(0xffdca8, 5);
+    rimLight.position.set(0, -14, -10);
+    rimLight.lookAt(0, 0, 0);
+    scene.add(rimLight);
+
+    const lumeLight = new THREE.PointLight(0x88ff66, 2, 6);
+    lumeLight.position.set(0, 0, 1.2);
+    scene.add(lumeLight);
+
+    // ===== Materials =====
+    const mat = {
+      roseGold: new THREE.MeshStandardMaterial({
+        color: 0xc27e60, metalness: 1.0, roughness: 0.20,
+        envMapIntensity: 0.9
+      }),
+      yellowGold: new THREE.MeshStandardMaterial({
+        color: 0xd4af37, metalness: 1.0, roughness: 0.18,
+        envMapIntensity: 0.95
+      }),
+      steel: new THREE.MeshStandardMaterial({
+        color: 0xb0becd, metalness: 1.0, roughness: 0.22,
+        envMapIntensity: 0.85
+      }),
+      brass: new THREE.MeshStandardMaterial({
+        color: 0xb8a85c, metalness: 1.0, roughness: 0.26,
+        envMapIntensity: 0.85
+      }),
+      rhodium: new THREE.MeshStandardMaterial({
+        color: 0xe8ecf0, metalness: 1.0, roughness: 0.16,
+        envMapIntensity: 0.9
+      }),
+      darkMetal: new THREE.MeshStandardMaterial({
+        color: 0x2a2f36, metalness: 0.85, roughness: 0.35,
+        envMapIntensity: 0.9
+      }),
+      sapphire: new THREE.MeshPhysicalMaterial({
+        color: 0xaaccff, metalness: 0, roughness: 0.02,
+        transmission: 0.92, thickness: 1.2,
+        ior: 1.76, transparent: true, opacity: 0.32,
+        envMapIntensity: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.02
+      }),
+      ruby: new THREE.MeshPhysicalMaterial({
+        color: 0xd6004e, metalness: 0.2, roughness: 0.04,
+        transmission: 0.25, thickness: 0.6,
+        clearcoat: 1.0, envMapIntensity: 0.8
+      }),
+      lume: new THREE.MeshStandardMaterial({
+        color: 0xeaffdd, emissive: 0x66ff44,
+        emissiveIntensity: CONFIG.lumeIntensity,
+        roughness: 0.6, metalness: 0
+      }),
+      lumeDim: new THREE.MeshStandardMaterial({
+        color: 0xc8d4b8, emissive: 0x224411,
+        emissiveIntensity: 0.15,
+        roughness: 0.7, metalness: 0
+      }),
+      dialBlack: new THREE.MeshStandardMaterial({
+        color: 0x15181c, metalness: 0.7, roughness: 0.4,
+        envMapIntensity: 0.8
+      }),
+      screw: new THREE.MeshStandardMaterial({
+        color: 0xdddddd, metalness: 1.0, roughness: 0.15
+      })
+    };
+
+    // ===== Helpers =====
+    const DEG = Math.PI / 180;
+    const watchGroup = new THREE.Group();
+    scene.add(watchGroup);
+
+    const parts = [];        // raycast targets
+    const gears = [];        // animated gears
+    const oscillators = [];  // balance wheels
+    const hands = {};        // hour/minute/second
+    const explodeParts = []; // parts that can explode
+
+    function registerPart(mesh, info, explodeAxis = new THREE.Vector3(0, 0, 1), explodeMult = 1) {
+      mesh.userData = {
+        ...mesh.userData,
+        isPart: true,
+        info,
+        originalParent: mesh.parent,
+        homePos: mesh.position.clone(),
+        explodeDir: explodeAxis.clone().normalize(),
+        explodeMult
+      };
+      parts.push(mesh);
+      explodeParts.push(mesh);
+      return mesh;
+    }
+
+    function makeGearShape(radius, teeth, holeRadius = 0) {
+      const shape = new THREE.Shape();
+      const innerR = radius * 0.82;
+      const outerR = radius;
+      const tipR = radius * 1.12;
+      const step = (Math.PI * 2) / teeth;
+      for (let i = 0; i < teeth; i++) {
+        const a = i * step;
+        const a0 = a - step * 0.22;
+        const a1 = a - step * 0.10;
+        const a2 = a + step * 0.10;
+        const a3 = a + step * 0.22;
+        if (i === 0) shape.moveTo(Math.cos(a0) * innerR, Math.sin(a0) * innerR);
+        else shape.lineTo(Math.cos(a0) * innerR, Math.sin(a0) * innerR);
+        shape.lineTo(Math.cos(a1) * outerR, Math.sin(a1) * outerR);
+        shape.lineTo(Math.cos(a2) * tipR, Math.sin(a2) * tipR);
+        shape.lineTo(Math.cos(a3) * outerR, Math.sin(a3) * outerR);
+      }
+      shape.closePath();
+      if (holeRadius > 0) {
+        const hole = new THREE.Path();
+        hole.absarc(0, 0, holeRadius, 0, Math.PI * 2, true);
+        shape.holes.push(hole);
+      }
+      return shape;
+    }
+
+    function createGear(radius, teeth, thickness, material, holeRadius = 0, name = '齿轮') {
+      const shape = makeGearShape(radius, teeth, holeRadius);
+      const geom = new THREE.ExtrudeGeometry(shape, {
+        depth: thickness, bevelEnabled: true, bevelThickness: 0.03,
+        bevelSize: 0.02, bevelSegments: 2, curveSegments: Math.min(24, teeth * 2)
+      });
+      geom.center();
+      const mesh = new THREE.Mesh(geom, material);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      registerPart(mesh, { name, category: '齿轮系', desc: '将动力从发条盒传递至擒纵机构，并驱动指针运转。' });
+      return mesh;
+    }
+
+    function createSpiralTexture() {
+      const cvs = document.createElement('canvas');
+      cvs.width = 512; cvs.height = 512;
+      const ctx = cvs.getContext('2d');
+      ctx.fillStyle = '#1a1510';
+      ctx.fillRect(0, 0, 512, 512);
+      ctx.strokeStyle = '#6a5a3a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const cx = 256, cy = 256;
+      for (let i = 0; i < 720; i++) {
+        const a = i * 0.08;
+        const r = 10 + i * 0.32;
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      const tex = new THREE.CanvasTexture(cvs);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    // ===== Build watch =====
+    function buildWatch() {
+      const caseRadius = 3.6;
+      const caseThickness = 1.15;
+
+      // 1. Case ring
+      const caseShape = new THREE.Shape();
+      caseShape.absarc(0, 0, caseRadius, 0, Math.PI * 2, false);
+      const caseHole = new THREE.Path();
+      caseHole.absarc(0, 0, caseRadius - 0.32, 0, Math.PI * 2, true);
+      caseShape.holes.push(caseHole);
+      const caseGeom = new THREE.ExtrudeGeometry(caseShape, {
+        depth: caseThickness, bevelEnabled: true, bevelThickness: 0.12,
+        bevelSize: 0.12, bevelSegments: 4, curveSegments: 64
+      });
+      caseGeom.center();
+      const caseMesh = new THREE.Mesh(caseGeom, mat.roseGold);
+      caseMesh.castShadow = true; caseMesh.receiveShadow = true;
+      registerPart(caseMesh, { name: '表壳', category: '外观', desc: '18K 玫瑰金表壳，经抛光与拉丝交替处理，承载整枚机芯。' }, new THREE.Vector3(0,0,1), 0.6);
+      watchGroup.add(caseMesh);
+
+      // Lugs (simplified)
+      for (let i = 0; i < 4; i++) {
+        const angle = i * 90 * DEG;
+        const lug = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.1, caseThickness * 0.85), mat.roseGold);
+        lug.position.set(Math.cos(angle) * (caseRadius + 0.25), Math.sin(angle) * (caseRadius + 0.25), 0);
+        lug.rotation.z = angle;
+        lug.castShadow = true;
+        registerPart(lug, { name: '表耳', category: '外观', desc: '连接表壳与表带的弧形表耳，符合人体工学。' }, new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0), 0.4);
+        watchGroup.add(lug);
+      }
+
+      // 2. Sapphire crystal
+      const crystalGeom = new THREE.CylinderGeometry(caseRadius - 0.05, caseRadius - 0.05, 0.12, 64);
+      const crystal = new THREE.Mesh(crystalGeom, mat.sapphire);
+      crystal.position.z = caseThickness / 2 + 0.18;
+      crystal.rotation.x = Math.PI / 2;
+      registerPart(crystal, { name: '蓝宝石水晶表镜', category: '外观', desc: '双面防反射涂层蓝宝石水晶，莫氏硬度 9 级。' }, new THREE.Vector3(0,0,1), 1.2);
+      watchGroup.add(crystal);
+
+      const caseBack = crystal.clone();
+      caseBack.position.z = -(caseThickness / 2 + 0.18);
+      caseBack.material = mat.sapphire;
+      registerPart(caseBack, { name: '透底蓝宝石底盖', category: '外观', desc: '蓝宝石水晶透底，可欣赏机芯背面打磨。' }, new THREE.Vector3(0,0,-1), 1.2);
+      watchGroup.add(caseBack);
+
+      // 3. Chapter ring / dial
+      const ringShape = new THREE.Shape();
+      ringShape.absarc(0, 0, caseRadius - 0.42, 0, Math.PI * 2, false);
+      const ringHole = new THREE.Path();
+      ringHole.absarc(0, 0, caseRadius - 0.72, 0, Math.PI * 2, true);
+      ringShape.holes.push(ringHole);
+      const ringGeom = new THREE.ExtrudeGeometry(ringShape, { depth: 0.08, bevelEnabled: false, curveSegments: 64 });
+      ringGeom.center();
+      const chapterRing = new THREE.Mesh(ringGeom, mat.darkMetal);
+      chapterRing.position.z = caseThickness / 2 - 0.05;
+      registerPart(chapterRing, { name: '分钟刻度圈', category: '表盘', desc: '哑光黑金属刻度圈，标注分钟刻度。' }, new THREE.Vector3(0,0,1), 0.35);
+      watchGroup.add(chapterRing);
+
+      // Hour markers
+      for (let i = 0; i < 12; i++) {
+        const a = i * 30 * DEG;
+        const marker = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.42, 0.06), mat.lume);
+        marker.position.set(Math.cos(a) * (caseRadius - 0.55), Math.sin(a) * (caseRadius - 0.55), caseThickness / 2 - 0.02);
+        marker.rotation.z = a;
+        marker.userData.isLume = true;
+        registerPart(marker, { name: '夜光时标', category: '表盘', desc: 'Super-LumiNova 夜光材料，暗光下清晰读时。' }, new THREE.Vector3(0,0,1), 0.45);
+        watchGroup.add(marker);
+      }
+
+      // 4. Movement plates (front & back) with cutouts
+      function createPlate(z, thickness, matPlate, name) {
+        const shape = new THREE.Shape();
+        shape.absarc(0, 0, caseRadius - 0.38, 0, Math.PI * 2, false);
+        const cutouts = [
+          { r: 1.05, x: 0, y: 0 },
+          { r: 0.82, x: 1.55, y: 0.7 },
+          { r: 0.72, x: -1.35, y: 0.85 },
+          { r: 0.68, x: 0.2, y: -1.45 },
+          { r: 0.55, x: -1.1, y: -0.9 }
+        ];
+        cutouts.forEach(c => {
+          const h = new THREE.Path();
+          h.absarc(c.x, c.y, c.r, 0, Math.PI * 2, true);
+          shape.holes.push(h);
+        });
+        const g = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 2, curveSegments: 64 });
+        g.center();
+        const plate = new THREE.Mesh(g, matPlate);
+        plate.position.z = z;
+        plate.castShadow = true; plate.receiveShadow = true;
+        registerPart(plate, { name, category: '机芯', desc: '镂空主夹板/桥板，经倒角与日内瓦条纹打磨。' }, new THREE.Vector3(0,0,z > 0 ? 1 : -1), 0.75);
+        watchGroup.add(plate);
+        return plate;
+      }
+      createPlate(caseThickness/2 - 0.22, 0.14, mat.rhodium, '前夹板');
+      createPlate(-caseThickness/2 + 0.22, 0.14, mat.rhodium, '后夹板');
+
+      // 5. Gear train
+      const gearPositions = [
+        { x: 0, y: 0, r: 0.92, teeth: 60, thick: 0.16, mat: mat.brass, hole: 0.16, name: '中心轮', rate: 1/3600, desc: '中心轮每小时旋转一圈，直接驱动分针。' },
+        { x: 1.55, y: 0.7, r: 0.72, teeth: 48, thick: 0.14, mat: mat.steel, hole: 0.12, name: '三轮', rate: -4, desc: '第三轮将动力从中心轮传向四轮。' },
+        { x: -1.35, y: 0.85, r: 0.68, teeth: 42, thick: 0.14, mat: mat.steel, hole: 0.12, name: '四轮', rate: 12, desc: '第四轮每分钟旋转一圈，驱动秒针。' },
+        { x: 0.2, y: -1.45, r: 0.55, teeth: 36, thick: 0.12, mat: mat.yellowGold, hole: 0.10, name: '擒纵轮', rate: -48, desc: '擒纵轮控制能量释放节奏，是机械表的"心跳"来源。' },
+        { x: -1.1, y: -0.9, r: 1.05, teeth: 70, thick: 0.22, mat: mat.yellowGold, hole: 0.18, name: '发条盒', rate: 0.05, desc: '储存主发条动力，是机芯的能量来源。' }
+      ];
+
+      gearPositions.forEach(g => {
+        const gear = createGear(g.r, g.teeth, g.thick, g.mat, g.hole, g.name);
+        gear.position.set(g.x, g.y, 0);
+        gear.userData.info.desc = g.desc;
+        gear.userData.rate = g.rate;
+        gears.push(gear);
+        watchGroup.add(gear);
+
+        // Ruby bearing on top
+        const jewel = new THREE.Mesh(new THREE.CylinderGeometry(g.hole * 1.6, g.hole * 1.6, g.thick + 0.06, 16), mat.ruby);
+        jewel.rotation.x = Math.PI / 2;
+        jewel.position.set(g.x, g.y, g.thick/2 + 0.04);
+        registerPart(jewel, { name: '红宝石轴承', category: '机芯', desc: '人造红宝石轴承，减少摩擦并提高耐磨性。' }, new THREE.Vector3(0,0,1), 0.55);
+        watchGroup.add(jewel);
+        const jewelBack = jewel.clone();
+        jewelBack.position.z = -(g.thick/2 + 0.04);
+        registerPart(jewelBack, { name: '红宝石轴承', category: '机芯', desc: '人造红宝石轴承，减少摩擦并提高耐磨性。' }, new THREE.Vector3(0,0,-1), 0.55);
+        watchGroup.add(jewelBack);
+      });
+
+      // Mainspring barrel drum
+      const barrelTex = createSpiralTexture();
+      const barrelMat = new THREE.MeshStandardMaterial({ map: barrelTex, color: 0x8a7a50, metalness: 0.8, roughness: 0.35 });
+      const barrelDrum = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 0.26, 48, 1, true), barrelMat);
+      barrelDrum.rotation.x = Math.PI / 2;
+      barrelDrum.position.set(-1.1, -0.9, 0);
+      barrelDrum.castShadow = true;
+      registerPart(barrelDrum, { name: '发条盒鼓', category: '动力', desc: '内含盘绕的主发条，储存约 40 小时动力。' }, new THREE.Vector3(-0.3,-0.2,0), 0.6);
+      watchGroup.add(barrelDrum);
+
+      // Barrel cover
+      const barrelCover = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 0.02, 48), mat.yellowGold);
+      barrelCover.rotation.x = Math.PI / 2;
+      barrelCover.position.set(-1.1, -0.9, 0.13);
+      registerPart(barrelCover, { name: '发条盒盖', category: '动力', desc: '抛光黄铜发条盒盖，刻有品牌徽标区域。' }, new THREE.Vector3(0,0,1), 0.55);
+      watchGroup.add(barrelCover);
+
+      // 6. Balance wheel + hairspring
+      function createBalanceWheel(x, y) {
+        const bwGroup = new THREE.Group();
+        bwGroup.position.set(x, y, 0.45);
+
+        // Rim
+        const rimShape = new THREE.Shape();
+        rimShape.absarc(0, 0, 0.85, 0, Math.PI * 2, false);
+        const rimHole = new THREE.Path();
+        rimHole.absarc(0, 0, 0.72, 0, Math.PI * 2, true);
+        rimShape.holes.push(rimHole);
+        const rim = new THREE.Mesh(new THREE.ExtrudeGeometry(rimShape, { depth: 0.10, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.02, bevelSegments: 2, curveSegments: 48 }), mat.rhodium);
+        rim.castShadow = true;
+        bwGroup.add(rim);
+
+        // Arms
+        for (let i = 0; i < 4; i++) {
+          const a = i * 45 * DEG;
+          const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.82, 0.08), mat.rhodium);
+          arm.position.set(Math.cos(a) * 0.45, Math.sin(a) * 0.45, 0);
+          arm.rotation.z = a;
+          bwGroup.add(arm);
+        }
+
+        // Center screw
+        const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.18, 16), mat.screw);
+        screw.rotation.x = Math.PI / 2;
+        bwGroup.add(screw);
+
+        // Hairspring spiral
+        class SpiralCurve extends THREE.Curve {
+          constructor(turns) { super(); this.turns = turns; }
+          getPoint(t) {
+            const angle = t * this.turns * Math.PI * 2;
+            const r = 0.12 + t * 0.62;
+            return new THREE.Vector3(Math.cos(angle) * r, Math.sin(angle) * r, -0.02);
+          }
+        }
+        const spiral = new THREE.Mesh(new THREE.TubeGeometry(new SpiralCurve(3.5), 120, 0.018, 6, false), mat.steel);
+        bwGroup.add(spiral);
+
+        // Cock bridge over balance
+        const cockShape = new THREE.Shape();
+        cockShape.absarc(0, 0, 0.32, 0, Math.PI, false);
+        cockShape.lineTo(-0.5, 0.7); cockShape.lineTo(0.5, 0.7);
+        const cock = new THREE.Mesh(new THREE.ExtrudeGeometry(cockShape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.02, bevelSegments: 2 }), mat.rhodium);
+        cock.position.set(x, y + 0.45, 0.72);
+        cock.castShadow = true;
+        registerPart(cock, { name: '摆轮夹板', category: '调速', desc: '固定摆轮与游丝的桥板，经手工倒角抛光。' }, new THREE.Vector3(0,0.3,1), 0.8);
+        watchGroup.add(cock);
+
+        // Ruby endstone
+        const endstone = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), mat.ruby);
+        endstone.position.set(x, y + 0.45, 0.82);
+        registerPart(endstone, { name: '摆轮避震器宝石', category: '调速', desc: '保护摆轮轴尖免受冲击损伤的宝石轴承。' }, new THREE.Vector3(0,0,1), 0.9);
+        watchGroup.add(endstone);
+
+        registerPart(rim, { name: '摆轮', category: '调速', desc: '与游丝配合控制振动周期，决定走时精度。' }, new THREE.Vector3(0,0,1), 0.55);
+        registerPart(spiral, { name: '游丝', category: '调速', desc: '扁平游丝通过伸缩控制摆轮往复振荡。' }, new THREE.Vector3(0,0,1), 0.6);
+
+        oscillators.push({ group: bwGroup, phase: 0 });
+        watchGroup.add(bwGroup);
+      }
+      createBalanceWheel(0.2, -2.45);
+
+      // 7. Escapement pallet fork (simplified)
+      const palletShape = new THREE.Shape();
+      palletShape.moveTo(-0.15, -0.35);
+      palletShape.lineTo(0.15, -0.35);
+      palletShape.lineTo(0.08, 0.35);
+      palletShape.lineTo(-0.08, 0.35);
+      const pallet = new THREE.Mesh(new THREE.ExtrudeGeometry(palletShape, { depth: 0.10, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.015, bevelSegments: 2 }), mat.steel);
+      pallet.position.set(0.55, -1.85, 0.42);
+      pallet.castShadow = true;
+      registerPart(pallet, { name: '擒纵叉', category: '调速', desc: '在擒纵轮与摆轮之间传递脉冲，实现滴答声。' }, new THREE.Vector3(0.2,-0.3,1), 0.7);
+      watchGroup.add(pallet);
+      // Pallet jewels
+      const pj1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.12), mat.ruby);
+      pj1.position.set(-0.12, -0.32, 0.05);
+      pallet.add(pj1);
+      const pj2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.12), mat.ruby);
+      pj2.position.set(0.12, 0.32, 0.05);
+      pallet.add(pj2);
+
+      // 8. Hands
+      function createHand(width, length, colorMat, lumeMat, name) {
+        const g = new THREE.Group();
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(width * 0.35, width * 0.35, length * 0.78, 12), colorMat);
+        shaft.position.y = length * 0.38;
+        shaft.rotation.x = 0;
+        g.add(shaft);
+        const tip = new THREE.Mesh(new THREE.BoxGeometry(width * 0.55, length * 0.35, 0.04), lumeMat);
+        tip.position.y = length * 0.62;
+        tip.userData.isLume = true;
+        g.add(tip);
+        const balance = new THREE.Mesh(new THREE.BoxGeometry(width, length * 0.22, 0.04), colorMat);
+        balance.position.y = -length * 0.08;
+        g.add(balance);
+        // Center pipe
+        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(width * 0.4, width * 0.4, 0.25, 12), colorMat);
+        pipe.rotation.x = Math.PI / 2;
+        g.add(pipe);
+        return g;
+      }
+
+      hands.hour = createHand(0.16, 1.55, mat.yellowGold, mat.lume, '时针');
+      hands.minute = createHand(0.12, 2.25, mat.yellowGold, mat.lume, '分针');
+      hands.second = createHand(0.045, 2.55, mat.steel, mat.lume, '秒针');
+
+      hands.hour.position.z = caseThickness / 2 + 0.05;
+      hands.minute.position.z = caseThickness / 2 + 0.10;
+      hands.second.position.z = caseThickness / 2 + 0.15;
+
+      [hands.hour, hands.minute, hands.second].forEach((h, i) => {
+        h.userData = {
+          isPart: true,
+          info: { name: ['时针','分针','秒针'][i], category: '显示', desc: ['指示小时','指示分钟','指示秒钟，由四轮驱动'][i] },
+          homePos: h.position.clone(),
+          explodeDir: new THREE.Vector3(0, 0, 1),
+          explodeMult: 0.35
+        };
+        parts.push(h);
+        explodeParts.push(h);
+        watchGroup.add(h);
+      });
+
+      // 9. Screws on bridges
+      const screwPositions = [
+        [1.6, 1.5], [-2.0, 1.3], [1.8, -1.4], [-2.1, -1.5], [0.4, 1.4]
+      ];
+      screwPositions.forEach(([x, y]) => {
+        const screwHead = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.06, 12), mat.screw);
+        screwHead.rotation.x = Math.PI / 2;
+        screwHead.position.set(x, y, caseThickness / 2 - 0.14);
+        // slot
+        const slot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.025, 0.07), mat.darkMetal);
+        slot.position.set(x, y, caseThickness / 2 - 0.12);
+        registerPart(screwHead, { name: '蓝钢螺丝', category: '机芯', desc: '烤蓝螺丝，固定夹板并点缀机芯。' }, new THREE.Vector3(0,0,1), 0.6);
+        registerPart(slot, { name: '螺丝槽', category: '机芯', desc: '一字螺丝槽，用于拆装调校。' }, new THREE.Vector3(0,0,1), 0.6);
+        watchGroup.add(screwHead);
+        watchGroup.add(slot);
+      });
+
+      // 10. Crown
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.35, 20), mat.roseGold);
+      crown.rotation.z = Math.PI / 2;
+      crown.position.set(caseRadius + 0.15, 0, 0);
+      crown.castShadow = true;
+      registerPart(crown, { name: '表冠', category: '外观', desc: '用于上链与调校时间的玫瑰金表冠。' }, new THREE.Vector3(1,0,0), 0.5);
+      watchGroup.add(crown);
+
+      // Center all nicely
+      watchGroup.rotation.x = -0.25;
+      watchGroup.rotation.y = 0.15;
+    }
+
+    buildWatch();
+
+    // ===== Labels overlay =====
+    const labelsData = [
+      { name: '摆轮', objName: '摆轮' },
+      { name: '擒纵轮', objName: '擒纵轮' },
+      { name: '发条盒', objName: '发条盒' },
+      { name: '蓝宝石表镜', objName: '蓝宝石水晶表镜' },
+      { name: '红宝石轴承', objName: '红宝石轴承' }
+    ];
+    const labelsOverlay = document.getElementById('labels-overlay');
+    const labelEls = [];
+    labelsData.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'part-label';
+      el.textContent = item.name;
+      labelsOverlay.appendChild(el);
+      labelEls.push({ el, name: item.objName });
+    });
+
+    function updateLabels() {
+      labelEls.forEach(le => {
+        const target = parts.find(p => p.userData.info && p.userData.info.name === le.name);
+        if (!target) return;
+        const pos = new THREE.Vector3();
+        target.getWorldPosition(pos);
+        pos.y += 0.55;
+        pos.project(camera);
+        const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+        const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+        le.el.style.left = `${x}px`;
+        le.el.style.top = `${y}px`;
+        const visible = state.exploded || (state.selected && state.selected === target);
+        le.el.classList.toggle('active', visible && x > 0 && x < window.innerWidth && y > 0 && y < window.innerHeight);
+      });
+    }
+
+    // ===== Interaction =====
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const tooltip = document.getElementById('tooltip');
+    const infoPanel = document.getElementById('info-panel');
+    const infoTitle = document.getElementById('info-title');
+    const infoMeta = document.getElementById('info-meta');
+    const infoDesc = document.getElementById('info-desc');
+    const infoIcon = document.getElementById('info-icon');
+
+    function getIntersects(e) {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      return raycaster.intersectObjects(parts, true);
+    }
+
+    function setHighlight(mesh, on) {
+      if (!mesh) return;
+      if (on) {
+        if (!mesh.userData._origMat) {
+          mesh.userData._origMat = mesh.material;
+          if (Array.isArray(mesh.material)) {
+            mesh.material = mesh.material.map(m => m.clone());
+          } else if (mesh.material) {
+            mesh.material = mesh.material.clone();
+          }
+        }
+        const m = mesh.material;
+        if (Array.isArray(m)) {
+          m.forEach(sub => { sub.emissive.setHex(0x44aaff); sub.emissiveIntensity = 0.85; });
+        } else if (m) {
+          m.emissive.setHex(0x44aaff); m.emissiveIntensity = 0.85;
+        }
+      } else {
+        if (mesh.userData._origMat) {
+          mesh.material = mesh.userData._origMat;
+          mesh.userData._origMat = null;
+        }
+      }
+    }
+
+    window.addEventListener('mousemove', e => {
+      const hits = getIntersects(e);
+      let hit = null;
+      if (hits.length) {
+        hit = hits[0].object;
+        while (hit && (!hit.userData || !hit.userData.isPart)) hit = hit.parent;
+      }
+      if (state.hovered && state.hovered !== hit && state.hovered !== state.selected) {
+        setHighlight(state.hovered, false);
+      }
+      state.hovered = hit;
+      if (hit) {
+        if (hit !== state.selected) setHighlight(hit, true);
+        document.body.style.cursor = 'pointer';
+        tooltip.style.opacity = 1;
+        tooltip.style.left = e.clientX + 'px';
+        tooltip.style.top = e.clientY + 'px';
+        tooltip.textContent = hit.userData.info.name;
+      } else {
+        document.body.style.cursor = 'default';
+        tooltip.style.opacity = 0;
+      }
+    });
+
+    window.addEventListener('click', e => {
+      const hits = getIntersects(e);
+      let hit = null;
+      if (hits.length) {
+        hit = hits[0].object;
+        while (hit && (!hit.userData || !hit.userData.isPart)) hit = hit.parent;
+      }
+      if (hit) {
+        if (state.selected && state.selected !== hit) setHighlight(state.selected, false);
+        state.selected = hit;
+        setHighlight(hit, true);
+        showInfo(hit.userData.info);
+      } else if (!e.target.closest('#info-panel') && !e.target.closest('.controls')) {
+        if (state.selected) setHighlight(state.selected, false);
+        state.selected = null;
+        infoPanel.classList.remove('visible');
+      }
+    });
+
+    function showInfo(info) {
+      infoTitle.textContent = info.name;
+      infoMeta.textContent = info.category || 'COMPONENT';
+      infoDesc.textContent = info.desc || '';
+      infoIcon.textContent = info.category === '外观' ? '⌚' : info.category === '显示' ? '👁️' : info.category === '调速' ? '⚖️' : info.category === '动力' ? '⚡' : '⚙️';
+      infoPanel.classList.add('visible');
+    }
+
+    document.getElementById('info-close').addEventListener('click', () => {
+      if (state.selected) setHighlight(state.selected, false);
+      state.selected = null;
+      infoPanel.classList.remove('visible');
+    });
+
+    // ===== Controls =====
+    const btnExplode = document.getElementById('btn-explode');
+    const btnAuto = document.getElementById('btn-auto');
+    const btnLume = document.getElementById('btn-lume');
+    const btnReset = document.getElementById('btn-reset');
+
+    btnExplode.addEventListener('click', () => {
+      state.exploded = !state.exploded;
+      btnExplode.classList.toggle('active', state.exploded);
+      btnExplode.textContent = state.exploded ? '🔧 组装视图' : '💥 爆炸视图';
+    });
+
+    btnAuto.addEventListener('click', () => {
+      state.autoRotate = !state.autoRotate;
+      controls.autoRotate = state.autoRotate;
+      btnAuto.classList.toggle('active', state.autoRotate);
+    });
+
+    btnLume.addEventListener('click', () => {
+      state.lumeOn = !state.lumeOn;
+      btnLume.classList.toggle('active', state.lumeOn);
+      mat.lume.emissiveIntensity = state.lumeOn ? CONFIG.lumeIntensity : 0.05;
+      mat.lumeDim.emissiveIntensity = state.lumeOn ? 0.15 : 0.01;
+      lumeLight.intensity = state.lumeOn ? 2 : 0.1;
+    });
+
+    btnReset.addEventListener('click', () => {
+      controls.reset();
+      camera.position.set(0, 0, 14);
+      watchGroup.rotation.set(-0.12, 0.08, 0);
+    });
+
+    // ===== Animation =====
+    const clock = new THREE.Clock();
+
+    function updateTime(now) {
+      const ms = now.getMilliseconds();
+      const s = now.getSeconds() + ms / 1000;
+      const m = now.getMinutes() + s / 60;
+      const h = (now.getHours() % 12) + m / 60;
+
+      // Smooth sweep hands
+      hands.second.rotation.z = -s * 6 * DEG;
+      hands.minute.rotation.z = -m * 6 * DEG;
+      hands.hour.rotation.z = -h * 30 * DEG;
+
+      // Gear train
+      const t = s * DEG;
+      gears.forEach(g => {
+        g.rotation.z = t * g.userData.rate;
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      const time = clock.getElapsedTime();
+
+      if (!state.paused) {
+        updateTime(new Date());
+      }
+
+      // Balance wheel oscillation ~4Hz
+      oscillators.forEach(o => {
+        o.group.rotation.z = Math.sin(time * 8 * Math.PI) * 0.45;
+      });
+
+      // Exploded view interpolation
+      const target = state.exploded ? 1 : 0;
+      if (Math.abs(state.explodeFactor - target) > 0.001) {
+        state.explodeFactor += (target - state.explodeFactor) * 4 * dt;
+      } else {
+        state.explodeFactor = target;
+      }
+      const ef = state.explodeFactor * CONFIG.explodeDistance;
+      explodeParts.forEach(p => {
+        if (!p.userData.homePos) return;
+        const dir = p.userData.explodeDir || new THREE.Vector3(0, 0, 1);
+        const mult = p.userData.explodeMult || 1;
+        p.position.copy(p.userData.homePos).add(dir.clone().multiplyScalar(ef * mult));
+      });
+
+      // Subtle watch floating
+      watchGroup.position.y = Math.sin(time * 0.6) * 0.08;
+
+      controls.update();
+      updateLabels();
+      composer.render();
+    }
+
+    // ===== Resize =====
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      composer.setSize(window.innerWidth, window.innerHeight);
+      bloomPass.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ===== Init =====
+    document.getElementById('loading').classList.add('hidden');
+    animate();
+  </script>
+</body>
+</html>

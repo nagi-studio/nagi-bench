@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D 镂空机械腕表</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel-bg: rgba(15, 15, 25, 0.95);
+    --gold: #c8a45a;
+    --gold-dim: #8a7040;
+    --text: #d0d0d0;
+    --text-dim: #888;
+    --accent: #e8c878;
+    --lume: #b8e8c0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    overflow: hidden;
+    font-family: 'Crimson Text', 'Georgia', 'Segoe UI', serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
+  }
+  body:active { cursor: grabbing; }
+  body.pointer { cursor: pointer; }
+
+  #canvas-container {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+  canvas { display: block; }
+
+  /* 背景渐变 */
+  #bg-gradient {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background:
+      radial-gradient(ellipse at 50% 40%, rgba(30,30,60,0.6) 0%, transparent 70%),
+      radial-gradient(ellipse at 50% 100%, rgba(10,10,30,0.8) 0%, transparent 50%),
+      radial-gradient(ellipse at 20% 20%, rgba(20,20,50,0.4) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  /* 顶部标题栏 */
+  #title-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    padding: 24px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+  }
+  #title-bar > * { pointer-events: auto; }
+
+  #watch-title {
+    color: var(--text);
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+  #watch-title span {
+    display: block;
+    font-size: 12px;
+    color: var(--gold);
+    letter-spacing: 6px;
+    margin-top: 2px;
+    font-weight: 300;
+  }
+
+  /* 控制按钮 */
+  #controls {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    gap: 12px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 40px;
+    padding: 6px;
+    backdrop-filter: blur(20px);
+  }
+
+  .ctrl-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 10px 20px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+  }
+  .ctrl-btn:hover { color: var(--text); }
+  .ctrl-btn.active {
+    background: rgba(200,164,90,0.15);
+    color: var(--gold);
+  }
+  .ctrl-btn svg {
+    width: 16px;
+    height: 16px;
+    vertical-align: -3px;
+    margin-right: 4px;
+  }
+
+  /* 信息面板 */
+  #info-panel {
+    position: fixed;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    background: var(--panel-bg);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px;
+    width: 240px;
+    backdrop-filter: blur(20px);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+  }
+  #info-panel.visible { opacity: 1; }
+
+  #info-panel h3 {
+    color: var(--gold);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  #info-panel .part-name {
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 400;
+    margin-bottom: 6px;
+  }
+  #info-panel .part-desc {
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.6;
+    font-weight: 300;
+  }
+  #info-panel .part-material {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 3px 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    color: var(--text-dim);
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+
+  /* 提示标签 */
+  #tooltip {
+    position: fixed;
+    z-index: 20;
+    pointer-events: none;
+    background: rgba(0,0,0,0.85);
+    border: 1px solid rgba(200,164,90,0.4);
+    border-radius: 8px;
+    padding: 6px 14px;
+    color: var(--gold);
+    font-size: 12px;
+    letter-spacing: 2px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    transform: translate(-50%, -130%);
+    white-space: nowrap;
+  }
+  #tooltip.visible { opacity: 1; }
+  #tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    background: rgba(0,0,0,0.85);
+    border-right: 1px solid rgba(200,164,90,0.4);
+    border-bottom: 1px solid rgba(200,164,90,0.4);
+  }
+
+  /* 响应式 */
+  @media (max-width: 768px) {
+    #info-panel { right: 8px; width: 200px; padding: 16px; }
+    #info-panel .part-name { font-size: 15px; }
+    #title-bar { padding: 16px; }
+    #watch-title { font-size: 17px; }
+    .ctrl-btn { padding: 8px 14px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="bg-gradient"></div>
+<div id="canvas-container"></div>
+
+<div id="title-bar">
+  <div id="watch-title">
+    Calibre Squelette
+    <span>Tourbillon · Manufacture</span>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<div id="info-panel">
+  <h3>组件详情</h3>
+  <div class="part-name"></div>
+  <div class="part-desc"></div>
+  <div class="part-material"></div>
+</div>
+
+<div id="controls">
+  <button class="ctrl-btn active" id="btn-normal" onclick="setView('normal')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+    正常视图
+  </button>
+  <button class="ctrl-btn" id="btn-explode" onclick="setView('explode')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="3" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="8" y1="6" x2="11" y2="9"/><line x1="13" y1="15" x2="16" y2="18"/><line x1="16" y1="6" x2="13" y2="9"/><line x1="11" y1="15" x2="8" y2="18"/></svg>
+    爆炸视图
+  </button>
+  <button class="ctrl-btn" id="btn-auto" onclick="toggleAutoRotate()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
+    自动旋转
+  </button>
+  <button class="ctrl-btn" id="btn-reset" onclick="resetCamera()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 12"/></svg>
+    重置视角
+  </button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ==================== 场景初始化 ====================
+const container = document.getElementById('canvas-container');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.3;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x080810);
+scene.fog = new THREE.Fog(0x080810, 30, 120);
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.5, 200);
+camera.position.set(18, 14, 28);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, -0.5, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 12;
+controls.maxDistance = 65;
+controls.maxPolarAngle = Math.PI * 0.7;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.4;
+controls.update();
+
+// ==================== 灯光 ====================
+// 环境光
+scene.add(new THREE.AmbientLight(0x1a1a30, 0.6));
+
+// 主光源（模拟摄影棚主灯）
+const keyLight = new THREE.DirectionalLight(0xffeedd, 12);
+keyLight.position.set(15, 20, 10);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.width = 2048;
+keyLight.shadow.mapSize.height = 2048;
+keyLight.shadow.camera.near = 0.5;
+keyLight.shadow.camera.far = 100;
+keyLight.shadow.camera.left = -30;
+keyLight.shadow.camera.right = 30;
+keyLight.shadow.camera.top = 30;
+keyLight.shadow.camera.bottom = -30;
+keyLight.shadow.bias = -0.0001;
+keyLight.shadow.normalBias = 0.02;
+scene.add(keyLight);
+
+// 补光（冷色调）
+const fillLight = new THREE.DirectionalLight(0xaaccff, 4);
+fillLight.position.set(-10, 5, -5);
+scene.add(fillLight);
+
+// 轮廓光（背光）
+const rimLight = new THREE.DirectionalLight(0xffffff, 8);
+rimLight.position.set(0, -2, -15);
+scene.add(rimLight);
+
+// 顶部高光
+const topLight = new THREE.DirectionalLight(0xffffff, 6);
+topLight.position.set(0, 25, 0);
+scene.add(topLight);
+
+// 装饰点光源（模拟珠宝射灯）
+const pointLights = [];
+for (let i = 0; i < 4; i++) {
+  const angle = (i / 4) * Math.PI * 2;
+  const pl = new THREE.PointLight(0xffeedd, 30, 30, 1.5);
+  pl.position.set(Math.cos(angle) * 18, 3, Math.sin(angle) * 18);
+  scene.add(pl);
+  pointLights.push(pl);
+}
+
+// ==================== 环境贴图（反射用） ====================
+function createEnvMap() {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+
+  // 渐变天球
+  const skyGeo = new THREE.SphereGeometry(60, 32, 32);
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    uniforms: {
+      topColor: { value: new THREE.Color(0x334466) },
+      midColor: { value: new THREE.Color(0x1a1a30) },
+      botColor: { value: new THREE.Color(0x0a0a18) },
+    },
+    vertexShader: `
+      varying vec3 vWPos;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWPos = wp.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 topColor, midColor, botColor;
+      varying vec3 vWPos;
+      void main() {
+        float h = normalize(vWPos).y;
+        vec3 col = h > 0.0 ? mix(midColor, topColor, h) : mix(midColor, botColor, -h);
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  });
+  envScene.add(new THREE.Mesh(skyGeo, skyMat));
+
+  // 环境中的亮点（产生反射高光）
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const h = (Math.random() - 0.5) * 20;
+    const r = 25 + Math.random() * 20;
+    const spot = new THREE.Mesh(
+      new THREE.PlaneGeometry(4 + Math.random() * 6, 4 + Math.random() * 6),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color().setHSL(0.08 + Math.random() * 0.12, 0.2, 0.3 + Math.random() * 0.7),
+        side: THREE.DoubleSide,
+      })
+    );
+    spot.position.set(Math.cos(a) * r, h, Math.sin(a) * r);
+    spot.lookAt(0, 0, 0);
+    envScene.add(spot);
+  }
+
+  const rt = pmrem.fromScene(envScene, 0.04);
+  rt.texture.colorSpace = THREE.SRGBColorSpace;
+  envScene.clear();
+  pmrem.dispose();
+  return rt.texture;
+}
+const envMap = createEnvMap();
+scene.environment = envMap;
+scene.backgroundIntensity = 0.1;
+
+// ==================== 材质 ====================
+const matSteel = new THREE.MeshStandardMaterial({
+  color: 0xd0d0d8, metalness: 0.92, roughness: 0.25, envMapIntensity: 1.2,
+});
+const matSteelDark = new THREE.MeshStandardMaterial({
+  color: 0x909098, metalness: 0.9, roughness: 0.35, envMapIntensity: 1.0,
+});
+const matSteelPolished = new THREE.MeshStandardMaterial({
+  color: 0xe8e8f0, metalness: 0.95, roughness: 0.12, envMapIntensity: 1.5,
+});
+const matBrass = new THREE.MeshStandardMaterial({
+  color: 0xd4a854, metalness: 0.94, roughness: 0.18, envMapIntensity: 1.3,
+});
+const matBrassLight = new THREE.MeshStandardMaterial({
+  color: 0xe8c878, metalness: 0.93, roughness: 0.15, envMapIntensity: 1.4,
+});
+const matRuby = new THREE.MeshPhysicalMaterial({
+  color: 0xcc1144, metalness: 0.05, roughness: 0.08, clearcoat: 0.5,
+  clearcoatRoughness: 0.1, emissive: 0x330011, emissiveIntensity: 0.4,
+  envMapIntensity: 1.8,
+});
+const matGold = new THREE.MeshStandardMaterial({
+  color: 0xf0c860, metalness: 0.98, roughness: 0.08, envMapIntensity: 1.6,
+});
+const matCrystal = new THREE.MeshPhysicalMaterial({
+  color: 0xddeeff, metalness: 0.0, roughness: 0.05, transparent: true,
+  opacity: 0.28, envMapIntensity: 1.2, clearcoat: 1.0, clearcoatRoughness: 0.05,
+  specularIntensity: 1.5, specularColor: new THREE.Color(0xffffff),
+});
+const matLume = new THREE.MeshStandardMaterial({
+  color: 0xc8f0d0, metalness: 0.05, roughness: 0.3, emissive: 0x88cc90,
+  emissiveIntensity: 1.8,
+});
+const matBlackPolish = new THREE.MeshStandardMaterial({
+  color: 0x1a1a22, metalness: 0.7, roughness: 0.2, envMapIntensity: 0.8,
+});
+
+// ==================== 纹理生成 ====================
+function createPerlageTexture() {
+  const s = 512, c = document.createElement('canvas');
+  c.width = c.height = s;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#a0a0a8';
+  ctx.fillRect(0, 0, s, s);
+  const sp = 30, r = 13;
+  for (let row = 0; row < s / sp + 2; row++) {
+    const ox = (row % 2) * sp / 2;
+    for (let col = 0; col < s / sp + 2; col++) {
+      const cx = col * sp + ox, cy = row * sp;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, '#c4c4cc');
+      g.addColorStop(0.5, '#b0b0b8');
+      g.addColorStop(0.85, '#9a9aa2');
+      g.addColorStop(1, '#888890');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1.5, 1.5);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function createGenevaTexture() {
+  const s = 512, c = document.createElement('canvas');
+  c.width = c.height = s;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9a9aa2';
+  ctx.fillRect(0, 0, s, s);
+  const sw = s / 24;
+  for (let i = 0; i < 24; i++) {
+    const y = i * sw;
+    const g = ctx.createLinearGradient(0, y, 0, y + sw);
+    g.addColorStop(0, '#a0a0a8');
+    g.addColorStop(0.25, '#c0c0c8');
+    g.addColorStop(0.5, '#d0d0d8');
+    g.addColorStop(0.75, '#c0c0c8');
+    g.addColorStop(1, '#a0a0a8');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y, s, sw);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const perlageTex = createPerlageTexture();
+const genevaTex = createGenevaTexture();
+
+// 带纹理的钢板材质
+const matMainPlate = matSteelDark.clone();
+matMainPlate.map = perlageTex;
+matMainPlate.roughness = 0.45;
+
+const matBridge = matSteel.clone();
+matBridge.map = genevaTex;
+matBridge.roughness = 0.22;
+
+// ==================== 辅助函数 ====================
+function createGearShape(outerR, innerR, teeth, hubR = 0) {
+  const shape = new THREE.Shape();
+  const aPerTooth = (Math.PI * 2) / teeth;
+
+  for (let i = 0; i < teeth; i++) {
+    const a1 = i * aPerTooth;
+    const a2 = a1 + aPerTooth * 0.22;
+    const a3 = a1 + aPerTooth * 0.35;
+    const a4 = a1 + aPerTooth * 0.65;
+    const a5 = a1 + aPerTooth * 0.78;
+
+    if (i === 0) shape.moveTo(Math.cos(a1) * innerR, Math.sin(a1) * innerR);
+    else shape.lineTo(Math.cos(a1) * innerR, Math.sin(a1) * innerR);
+
+    shape.lineTo(Math.cos(a2) * innerR, Math.sin(a2) * innerR);
+    shape.lineTo(Math.cos(a3) * outerR, Math.sin(a3) * outerR);
+    shape.lineTo(Math.cos(a4) * outerR, Math.sin(a4) * outerR);
+    shape.lineTo(Math.cos(a5) * innerR, Math.sin(a5) * innerR);
+  }
+  shape.closePath();
+
+  // 中心孔
+  const h = new THREE.Path();
+  h.absarc(0, 0, hubR || innerR * 0.22, 0, Math.PI * 2, true);
+  shape.holes.push(h);
+
+  // 辐条镂空（仅大齿轮）
+  if (innerR > 3 && teeth > 15) {
+    const spokeR = (innerR + (hubR || innerR * 0.22)) / 2;
+    const cutR = (innerR - (hubR || innerR * 0.22)) * 0.32;
+    const nSpokes = 4;
+    for (let i = 0; i < nSpokes; i++) {
+      const a = (i / nSpokes) * Math.PI * 2 + Math.PI / nSpokes;
+      const sh = new THREE.Path();
+      sh.absarc(Math.cos(a) * spokeR, Math.sin(a) * spokeR, cutR, 0, Math.PI * 2, true);
+      shape.holes.push(sh);
+    }
+  }
+  return shape;
+}
+
+function createGearMesh(outerR, innerR, teeth, thickness, material, hubR) {
+  const shape = createGearShape(outerR, innerR, teeth, hubR);
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: thickness, bevelEnabled: true,
+    bevelThickness: thickness * 0.08, bevelSize: thickness * 0.04, bevelSegments: 3,
+  });
+  const mesh = new THREE.Mesh(geom, material);
+  mesh.position.y = -thickness / 2;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createRing(outerR, innerR, depth, material) {
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, outerR, 0, Math.PI * 2, false);
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, innerR, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth, bevelEnabled: true, bevelThickness: 0.15, bevelSize: 0.1, bevelSegments: 3,
+  });
+  const mesh = new THREE.Mesh(geom, material);
+  mesh.position.y = -depth / 2;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+// ==================== 创建表壳 ====================
+const watchGroup = new THREE.Group();
+scene.add(watchGroup);
+
+// --- 表壳中框 ---
+const caseMiddle = createRing(21, 17.5, 3.2, matSteelPolished);
+caseMiddle.name = '表壳中框';
+caseMiddle.userData = {
+  name: '表壳中框',
+  desc: '904L精钢表壳中框，经过精细抛光和拉丝处理。保护内部机芯并提供结构支撑。',
+  material: '904L 精钢',
+};
+watchGroup.add(caseMiddle);
+
+// --- 表圈 ---
+const bezelShape = new THREE.Shape();
+// 使用LatheGeometry创建表圈轮廓
+const bezelPoints = [
+  new THREE.Vector2(18.2, 0), new THREE.Vector2(18.8, 0.2),
+  new THREE.Vector2(19.3, 0.6), new THREE.Vector2(19.5, 1.0),
+  new THREE.Vector2(20.8, 1.3), new THREE.Vector2(20.6, 1.8),
+  new THREE.Vector2(19.5, 2.0), new THREE.Vector2(18.5, 2.0),
+  new THREE.Vector2(18.5, 2.5), new THREE.Vector2(20.8, 2.5),
+  new THREE.Vector2(20.8, 0),
+];
+const bezelGeom = new THREE.LatheGeometry(bezelPoints, 96);
+const bezel = new THREE.Mesh(bezelGeom, matSteelPolished);
+bezel.position.y = 1.6;
+bezel.name = '表圈';
+bezel.userData = {
+  name: '表圈',
+  desc: '抛光精钢表圈，固定蓝宝石水晶玻璃表镜。斜面设计增添优雅线条。',
+  material: '904L 精钢 · 抛光',
+};
+bezel.castShadow = true;
+bezel.receiveShadow = true;
+watchGroup.add(bezel);
+
+// --- 表底盖 ---
+const caseBackOuter = createRing(20.8, 16.5, 0.6, matSteelPolished);
+caseBackOuter.position.y = -3.3;
+caseBackOuter.name = '表底盖';
+caseBackOuter.userData = {
+  name: '表底盖',
+  desc: '蓝宝石水晶透底表背，展示精美机芯运转。',
+  material: '904L 精钢 · 蓝宝石水晶',
+};
+watchGroup.add(caseBackOuter);
+
+// 透底水晶
+const displayCrystal = new THREE.Mesh(
+  new THREE.CylinderGeometry(16.2, 16.2, 0.3, 64),
+  matCrystal.clone(),
+);
+displayCrystal.position.y = -3.3;
+displayCrystal.userData = {
+  name: '透底水晶',
+  desc: '蓝宝石水晶玻璃底盖，具有防刮擦性能，展现机芯全貌。',
+  material: '蓝宝石水晶玻璃',
+};
+watchGroup.add(displayCrystal);
+
+// --- 表耳 ---
+function createLug() {
+  const lugGroup = new THREE.Group();
+  // 使用RoundedBox替代方案
+  const shape = new THREE.Shape();
+  const w = 3.0, l = 5.5;
+  shape.moveTo(-w / 2, 0);
+  shape.quadraticCurveTo(-w / 2 + 0.8, l, 0, l + 0.3);
+  shape.quadraticCurveTo(w / 2 - 0.8, l, w / 2, 0);
+  shape.closePath();
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: 1.8, bevelEnabled: true, bevelThickness: 0.4, bevelSize: 0.3, bevelSegments: 5,
+  });
+  const mesh = new THREE.Mesh(geom, matSteelPolished);
+  mesh.position.set(0, -1.8 / 2, 0);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  lugGroup.add(mesh);
+
+  // 弹簧杆孔
+  const pinHole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.35, 0.35, 1.4, 16),
+    matSteelDark,
+  );
+  pinHole.rotation.x = Math.PI / 2;
+  pinHole.position.set(0, 0.2, l + 1.5);
+  pinHole.userData = { name: '弹簧杆', desc: '用于连接表带的弹簧杆', material: '精钢' };
+  lugGroup.add(pinHole);
+
+  return lugGroup;
+}
+
+const lugPositions = [
+  { x: 7.5, z: 21.5, ry: 0 }, { x: -7.5, z: 21.5, ry: 0 },
+  { x: 7.5, z: -21.5, ry: Math.PI }, { x: -7.5, z: -21.5, ry: Math.PI },
+];
+lugPositions.forEach(p => {
+  const lug = createLug();
+  lug.position.set(p.x, -2.6, p.z);
+  lug.rotation.y = p.ry;
+  lug.name = '表耳';
+  lug.userData = { name: '表耳', desc: '一体式表耳，优雅过渡至表带', material: '904L 精钢' };
+  watchGroup.add(lug);
+});
+
+// --- 表冠 ---
+function createCrown() {
+  const crownGrp = new THREE.Group();
+  // 表冠主体
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.2, 2.4, 3.5, 40),
+    matSteelPolished,
+  );
+  body.castShadow = true;
+  crownGrp.add(body);
+
+  // 凹槽环
+  for (let i = 0; i < 7; i++) {
+    const y = -1.75 + (i + 0.5) * 3.5 / 7;
+    const groove = new THREE.Mesh(
+      new THREE.TorusGeometry(2.25, 0.15, 8, 40),
+      matSteelDark,
+    );
+    groove.position.y = y;
+    groove.rotation.x = Math.PI / 2;
+    crownGrp.add(groove);
+  }
+
+  // 表冠顶盖
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.2, 2.2, 0.3, 40),
+    matSteelPolished,
+  );
+  cap.position.y = 1.9;
+  cap.castShadow = true;
+  crownGrp.add(cap);
+
+  // 顶部logo凹槽
+  const logoRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.9, 0.15, 8, 32),
+    matSteel,
+  );
+  logoRing.position.y = 2.1;
+  logoRing.rotation.x = Math.PI / 2;
+  crownGrp.add(logoRing);
+
+  return crownGrp;
+}
+
+const crownGroup = new THREE.Group();
+crownGroup.name = '表冠';
+crownGroup.userData = {
+  name: '表冠',
+  desc: '旋入式表冠，带凹槽防滑设计。用于上链和调校时间。',
+  material: '904L 精钢 · 抛光',
+};
+const crownMesh = createCrown();
+crownGroup.add(crownMesh);
+crownGroup.position.set(22, -1.6, 0);
+crownGroup.rotation.z = -Math.PI / 2;
+watchGroup.add(crownGroup);
+
+// 表冠轴
+const stemGeom = new THREE.CylinderGeometry(0.7, 0.9, 4, 20);
+const stem = new THREE.Mesh(stemGeom, matSteel);
+stem.rotation.z = Math.PI / 2;
+stem.position.set(18.5, -1.6, 0);
+stem.name = '表冠轴';
+stem.userData = { name: '表冠轴', desc: '连接表冠与机芯的上链柄轴', material: '精钢' };
+watchGroup.add(stem);
+
+// ==================== 蓝宝石表镜 ====================
+const crystalGeom = new THREE.SphereGeometry(18.3, 80, 40, 0, Math.PI * 2, 0, Math.PI * 0.155);
+const crystal = new THREE.Mesh(crystalGeom, matCrystal);
+crystal.position.y = 2.15;
+crystal.name = '蓝宝石表镜';
+crystal.userData = {
+  name: '蓝宝石水晶表镜',
+  desc: '双面防反光处理蓝宝石水晶玻璃，莫氏硬度9，仅次于钻石。',
+  material: '蓝宝石水晶 · 防反光涂层',
+};
+watchGroup.add(crystal);
+
+// ==================== 机芯组件 ====================
+const movementRoot = new THREE.Group();
+movementRoot.name = 'movementRoot';
+watchGroup.add(movementRoot);
+
+// --- 主夹板 ---
+const mainPlate = new THREE.Mesh(
+  new THREE.CylinderGeometry(16.8, 16.8, 1.0, 80),
+  matMainPlate,
+);
+mainPlate.position.y = -1.6;
+mainPlate.name = '主夹板';
+mainPlate.userData = {
+  name: '主夹板',
+  desc: '机芯基础结构，承载所有齿轮系和功能模块。饰以精美鱼鳞纹（Perlage）打磨。',
+  material: '黄铜镀铑 · 鱼鳞纹打磨',
+};
+mainPlate.castShadow = true;
+mainPlate.receiveShadow = true;
+movementRoot.add(mainPlate);
+
+// 主夹板上的珠宝轴承
+for (let i = 0; i < 8; i++) {
+  const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+  const dist = 5 + (i % 3) * 4;
+  const jewel = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 20), matRuby);
+  jewel.position.set(Math.cos(a) * dist, -1.05, Math.sin(a) * dist);
+  jewel.name = '红宝石轴承';
+  jewel.userData = {
+    name: '红宝石轴承',
+    desc: '合成红宝石轴承（Jewel），减少齿轮枢轴的摩擦和磨损。',
+    material: '合成红宝石',
+  };
+  movementRoot.add(jewel);
+
+  // 黄金套筒
+  const chaton = new THREE.Mesh(
+    new THREE.TorusGeometry(0.65, 0.12, 8, 20),
+    matGold,
+  );
+  chaton.position.copy(jewel.position);
+  chaton.rotation.x = Math.PI / 2;
+  chaton.name = '黄金套筒';
+  chaton.userData = { name: '黄金套筒', desc: 'K金套筒（Chaton），固定红宝石轴承', material: '18K 黄金' };
+  movementRoot.add(chaton);
+}
+
+// --- 齿轮系 ---
+const gearY = -1.05;
+const gearGroup = new THREE.Group();
+gearGroup.name = 'gearGroup';
+movementRoot.add(gearGroup);
+
+// 发条盒
+const barrelOuter = new THREE.Mesh(
+  new THREE.CylinderGeometry(4.5, 4.5, 1.8, 60),
+  matBrass,
+);
+barrelOuter.position.set(8, gearY, 3);
+barrelOuter.name = '发条盒';
+barrelOuter.userData = {
+  name: '发条盒',
+  desc: '容纳主发条的动力储存装置。提供约72小时动力储备。',
+  material: '黄铜',
+};
+barrelOuter.castShadow = true;
+gearGroup.add(barrelOuter);
+
+// 发条盒盖（棘轮）
+const ratchetWheel = createGearMesh(4.2, 3.8, 30, 0.35, matBrassLight, 1.0);
+ratchetWheel.position.set(8, gearY + 0.9, 3);
+ratchetWheel.name = '棘轮';
+ratchetWheel.userData = {
+  name: '大钢轮（棘轮）',
+  desc: '上链时与棘爪配合，防止发条反转。',
+  material: '黄铜',
+};
+gearGroup.add(ratchetWheel);
+
+// 中心轮
+const centerWheel = createGearMesh(5.5, 5.0, 48, 0.4, matBrass, 1.2);
+centerWheel.position.set(0, gearY, 0);
+centerWheel.name = '中心轮';
+centerWheel.userData = {
+  name: '中心轮（二轮）',
+  desc: '齿轮系中的第二齿轮，驱动分针。与发条盒齿轮啮合。',
+  material: '黄铜',
+};
+gearGroup.add(centerWheel);
+
+// 三轮
+const thirdWheel = createGearMesh(4.0, 3.5, 36, 0.3, matBrass, 0.9);
+thirdWheel.position.set(-4, gearY, -4);
+thirdWheel.name = '三轮';
+thirdWheel.userData = {
+  name: '三轮（过轮）',
+  desc: '将动力从中心轮传递至四轮，实现齿轮减速。',
+  material: '黄铜',
+};
+gearGroup.add(thirdWheel);
+
+// 四轮（秒轮）
+const fourthWheel = createGearMesh(3.2, 2.8, 28, 0.25, matBrass, 0.7);
+fourthWheel.position.set(5, gearY, -7);
+fourthWheel.name = '四轮';
+fourthWheel.userData = {
+  name: '四轮（秒轮）',
+  desc: '驱动秒针，每秒前进一格。与擒纵轮直接啮合。',
+  material: '黄铜',
+};
+gearGroup.add(fourthWheel);
+
+// --- 擒纵机构 ---
+const escapementGroup = new THREE.Group();
+escapementGroup.name = 'escapementGroup';
+movementRoot.add(escapementGroup);
+
+// 擒纵轮（特殊齿形）
+function createEscapeWheelShape(radius, teeth) {
+  const shape = new THREE.Shape();
+  for (let i = 0; i < teeth; i++) {
+    const a = (i / teeth) * Math.PI * 2;
+    const na = ((i + 1) / teeth) * Math.PI * 2;
+    const ma = (a + na) / 2;
+    const tipR = radius * 1.3;
+    const valleyR = radius * 0.65;
+
+    if (i === 0) shape.moveTo(Math.cos(a) * valleyR, Math.sin(a) * valleyR);
+    else shape.lineTo(Math.cos(a) * valleyR, Math.sin(a) * valleyR);
+
+    shape.lineTo(Math.cos(ma) * tipR, Math.sin(ma) * tipR);
+  }
+  shape.closePath();
+  const h = new THREE.Path();
+  h.absarc(0, 0, radius * 0.2, 0, Math.PI * 2, true);
+  shape.holes.push(h);
+  return shape;
+}
+
+const escShape = createEscapeWheelShape(2.5, 15);
+const escGeom = new THREE.ExtrudeGeometry(escShape, {
+  depth: 0.2, bevelEnabled: true, bevelThickness: 0.03, bevelSegments: 3,
+});
+const escapeWheel = new THREE.Mesh(escGeom, matSteelPolished);
+escapeWheel.position.set(-2, gearY + 0.15, -9);
+escapeWheel.name = '擒纵轮';
+escapeWheel.userData = {
+  name: '擒纵轮（Escapement Wheel）',
+  desc: '特殊齿形的擒纵轮，与擒纵叉配合将连续旋转转化为间歇运动。',
+  material: '精钢 · 镜面抛光',
+};
+escapeWheel.castShadow = true;
+escapementGroup.add(escapeWheel);
+
+// 擒纵叉
+function createPalletFork() {
+  const grp = new THREE.Group();
+  // 叉体
+  const forkShape = new THREE.Shape();
+  const fl = 4.5, fw = 0.45;
+  forkShape.moveTo(-fl, -fw);
+  forkShape.lineTo(fl, -fw);
+  forkShape.lineTo(fl + 0.6, -fw - 0.5);
+  forkShape.lineTo(fl + 0.6, -fw - 1.2);
+  forkShape.lineTo(fl + 0.2, -fw - 1.5);
+  forkShape.lineTo(fl - 0.2, -fw - 1.5);
+  forkShape.lineTo(fl - 0.6, -fw - 1.2);
+  forkShape.lineTo(fl - 0.6, -fw - 0.5);
+  forkShape.lineTo(fl, -fw);
+  forkShape.lineTo(fl, fw);
+  forkShape.lineTo(fl + 0.6, fw + 0.5);
+  forkShape.lineTo(fl + 0.6, fw + 1.2);
+  forkShape.lineTo(fl + 0.2, fw + 1.5);
+  forkShape.lineTo(fl - 0.2, fw + 1.5);
+  forkShape.lineTo(fl - 0.6, fw + 1.2);
+  forkShape.lineTo(fl - 0.6, fw + 0.5);
+  forkShape.lineTo(fl, fw);
+  forkShape.closePath();
+
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, 0.35, 0, Math.PI * 2, true);
+  forkShape.holes.push(hole);
+
+  const geom = new THREE.ExtrudeGeometry(forkShape, {
+    depth: 0.2, bevelEnabled: true, bevelThickness: 0.03, bevelSegments: 3,
+  });
+  const mesh = new THREE.Mesh(geom, matSteelPolished);
+  mesh.position.y = -0.1;
+  mesh.castShadow = true;
+  grp.add(mesh);
+
+  // 叉瓦
+  for (let s = -1; s <= 1; s += 2) {
+    const jewel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 0.15, 0.8),
+      matRuby,
+    );
+    jewel.position.set(s * 4.2, 0, 0);
+    grp.add(jewel);
+  }
+  return grp;
+}
+
+const palletFork = createPalletFork();
+palletFork.position.set(3.5, gearY + 0.1, -9);
+palletFork.name = '擒纵叉';
+palletFork.userData = {
+  name: '擒纵叉（Pallet Fork）',
+  desc: '擒纵机构核心组件。红宝石叉瓦交替锁定和释放擒纵轮，将能量传递给摆轮。',
+  material: '精钢 · 合成红宝石叉瓦',
+};
+escapementGroup.add(palletFork);
+
+// --- 摆轮组件 ---
+const balanceGroup = new THREE.Group();
+balanceGroup.name = 'balanceGroup';
+movementRoot.add(balanceGroup);
+
+// 摆轮外环
+const balanceRim = new THREE.Mesh(
+  new THREE.TorusGeometry(5.5, 0.55, 16, 80),
+  matSteelPolished,
+);
+balanceRim.position.y = gearY + 0.2;
+balanceRim.name = '摆轮';
+balanceRim.userData = {
+  name: '摆轮（Balance Wheel）',
+  desc: '摆轮是机械表的心脏。以28,800次/小时（4Hz）的频率振荡，调节时间精度。',
+  material: '铍青铜 · 镜面抛光',
+};
+balanceRim.castShadow = true;
+balanceGroup.add(balanceRim);
+
+// 摆轮辐条
+for (let i = 0; i < 4; i++) {
+  const a = (i / 4) * Math.PI * 2;
+  const spoke = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.2, 5.0),
+    matSteel,
+  );
+  spoke.position.set(Math.cos(a) * 2.5, gearY + 0.2, Math.sin(a) * 2.5);
+  spoke.rotation.y = -a;
+  balanceGroup.add(spoke);
+}
+
+// 摆轮配重螺丝
+for (let i = 0; i < 8; i++) {
+  const a = (i / 8) * Math.PI * 2;
+  const screw = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.25, 0.25, 0.3, 12),
+    matGold,
+  );
+  screw.position.set(Math.cos(a) * 5.5, gearY + 0.35, Math.sin(a) * 5.5);
+  balanceGroup.add(screw);
+}
+
+// 摆轮中心轴
+const balanceStaff = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.3, 0.45, 1.0, 16),
+  matSteelPolished,
+);
+balanceStaff.position.y = gearY;
+balanceGroup.add(balanceStaff);
+
+// --- 游丝 ---
+function createHairspring(turns, maxR, height, segments) {
+  const pts = [];
+  const total = turns * segments;
+  for (let i = 0; i <= total; i++) {
+    const t = i / total;
+    const r = 0.5 + t * (maxR - 0.5);
+    const a = t * turns * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  return new THREE.TubeGeometry(curve, total, 0.08, 6, false);
+}
+
+const hairspringGeom = createHairspring(8, 4.8, 0.1, 200);
+const hairspring = new THREE.Mesh(hairspringGeom, new THREE.MeshStandardMaterial({
+  color: 0x3355aa, metalness: 0.85, roughness: 0.15, envMapIntensity: 1.0,
+}));
+hairspring.position.y = gearY + 0.25;
+hairspring.name = '游丝';
+hairspring.userData = {
+  name: '游丝（Hairspring）',
+  desc: 'Nivarox合金游丝，阿基米德螺旋线形状。与摆轮组成谐振系统，决定走时精度。',
+  material: 'Nivarox 合金 · 蓝色氧化',
+};
+balanceGroup.add(hairspring);
+
+// 摆夹板
+const balanceCockShape = new THREE.Shape();
+balanceCockShape.moveTo(-2, -7);
+balanceCockShape.lineTo(2, -7);
+balanceCockShape.lineTo(3, -4);
+balanceCockShape.lineTo(2.5, 1);
+balanceCockShape.lineTo(1.5, 2.5);
+balanceCockShape.lineTo(-1.5, 2.5);
+balanceCockShape.lineTo(-2.5, 1);
+balanceCockShape.lineTo(-3, -4);
+balanceCockShape.closePath();
+
+const balanceCockHole = new THREE.Path();
+balanceCockHole.absarc(0, -3.5, 1.0, 0, Math.PI * 2, true);
+balanceCockShape.holes.push(balanceCockHole);
+
+const balanceCock = new THREE.Mesh(
+  new THREE.ExtrudeGeometry(balanceCockShape, {
+    depth: 0.35, bevelEnabled: true, bevelThickness: 0.08, bevelSegments: 5,
+  }),
+  matBridge,
+);
+balanceCock.position.set(0, gearY + 0.8, -8);
+balanceCock.name = '摆夹板';
+balanceCock.userData = {
+  name: '摆夹板（Balance Cock）',
+  desc: '单边固定摆轮组件的夹板。饰以日内瓦波纹（Côtes de Genève）打磨。',
+  material: '黄铜镀铑 · 日内瓦波纹',
+};
+balanceCock.castShadow = true;
+movementRoot.add(balanceCock);
+
+// 摆夹板上的宝石
+const bcJewel = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 20), matRuby);
+bcJewel.position.set(0, gearY + 1.05, -4.5);
+bcJewel.name = '托石';
+bcJewel.userData = { name: '托石（Cap Jewel）', desc: '摆轮上端宝石轴承，承受轴向推力', material: '合成红宝石' };
+movementRoot.add(bcJewel);
+
+// --- 夹板（桥板） ---
+const bridgeY = -0.55;
+
+// 轮系夹板
+function createTrainBridge() {
+  const shape = new THREE.Shape();
+  // 覆盖中心轮和三轮区域
+  shape.absarc(-2, -2, 5.5, -Math.PI * 0.6, Math.PI * 0.6, false);
+  shape.lineTo(3, -7);
+  shape.absarc(0, 0, 7, -Math.PI * 0.5, Math.PI * 0.2, true);
+  shape.lineTo(-4, 2);
+  shape.closePath();
+
+  // 宝石孔
+  const positions = [[0, 0], [-4, -4], [5, -7]];
+  positions.forEach(([x, z]) => {
+    const h = new THREE.Path();
+    h.absarc(x, z, 0.7, 0, Math.PI * 2, true);
+    shape.holes.push(h);
+  });
+
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.4, bevelEnabled: true, bevelThickness: 0.1, bevelSegments: 5,
+  });
+  const mesh = new THREE.Mesh(geom, matBridge);
+  mesh.position.y = bridgeY;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+const trainBridge = createTrainBridge();
+trainBridge.name = '轮系夹板';
+trainBridge.userData = {
+  name: '轮系夹板（Train Bridge）',
+  desc: '固定中心轮、三轮、四轮的夹板。饰以日内瓦波纹，边缘倒角抛光。',
+  material: '黄铜镀铑 · 日内瓦波纹',
+};
+movementRoot.add(trainBridge);
+
+// 夹板宝石
+[[0, 0], [-4, -4], [5, -7]].forEach(([x, z]) => {
+  const j = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 20), matRuby);
+  j.position.set(x, bridgeY + 0.25, z);
+  j.userData = { name: '宝石轴承', desc: '轮系上端宝石轴承', material: '合成红宝石' };
+  movementRoot.add(j);
+
+  const ch = new THREE.Mesh(new THREE.TorusGeometry(0.65, 0.12, 8, 20), matGold);
+  ch.position.set(x, bridgeY + 0.25, z);
+  ch.rotation.x = Math.PI / 2;
+  movementRoot.add(ch);
+});
+
+// 发条盒夹板
+const barrelBridgeShape = new THREE.Shape();
+barrelBridgeShape.absarc(8, 3, 5.5, -Math.PI * 0.2, Math.PI * 1.2, false);
+barrelBridgeShape.lineTo(8, 0);
+barrelBridgeShape.absarc(4, -1, 6, Math.PI * 0.5, -Math.PI * 0.3, true);
+barrelBridgeShape.closePath();
+const bbHole = new THREE.Path();
+bbHole.absarc(8, 3, 1.0, 0, Math.PI * 2, true);
+barrelBridgeShape.holes.push(bbHole);
+
+const barrelBridge = new THREE.Mesh(
+  new THREE.ExtrudeGeometry(barrelBridgeShape, {
+    depth: 0.4, bevelEnabled: true, bevelThickness: 0.1, bevelSegments: 5,
+  }),
+  matBridge,
+);
+barrelBridge.position.y = bridgeY;
+barrelBridge.name = '发条盒夹板';
+barrelBridge.userData = {
+  name: '发条盒夹板（Barrel Bridge）',
+  desc: '固定发条盒组件的独立夹板。确保主发条稳定运转。',
+  material: '黄铜镀铑 · 日内瓦波纹',
+};
+barrelBridge.castShadow = true;
+movementRoot.add(barrelBridge);
+
+// 发条盒夹板宝石
+const bbJewel = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 20), matRuby);
+bbJewel.position.set(8, bridgeY + 0.25, 3);
+bbJewel.userData = { name: '宝石轴承', desc: '发条盒上端宝石轴承', material: '合成红宝石' };
+movementRoot.add(bbJewel);
+
+// ==================== 表盘与刻度 ====================
+const dialGroup = new THREE.Group();
+dialGroup.name = 'dialGroup';
+watchGroup.add(dialGroup);
+
+// 刻度环
+const chapterRing = createRing(17.8, 15.2, 0.3, matSteelPolished);
+chapterRing.position.y = 0.3;
+chapterRing.name = '刻度环';
+chapterRing.userData = {
+  name: '刻度环（Chapter Ring）',
+  desc: '承载时标的环形结构。镂空设计展现下方机芯。',
+  material: '精钢 · 抛光',
+};
+dialGroup.add(chapterRing);
+
+// 时标
+const markerGeom = new THREE.BoxGeometry(0.6, 0.25, 2.5);
+for (let i = 0; i < 12; i++) {
+  const angle = (i / 12) * Math.PI * 2 + Math.PI / 2;
+  const r = 16.5;
+  const isHour = i % 3 === 0;
+
+  // 刻度主体
+  const marker = new THREE.Mesh(
+    isHour ? new THREE.BoxGeometry(0.8, 0.25, 2.8) : markerGeom,
+    matSteelPolished,
+  );
+  marker.position.set(Math.cos(angle) * r, 0.55, Math.sin(angle) * r);
+  marker.rotation.y = -(angle - Math.PI / 2);
+  marker.castShadow = true;
+  marker.name = '时标';
+  marker.userData = { name: '时标', desc: `${i === 0 ? 12 : i}点刻度`, material: '精钢' };
+  dialGroup.add(marker);
+
+  // 夜光点
+  const lumeDot = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.4, 0.4, 0.15, 16),
+    matLume,
+  );
+  lumeDot.position.set(Math.cos(angle) * (r + 0.2), 0.68, Math.sin(angle) * (r + 0.2));
+  dialGroup.add(lumeDot);
+}
+
+// ==================== 指针 ====================
+const handsGroup = new THREE.Group();
+handsGroup.name = 'handsGroup';
+watchGroup.add(handsGroup);
+
+function createHand(length, width, taperWidth, material, lumeLength) {
+  const grp = new THREE.Group();
+  const shape = new THREE.Shape();
+  shape.moveTo(-width / 2, 0);
+  shape.lineTo(-taperWidth / 2, length);
+  shape.lineTo(taperWidth / 2, length);
+  shape.lineTo(width / 2, 0);
+  shape.closePath();
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.12, bevelEnabled: true, bevelThickness: 0.03, bevelSegments: 3,
+  });
+  const mesh = new THREE.Mesh(geom, material);
+  mesh.position.set(0, 0, -0.06);
+  mesh.castShadow = true;
+  grp.add(mesh);
+
+  // 夜光填充
+  if (lumeLength > 0) {
+    const lumeShape = new THREE.Shape();
+    lumeShape.moveTo(-width * 0.35, length * 0.3);
+    lumeShape.lineTo(-taperWidth * 0.4, length - 1);
+    lumeShape.lineTo(taperWidth * 0.4, length - 1);
+    lumeShape.lineTo(width * 0.35, length * 0.3);
+    lumeShape.closePath();
+    const lumeGeom = new THREE.ExtrudeGeometry(lumeShape, {
+      depth: 0.10, bevelEnabled: true, bevelThickness: 0.02, bevelSegments: 2,
+    });
+    const lume = new THREE.Mesh(lumeGeom, matLume);
+    lume.position.y = 0.06;
+    grp.add(lume);
+  }
+  return grp;
+}
+
+// 时针
+const hourHand = createHand(8.5, 1.2, 0.5, matSteelPolished, 6);
+hourHand.position.y = 0.8;
+hourHand.name = '时针';
+hourHand.userData = { name: '时针', desc: '指示小时。镂空设计配合夜光涂层。', material: '精钢 · 夜光涂层' };
+handsGroup.add(hourHand);
+
+// 分针
+const minuteHand = createHand(13, 0.9, 0.35, matSteelPolished, 10);
+minuteHand.position.y = 0.85;
+minuteHand.name = '分针';
+minuteHand.userData = { name: '分针', desc: '指示分钟。细长优雅的设计。', material: '精钢 · 夜光涂层' };
+handsGroup.add(minuteHand);
+
+// 秒针
+const secShape = new THREE.Shape();
+secShape.moveTo(-0.15, -3);
+secShape.lineTo(-0.1, 14);
+secShape.lineTo(0.1, 14);
+secShape.lineTo(0.15, -3);
+secShape.closePath();
+const secGeom = new THREE.ExtrudeGeometry(secShape, {
+  depth: 0.08, bevelEnabled: true, bevelThickness: 0.02, bevelSegments: 2,
+});
+const secondHand = new THREE.Mesh(secGeom, matSteelPolished);
+secondHand.position.set(0, 0.9, -0.04);
+secondHand.name = '秒针';
+secondHand.userData = { name: '秒针', desc: '指示秒钟。细长优雅设计，带配重尾端。', material: '精钢 · 烤蓝' };
+handsGroup.add(secondHand);
+
+// 秒针夜光圆点
+const secLume = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.1, 16), matLume);
+secLume.position.set(0, 0.95, 5);
+handsGroup.add(secLume);
+
+// 指针中轴盖
+const centerCap = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.0, 1.2, 0.3, 32),
+  matSteelPolished,
+);
+centerCap.position.y = 0.95;
+centerCap.name = '中轴盖';
+handsGroup.add(centerCap);
+
+// ==================== 地面反射 ====================
+const groundGeom = new THREE.PlaneGeometry(80, 80);
+const ground = new THREE.Mesh(groundGeom, new THREE.MeshStandardMaterial({
+  color: 0x111118, metalness: 0.5, roughness: 0.35, envMapIntensity: 0.7,
+}));
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -8;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ==================== 组织层级用于爆炸视图 ====================
+const explodeGroups = [
+  { group: crystal, name: 'crystal', normalY: 2.15, explodeY: 8.5 },
+  { group: bezel, name: 'bezel', normalY: 1.6, explodeY: 5.5 },
+  { group: handsGroup, name: 'hands', normalY: 0, explodeY: 4.5 },
+  { group: dialGroup, name: 'dial', normalY: 0, explodeY: 2.5 },
+  { group: movementRoot, name: 'movement', normalY: 0, explodeY: -0.5 },
+  { group: caseMiddle, name: 'caseMiddle', normalY: 0, explodeY: -2.0 },
+  { group: caseBackOuter, name: 'caseBack', normalY: -3.3, explodeY: -7.0 },
+  { group: displayCrystal, name: 'displayCrystal', normalY: -3.3, explodeY: -7.0 },
+  { group: crownGroup, name: 'crown', normalY: -1.6, explodeY: -1.6 },
+  { group: stem, name: 'stem', normalY: -1.6, explodeY: -1.6 },
+];
+
+// 同样独立移动的子组件
+const extraExplodeTargets = [];
+[balanceCock, trainBridge, barrelBridge].forEach(b => {
+  extraExplodeTargets.push({ group: b, normalY: b.position.y, explodeY: b.position.y + 2.0 });
+});
+[balanceRim, ...balanceGroup.children.filter(c => c !== balanceRim && c !== hairspring && c !== balanceStaff)].forEach(b => {
+  // 摆轮组件已经在 movementRoot 中，不需要单独移动
+});
+
+// ==================== 交互 ====================
+const raycaster = new THREE.Raycaster();
+raycaster.far = 40;
+const mouse = new THREE.Vector2();
+let hoveredObject = null;
+let selectedObject = null;
+const tooltip = document.getElementById('tooltip');
+const infoPanel = document.getElementById('info-panel');
+let allInteractive = [];
+
+function collectInteractive(obj) {
+  if (obj.userData && obj.userData.name) allInteractive.push(obj);
+  if (obj.children) obj.children.forEach(collectInteractive);
+}
+collectInteractive(watchGroup);
+allInteractive.push(crystal, bezel, caseMiddle, caseBackOuter, displayCrystal);
+
+// 高亮材质缓存
+const highlightCache = new Map();
+
+function getHighlightMaterial(obj) {
+  if (highlightCache.has(obj)) return highlightCache.get(obj);
+  const origMat = obj.material;
+  if (!origMat || !origMat.isMaterial) return null;
+
+  let hlMat;
+  if (origMat.emissive) {
+    hlMat = origMat.clone();
+    hlMat.emissive = new THREE.Color(0x886633);
+    hlMat.emissiveIntensity = (origMat.emissiveIntensity || 0) + 0.6;
+  } else {
+    hlMat = origMat.clone();
+    hlMat.emissive = new THREE.Color(0x664422);
+    hlMat.emissiveIntensity = 0.5;
+  }
+  highlightCache.set(obj, hlMat);
+  return hlMat;
+}
+
+document.addEventListener('mousemove', (e) => {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(allInteractive, true);
+
+  let newHovered = null;
+  if (intersects.length > 0) {
+    let obj = intersects[0].object;
+    while (obj) {
+      if (obj.userData && obj.userData.name) { newHovered = obj; break; }
+      obj = obj.parent;
+    }
+  }
+
+  if (hoveredObject !== newHovered) {
+    // 还原上一个
+    if (hoveredObject && hoveredObject !== selectedObject) {
+      const origMat = highlightCache.get(hoveredObject);
+      if (origMat) hoveredObject.material = hoveredObject.userData?._origMat || hoveredObject.material;
+    }
+    // 高亮新的
+    if (newHovered) {
+      if (!newHovered.userData._origMat) {
+        newHovered.userData._origMat = newHovered.material;
+      }
+      newHovered.material = getHighlightMaterial(newHovered);
+      document.body.classList.add('pointer');
+    } else {
+      document.body.classList.remove('pointer');
+    }
+    hoveredObject = newHovered;
+  }
+
+  // 更新提示位置
+  if (hoveredObject && intersects.length > 0) {
+    const pt = intersects[0].point.clone();
+    pt.project(camera);
+    const sx = (pt.x * 0.5 + 0.5) * window.innerWidth;
+    const sy = (-pt.y * 0.5 + 0.5) * window.innerHeight;
+    tooltip.style.left = sx + 'px';
+    tooltip.style.top = sy + 'px';
+    tooltip.textContent = hoveredObject.userData.name;
+    tooltip.classList.add('visible');
+  } else {
+    tooltip.classList.remove('visible');
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#controls') || e.target.closest('#info-panel')) return;
+
+  if (hoveredObject && hoveredObject.userData.name) {
+    selectedObject = hoveredObject;
+    infoPanel.querySelector('.part-name').textContent = selectedObject.userData.name;
+    infoPanel.querySelector('.part-desc').textContent = selectedObject.userData.desc || '';
+    infoPanel.querySelector('.part-material').textContent = selectedObject.userData.material || '';
+    infoPanel.classList.add('visible');
+  } else {
+    selectedObject = null;
+    infoPanel.classList.remove('visible');
+  }
+});
+
+// ==================== 视图切换 ====================
+let viewMode = 'normal';
+let explodeProgress = 0;
+let targetExplode = 0;
+
+window.setView = function(mode) {
+  targetExplode = mode === 'explode' ? 1 : 0;
+  viewMode = mode;
+  document.getElementById('btn-normal').classList.toggle('active', mode === 'normal');
+  document.getElementById('btn-explode').classList.toggle('active', mode === 'explode');
+};
+
+window.toggleAutoRotate = function() {
+  controls.autoRotate = !controls.autoRotate;
+  document.getElementById('btn-auto').classList.toggle('active', controls.autoRotate);
+};
+
+window.resetCamera = function() {
+  const targetY = explodeProgress > 0.5 ? 3 : -0.5;
+  camera.position.set(18, 14 + targetY * 0.3, 28);
+  controls.target.set(0, targetY, 0);
+  controls.update();
+};
+
+// 初始状态
+document.getElementById('btn-auto').classList.add('active');
+
+// ==================== 粒子效果 ====================
+const particlesGeom = new THREE.BufferGeometry();
+const particlesCount = 80;
+const particlesPos = new Float32Array(particlesCount * 3);
+const particlesSizes = new Float32Array(particlesCount);
+for (let i = 0; i < particlesCount; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.random() * Math.PI * 0.5;
+  const r = 22 + Math.random() * 35;
+  particlesPos[i * 3] = Math.cos(theta) * Math.cos(phi) * r;
+  particlesPos[i * 3 + 1] = 2 + Math.random() * 25;
+  particlesPos[i * 3 + 2] = Math.sin(theta) * Math.cos(phi) * r;
+  particlesSizes[i] = Math.random() * 0.04 + 0.02;
+}
+particlesGeom.setAttribute('position', new THREE.BufferAttribute(particlesPos, 3));
+particlesGeom.setAttribute('size', new THREE.BufferAttribute(particlesSizes, 1));
+const particlesMat = new THREE.PointsMaterial({
+  color: 0xc8a45a, size: 0.12, transparent: true, opacity: 0.5,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const particles = new THREE.Points(particlesGeom, particlesMat);
+scene.add(particles);
+
+// ==================== 动画循环 ====================
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.1);
+  const elapsed = clock.elapsedTime;
+
+  controls.update();
+
+  // 爆炸视图过渡
+  explodeProgress += (targetExplode - explodeProgress) * Math.min(dt * 3.5, 1);
+  explodeGroups.forEach(eg => {
+    if (!eg.group) return;
+    const targetY = eg.normalY + (eg.explodeY - eg.normalY) * explodeProgress;
+    eg.group.position.y += (targetY - eg.group.position.y) * Math.min(dt * 4, 1);
+  });
+
+  // 额外组件
+  extraExplodeTargets.forEach(et => {
+    const ty = et.normalY + (et.explodeY - et.normalY) * explodeProgress;
+    et.group.position.y += (ty - et.group.position.y) * Math.min(dt * 4, 1);
+  });
+
+  // 摆轮振荡（4Hz ≈ 28,800 bph）
+  const balanceFreq = 4;
+  const balanceAmp = 0.35;
+  balanceGroup.rotation.y = Math.sin(elapsed * Math.PI * 2 * balanceFreq) * balanceAmp;
+
+  // 擒纵叉摆动
+  palletFork.rotation.y = Math.sin(elapsed * Math.PI * 2 * balanceFreq) * 0.18 + 0.05;
+
+  // 擒纵轮间歇转动
+  const tickPeriod = 1 / (balanceFreq * 2);
+  const tickPhase = (elapsed % tickPeriod) / tickPeriod;
+  const baseRotation = Math.floor(elapsed / tickPeriod) * (Math.PI * 2 / 15);
+  escapeWheel.rotation.y = baseRotation + Math.max(0, (0.08 - tickPhase) * 2) * 0.3;
+
+  // 齿轮缓慢旋转
+  const gearSpeed = 0.08;
+  centerWheel.rotation.y += dt * gearSpeed * 3;
+  thirdWheel.rotation.y -= dt * gearSpeed * 9;
+  fourthWheel.rotation.y += dt * gearSpeed * 27;
+  ratchetWheel.rotation.y += dt * gearSpeed * 0.3;
+  barrelOuter.rotation.y += dt * gearSpeed * 0.5;
+
+  // 指针旋转
+  const simHours = (elapsed * 0.02) % 12;
+  const simMinutes = (elapsed * 0.24) % 60;
+  const simSeconds = (elapsed * 14.4) % 60;
+  hourHand.rotation.y = -(simHours / 12) * Math.PI * 2;
+  minuteHand.rotation.y = -(simMinutes / 60) * Math.PI * 2;
+  secondHand.rotation.y = -(simSeconds / 60) * Math.PI * 2;
+
+  // 粒子动画
+  const posArr = particlesGeom.attributes.position.array;
+  for (let i = 0; i < particlesCount; i++) {
+    posArr[i * 3 + 1] += Math.sin(elapsed * 0.7 + i) * 0.008;
+    posArr[i * 3] += Math.cos(elapsed * 0.5 + i * 1.3) * 0.005;
+  }
+  particlesGeom.attributes.position.needsUpdate = true;
+  particles.rotation.y += dt * 0.04;
+
+  // 点光源微动
+  pointLights.forEach((pl, i) => {
+    pl.intensity = 25 + Math.sin(elapsed * 1.5 + i) * 8;
+  });
+
+  // 夜光动态亮度
+  const lumeGlow = 1.6 + Math.sin(elapsed * 0.6) * 0.4;
+  matLume.emissiveIntensity = lumeGlow;
+
+  renderer.render(scene, camera);
+}
+
+// ==================== 响应式 ====================
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// 键盘快捷键
+window.addEventListener('keydown', (e) => {
+  switch (e.key.toLowerCase()) {
+    case 'e': setView(viewMode === 'explode' ? 'normal' : 'explode'); break;
+    case 'r': resetCamera(); break;
+    case 'a': toggleAutoRotate(); break;
+    case 'f': camera.position.set(0, 0, 35); controls.target.set(0, -0.5, 0); controls.update(); break;
+    case 't': camera.position.set(0, 25, 2); controls.target.set(0, -0.5, 0); controls.update(); break;
+  }
+});
+
+// ==================== 启动 ====================
+animate();
+
+console.log('%c⌚ 3D镂空机械腕表已就绪 %c| %cCalibre Squelette',
+  'color:#c8a45a;font-size:16px;',
+  '',
+  'color:#888;');
+console.log('%c操作提示: 拖拽旋转 | 滚轮缩放 | 右键平移 | E=爆炸视图 | A=自动旋转 | F=正面 | T=俯视 | 点击零件查看详情',
+  'color:#888;font-size:11px;');
+</script>
+</body>
+</html>

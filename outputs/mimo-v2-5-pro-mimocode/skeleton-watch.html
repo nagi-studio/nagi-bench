@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Skeleton Watch</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#0a0a0a;font-family:'Helvetica Neue',Arial,sans-serif;color:#e0d5c0}
+#canvas{display:block}
+#ui{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#title{position:fixed;top:30px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;z-index:10}
+#title h1{font-size:28px;font-weight:300;letter-spacing:12px;text-transform:uppercase;color:#c8b88a;text-shadow:0 0 20px rgba(200,184,138,0.3)}
+#title p{font-size:11px;letter-spacing:6px;color:#8a7e6a;margin-top:6px;text-transform:uppercase}
+#info-panel{position:fixed;right:30px;top:50%;transform:translateY(-50%);width:280px;background:rgba(15,13,10,0.92);border:1px solid rgba(200,184,138,0.15);border-radius:12px;padding:24px;pointer-events:auto;backdrop-filter:blur(20px);opacity:0;transition:opacity 0.5s ease;z-index:10}
+#info-panel.visible{opacity:1}
+#info-panel h2{font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#c8b88a;margin-bottom:16px;font-weight:400}
+#info-panel .info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(200,184,138,0.08)}
+#info-panel .info-label{font-size:11px;color:#8a7e6a;letter-spacing:2px;text-transform:uppercase}
+#info-panel .info-value{font-size:12px;color:#d4c4a0;text-align:right}
+#part-label{position:fixed;pointer-events:none;background:rgba(15,13,10,0.9);border:1px solid rgba(200,184,138,0.3);border-radius:6px;padding:8px 14px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#c8b88a;opacity:0;transition:opacity 0.3s;z-index:20;white-space:nowrap}
+#part-label::before{content:'';position:absolute;left:-6px;top:50%;transform:translateY(-50%);border:3px solid transparent;border-right-color:rgba(200,184,138,0.3)}
+#controls{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);display:flex;gap:12px;pointer-events:auto;z-index:10}
+.btn{background:rgba(15,13,10,0.85);border:1px solid rgba(200,184,138,0.2);border-radius:8px;padding:10px 20px;color:#c8b88a;font-size:11px;letter-spacing:3px;text-transform:uppercase;cursor:pointer;transition:all 0.3s;backdrop-filter:blur(10px);font-family:inherit}
+.btn:hover{background:rgba(200,184,138,0.15);border-color:rgba(200,184,138,0.4);box-shadow:0 0 15px rgba(200,184,138,0.1)}
+.btn.active{background:rgba(200,184,138,0.2);border-color:rgba(200,184,138,0.5)}
+#loading{position:fixed;top:0;left:0;width:100%;height:100%;background:#0a0a0a;display:flex;align-items:center;justify-content:center;z-index:100;transition:opacity 1s}
+#loading.hidden{opacity:0;pointer-events:none}
+#loading .spinner{width:40px;height:40px;border:2px solid rgba(200,184,138,0.1);border-top-color:#c8b88a;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#movement-info{position:fixed;left:30px;bottom:80px;width:240px;background:rgba(15,13,10,0.88);border:1px solid rgba(200,184,138,0.12);border-radius:10px;padding:18px;pointer-events:none;z-index:10;font-size:10px;letter-spacing:1.5px;line-height:2;color:#7a6e5a}
+#movement-info .mi-title{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:#c8b88a;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div></div>
+<div id="title"><h1>Skeleton</h1><p>Haute Horlogerie · Interactive 3D</p></div>
+<div id="info-panel">
+<h2>Movement Details</h2>
+<div class="info-row"><span class="info-label">Caliber</span><span class="info-value">SK-2024A</span></div>
+<div class="info-row"><span class="info-label">Type</span><span class="info-value">Manual Wind</span></div>
+<div class="info-row"><span class="info-label">Frequency</span><span class="info-value">28,800 vph</span></div>
+<div class="info-row"><span class="info-label">Jewels</span><span class="info-value">21 Rubies</span></div>
+<div class="info-row"><span class="info-label">Power Reserve</span><span class="info-value">72 Hours</span></div>
+<div class="info-row"><span class="info-label">Diameter</span><span class="info-value">39mm</span></div>
+<div class="info-row"><span class="info-label">Thickness</span><span class="info-value">8.5mm</span></div>
+<div class="info-row"><span class="info-label">Finish</span><span class="info-value">Hand Angled</span></div>
+<div class="info-row"><span class="info-label">Case</span><span class="info-value">18K Rose Gold</span></div>
+<div class="info-row"><span class="info-label">Crystal</span><span class="info-value">Sapphire</span></div>
+<div id="part-detail" style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(200,184,138,0.1);display:none">
+<div class="info-row"><span class="info-label">Component</span><span id="pd-name" class="info-value">—</span></div>
+<div class="info-row"><span class="info-label">Material</span><span id="pd-material" class="info-value">—</span></div>
+<div class="info-row"><span class="info-label">Function</span><span id="pd-function" class="info-value">—</span></div>
+</div>
+</div>
+<div id="movement-info">
+<div class="mi-title">Movement Architecture</div>
+Main Plate: German Silver<br>
+Bridges: Hand-finished, Beveled<br>
+Gear Train: 4 Wheels<br>
+Escapement: Swiss Lever<br>
+Balance: Glucydur<br>
+Hairspring: Nivarox<br>
+Oscillation: 4 Hz
+</div>
+<div id="part-label"></div>
+<div id="controls">
+<button class="btn" id="btn-rotate" onclick="toggleAutoRotate()">Auto Rotate</button>
+<button class="btn" id="btn-explode" onclick="toggleExplode()">Exploded View</button>
+<button class="btn" id="btn-xray" onclick="toggleXray()">X-Ray Mode</button>
+<button class="btn" id="btn-lume" onclick="toggleLume()">Night Mode</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const {Scene,PerspectiveCamera,WebGLRenderer,MeshPhysicalMaterial,MeshStandardMaterial,MeshPhongMaterial,Mesh,CylinderGeometry,TorusGeometry,SphereGeometry,BoxGeometry,PlaneGeometry,Group,Vector3,Color,AmbientLight,DirectionalLight,PointLight,SpotLight,RectAreaLight,Clock,Raycaster,Vector2,CurvePath,CubicBezierCurve3,Shape,ExtrudeGeometry,LatheGeometry,DoubleSide,FrontSide,AdditiveBlending,Float32BufferAttribute,BufferGeometry,Points,PointsMaterial,LineBasicMaterial,Line,SRGBColorSpace,ACESFilmicToneMapping,PCFSoftShadowMap}=THREE;
+
+let scene,camera,renderer,clock,raycaster,mouse;
+let watchGroup,movementGroup,handsGroup;
+let autoRotate=true,exploded=false,xrayMode=false,lumeMode=false;
+let explodeProgress=0,targetExplode=0;
+let hoveredPart=null,selectedPart=null;
+let partMap=new Map();
+let interactiveParts=[];
+let secondAngle=0,minuteAngle=0,hourAngle=0;
+let balanceAngle=0,balanceSpeed=0;
+let escapeWheelAngle=0;
+let palletAngle=0;
+let hairspringGroup;
+let glowMeshes=[];
+
+init();
+animate();
+
+function init(){
+  scene=new Scene();
+  scene.background=new Color(0x0a0a0a);
+  scene.fog=null;
+
+  camera=new PerspectiveCamera(35,innerWidth/innerHeight,0.1,100);
+  camera.position.set(0,2,8);
+  camera.lookAt(0,0,0);
+
+  renderer=new WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.toneMapping=ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.2;
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=PCFSoftShadowMap;
+  renderer.outputColorSpace=SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+
+  clock=new Clock();
+  raycaster=new Raycaster();
+  mouse=new Vector2(-999,-999);
+
+  setupLights();
+  createWatch();
+  createEnvironment();
+
+  document.addEventListener('mousemove',onMouseMove);
+  document.addEventListener('click',onClick);
+  window.addEventListener('resize',onResize);
+
+  setTimeout(()=>{
+    document.getElementById('loading').classList.add('hidden');
+  },800);
+}
+
+function setupLights(){
+  const amb=new AmbientLight(0x404040,0.4);
+  scene.add(amb);
+
+  const key=new DirectionalLight(0xfff5e6,1.8);
+  key.position.set(5,8,5);
+  key.castShadow=true;
+  key.shadow.mapSize.set(2048,2048);
+  key.shadow.camera.near=0.5;
+  key.shadow.camera.far=20;
+  key.shadow.bias=-0.001;
+  scene.add(key);
+
+  const fill=new DirectionalLight(0xc8d8f0,0.6);
+  fill.position.set(-4,3,-3);
+  scene.add(fill);
+
+  const rim=new DirectionalLight(0xffe0b0,0.8);
+  rim.position.set(0,2,-6);
+  scene.add(rim);
+
+  const spot=new SpotLight(0xfff0d0,1.5,20,Math.PI/6,0.5,1);
+  spot.position.set(0,10,0);
+  spot.castShadow=true;
+  scene.add(spot);
+
+  const p1=new PointLight(0xff9060,0.3,10);
+  p1.position.set(-3,2,3);
+  scene.add(p1);
+
+  const p2=new PointLight(0x6090ff,0.2,10);
+  p2.position.set(3,1,-3);
+  scene.add(p2);
+}
+
+function metalMat(color,roughness=0.15,metalness=0.95){
+  return new MeshPhysicalMaterial({
+    color,roughness,metalness,
+    clearcoat:0.3,clearcoatRoughness:0.1,
+    reflectivity:1,envMapIntensity:1.5
+  });
+}
+
+function goldMat(){return metalMat(0xc8a050,0.12,0.98)}
+function steelMat(){return metalMat(0x8899aa,0.18,0.95)}
+function darkSteelMat(){return metalMat(0x3a4050,0.25,0.9)}
+function rubyMat(){
+  return new MeshPhysicalMaterial({
+    color:0xcc2244,roughness:0.05,metalness:0.1,
+    transmission:0.6,thickness:0.5,ior:1.77,
+    clearcoat:1,clearcoatRoughness:0.02,
+    emissive:0x440010,emissiveIntensity:0.2
+  });
+}
+function sapphireMat(){
+  return new MeshPhysicalMaterial({
+    color:0xe8e8f0,roughness:0.0,metalness:0.0,
+    transmission:0.95,thickness:0.3,ior:1.77,
+    clearcoat:1,clearcoatRoughness:0.0
+  });
+}
+function glowMat(color){
+  return new MeshStandardMaterial({
+    color,emissive:color,emissiveIntensity:0.8,
+    roughness:0.4,metalness:0.1
+  });
+}
+
+function registerPart(mesh,name,material,func,category){
+  const info={name,material,func,category};
+  partMap.set(mesh.uuid,info);
+  mesh.userData.partInfo=info;
+  interactiveParts.push(mesh);
+  return mesh;
+}
+
+function createWatch(){
+  watchGroup=new Group();
+  scene.add(watchGroup);
+
+  createCase();
+  createDial();
+  createMovement();
+  createHands();
+  createCrown();
+}
+
+function createCase(){
+  const caseGroup=new Group();
+  caseGroup.userData.isCase=true;
+
+  const caseBody=new Mesh(
+    new CylinderGeometry(2.0,2.0,0.65,64),
+    goldMat()
+  );
+  caseBody.castShadow=true;
+  caseBody.receiveShadow=true;
+  registerPart(caseBody,'Case Middle','18K Rose Gold','Houses the movement and provides structural integrity','case');
+  caseGroup.add(caseBody);
+
+  const bezel=new Mesh(
+    new TorusGeometry(2.0,0.12,16,64),
+    goldMat()
+  );
+  bezel.position.y=0.35;
+  registerPart(bezel,'Bezel','18K Rose Gold, Polished','Secures the crystal and frames the dial','case');
+  caseGroup.add(bezel);
+
+  const bezelInner=new Mesh(
+    new TorusGeometry(1.9,0.06,12,64),
+    metalMat(0xb08840,0.08,0.98)
+  );
+  bezelInner.position.y=0.38;
+  caseGroup.add(bezelInner);
+
+  const caseback=new Mesh(
+    new CylinderGeometry(1.95,1.95,0.08,64),
+    metalMat(0xb09050,0.2,0.95)
+  );
+  caseback.position.y=-0.35;
+  caseback.receiveShadow=true;
+  registerPart(caseback,'Case Back','Sapphire Crystal, Rose Gold Frame','Exhibition case back revealing the movement','case');
+  caseGroup.add(caseback);
+
+  const lugGeom=new BoxGeometry(0.35,0.5,0.8);
+  const lugPositions=[
+    {x:1.7,z:0.9,r:0.2},{x:-1.7,z:0.9,r:-0.2},
+    {x:1.7,z:-0.9,r:-0.2},{x:-1.7,z:-0.9,r:0.2}
+  ];
+  lugPositions.forEach(p=>{
+    const lug=new Mesh(lugGeom,goldMat());
+    lug.position.set(p.x,0,p.z);
+    lug.rotation.y=p.r;
+    lug.castShadow=true;
+    registerPart(lug,'Lug','18K Rose Gold','Connects the case to the strap','case');
+    caseGroup.add(lug);
+  });
+
+  const crystal=new Mesh(
+    new CylinderGeometry(1.85,1.85,0.06,64),
+    sapphireMat()
+  );
+  crystal.position.y=0.42;
+  registerPart(caseGroup,'Sapphire Crystal','Sapphire Glass, AR Coated','Anti-reflective coated crystal for clear view of dial','case');
+  caseGroup.add(crystal);
+
+  watchGroup.add(caseGroup);
+}
+
+function createDial(){
+  const dialGroup=new Group();
+  dialGroup.position.y=0.2;
+
+  const hourMarkers=[];
+  for(let i=0;i<12;i++){
+    const angle=(i/12)*Math.PI*2;
+    const isMain=i%3===0;
+    const len=isMain?0.3:0.18;
+    const w=isMain?0.06:0.035;
+    const marker=new Mesh(
+      new BoxGeometry(w,0.02,len),
+      glowMat(0xc8b88a)
+    );
+    marker.position.set(Math.sin(angle)*1.55,0,Math.cos(angle)*1.55);
+    marker.rotation.y=-angle;
+    marker.castShadow=true;
+    registerPart(marker,`Hour Marker ${i===0?12:i}`,'Luminous Gold','Indicates the hour position','dial');
+    dialGroup.add(marker);
+    glowMeshes.push(marker);
+
+    if(!isMain){
+      for(let j=1;j<5;j++){
+        const subAngle=angle+(j/5)*((Math.PI*2)/12);
+        const tick=new Mesh(
+          new BoxGeometry(0.015,0.01,0.06),
+          metalMat(0xa09070,0.3,0.8)
+        );
+        tick.position.set(Math.sin(subAngle)*1.6,0,Math.cos(subAngle)*1.6);
+        tick.rotation.y=-subAngle;
+        dialGroup.add(tick);
+      }
+    }
+  }
+
+  const minuteTrack=new Mesh(
+    new TorusGeometry(1.65,0.01,8,120),
+    metalMat(0x998866,0.3,0.7)
+  );
+  minuteTrack.position.y=0.01;
+  minuteTrack.rotation.x=Math.PI/2;
+  dialGroup.add(minuteTrack);
+
+  const innerTrack=new Mesh(
+    new TorusGeometry(1.2,0.008,8,100),
+    metalMat(0x887755,0.4,0.6)
+  );
+  innerTrack.position.y=0.01;
+  innerTrack.rotation.x=Math.PI/2;
+  dialGroup.add(innerTrack);
+
+  watchGroup.add(dialGroup);
+}
+
+function createMovement(){
+  movementGroup=new Group();
+  movementGroup.position.y=-0.05;
+
+  createMainplate();
+  createBarrelBridge();
+  createGearTrain();
+  createEscapement();
+  createBalanceWheel();
+  createBridges();
+  createRubyBearings();
+
+  watchGroup.add(movementGroup);
+}
+
+function createMainplate(){
+  const plate=new Mesh(
+    new CylinderGeometry(1.75,1.75,0.08,64),
+    darkSteelMat()
+  );
+  plate.receiveShadow=true;
+  registerPart(plate,'Main Plate','German Silver (Maillechort)','Foundation plate supporting all movement components','movement');
+  movementGroup.add(plate);
+
+  for(let i=0;i<8;i++){
+    const a=(i/8)*Math.PI*2;
+    const cutout=new Mesh(
+      new CylinderGeometry(0.15+Math.random()*0.1,0.15+Math.random()*0.1,0.12,6),
+      darkSteelMat()
+    );
+    cutout.position.set(Math.sin(a)*1.2,0,Math.cos(a)*1.2);
+    movementGroup.add(cutout);
+  }
+}
+
+function createBarrelBridge(){
+  const barrelGroup=new Group();
+
+  const barrelDrum=new Mesh(
+    new CylinderGeometry(0.5,0.5,0.2,32),
+    steelMat()
+  );
+  barrelDrum.position.set(-0.9,0.15,0);
+  registerPart(barrelDrum,'Mainspring Barrel','Polished Steel','Stores potential energy from winding via coiled mainspring','movement');
+  barrelGroup.add(barrelDrum);
+
+  const barrelArbor=new Mesh(
+    new CylinderGeometry(0.06,0.06,0.35,16),
+    metalMat(0x667788,0.1,0.95)
+  );
+  barrelArbor.position.set(-0.9,0.2,0);
+  barrelGroup.add(barrelArbor);
+
+  const barrelTop=new Mesh(
+    new CylinderGeometry(0.48,0.48,0.03,32),
+    metalMat(0x778899,0.15,0.9)
+  );
+  barrelTop.position.set(-0.9,0.28,0);
+  registerPart(barrelTop,'Barrel Bridge','German Silver, Beveled','Secures the mainspring barrel to the mainplate','movement');
+  barrelGroup.add(barrelTop);
+
+  for(let i=0;i<30;i++){
+    const r=0.15+Math.random()*0.3;
+    const a=Math.random()*Math.PI*2;
+    const coil=new Mesh(
+      new TorusGeometry(r,0.008,4,20),
+      metalMat(0x556677,0.3,0.85)
+    );
+    coil.position.set(-0.9,0.12+i*0.003,0);
+    coil.rotation.x=Math.PI/2;
+    barrelGroup.add(coil);
+  }
+
+  movementGroup.add(barrelGroup);
+}
+
+function createGearTrain(){
+  const gears=[
+    {name:'Center Wheel',r:0.35,x:0,z:0,teeth:36,h:0.12,speed:1,material:'Blued Steel'},
+    {name:'Third Wheel',r:0.25,x:0.55,z:0.4,teeth:28,h:0.1,speed:2.5,material:'Blued Steel'},
+    {name:'Fourth Wheel',r:0.18,x:0.75,z:-0.25,teeth:24,h:0.08,speed:8,material:'Blued Steel'},
+    {name:'Escape Wheel',r:0.2,x:0.4,z:-0.65,teeth:20,h:0.06,speed:16,material:'Hardened Steel'}
+  ];
+
+  gears.forEach(g=>{
+    const group=new Group();
+    group.position.set(g.x,0.18,g.z);
+
+    const wheel=new Mesh(
+      new CylinderGeometry(g.r,g.r,g.h,32),
+      steelMat()
+    );
+    wheel.castShadow=true;
+    registerPart(wheel,g.name,g.material,
+      g.name==='Center Wheel'?'Driven by barrel, carries minute hand':
+      g.name==='Third Wheel'?'Intermediate wheel transferring energy':
+      g.name==='Fourth Wheel'?'Drives seconds hand, connects to escapement':
+      'Part of the Swiss lever escapement mechanism','movement');
+    group.add(wheel);
+
+    for(let i=0;i<g.teeth;i++){
+      const a=(i/g.teeth)*Math.PI*2;
+      const tooth=new Mesh(
+        new BoxGeometry(0.015,g.h+0.01,0.04),
+        steelMat()
+      );
+      tooth.position.set(Math.sin(a)*(g.r+0.02),0,Math.cos(a)*(g.r+0.02));
+      tooth.rotation.y=-a;
+      group.add(tooth);
+    }
+
+    const hub=new Mesh(
+      new CylinderGeometry(0.04,0.04,g.h+0.05,12),
+      metalMat(0x99aabb,0.1,0.95)
+    );
+    group.add(hub);
+
+    const pinion=new Mesh(
+      new CylinderGeometry(0.06,0.06,0.08,8),
+      metalMat(0x778899,0.15,0.9)
+    );
+    pinion.position.y=0.05;
+    group.add(pinion);
+
+    group.userData.gearSpeed=g.speed;
+    group.userData.gearName=g.name;
+    movementGroup.add(group);
+  });
+}
+
+function createEscapement(){
+  const escGroup=new Group();
+  escGroup.position.set(0.4,0.25,-0.65);
+
+  const palletFork=new Group();
+
+  const forkBody=new Mesh(
+    new BoxGeometry(0.04,0.06,0.4),
+    steelMat()
+  );
+  registerPart(forkBody,'Pallet Fork','Hardened Steel','Transfers impulse from escape wheel to balance wheel via entry and exit pallets','movement');
+  palletFork.add(forkBody);
+
+  const entryPallet=new Mesh(
+    new BoxGeometry(0.08,0.05,0.04),
+    rubyMat()
+  );
+  entryPallet.position.set(0,0,0.18);
+  palletFork.add(entryPallet);
+
+  const exitPallet=new Mesh(
+    new BoxGeometry(0.08,0.05,0.04),
+    rubyMat()
+  );
+  exitPallet.position.set(0,0,-0.18);
+  palletFork.add(exitPallet);
+
+  const guardPin=new Mesh(
+    new CylinderGeometry(0.01,0.01,0.08,8),
+    steelMat()
+  );
+  guardPin.position.set(0,0.04,0);
+  palletFork.add(guardPin);
+
+  const palletPivot=new Mesh(
+    new CylinderGeometry(0.015,0.015,0.15,8),
+    metalMat(0x8899aa,0.1,0.95)
+  );
+  palletFork.add(palletPivot);
+
+  palletFork.userData.isPallet=true;
+  escGroup.add(palletFork);
+  movementGroup.add(escGroup);
+}
+
+function createBalanceWheel(){
+  const balanceGroup=new Group();
+  balanceGroup.position.set(0.4,0.35,-0.65);
+
+  const rim=new Mesh(
+    new TorusGeometry(0.35,0.025,12,48),
+    metalMat(0xccbb88,0.1,0.97)
+  );
+  rim.rotation.x=Math.PI/2;
+  registerPart(rim,'Balance Rim','Glucydur Alloy','Oscillating rim governing timekeeping precision','movement');
+  balanceGroup.add(rim);
+
+  const spokeCount=3;
+  for(let i=0;i<spokeCount;i++){
+    const a=(i/spokeCount)*Math.PI*2;
+    const spoke=new Mesh(
+      new BoxGeometry(0.02,0.02,0.34),
+      metalMat(0xbbaa77,0.12,0.96)
+    );
+    spoke.position.set(Math.sin(a)*0.17,0,Math.cos(a)*0.17);
+    spoke.rotation.y=-a;
+    balanceGroup.add(spoke);
+  }
+
+  const hub=new Mesh(
+    new CylinderGeometry(0.05,0.05,0.06,16),
+    metalMat(0xccbb88,0.1,0.97)
+  );
+  balanceGroup.add(hub);
+
+  for(let i=0;i<4;i++){
+    const a=(i/4)*Math.PI*2+Math.PI/4;
+    const screw=new Mesh(
+      new CylinderGeometry(0.018,0.018,0.025,8),
+      metalMat(0xddcc99,0.05,0.98)
+    );
+    screw.position.set(Math.sin(a)*0.3,0,Math.cos(a)*0.3);
+    balanceGroup.add(screw);
+  }
+
+  hairspringGroup=new Group();
+  const spiralTurns=8;
+  const spiralPoints=[];
+  for(let i=0;i<=spiralTurns*60;i++){
+    const t=i/(spiralTurns*60);
+    const angle=t*spiralTurns*Math.PI*2;
+    const r=0.04+t*0.25;
+    spiralPoints.push(new Vector3(Math.cos(angle)*r,0,Math.sin(angle)*r));
+  }
+
+  for(let i=0;i<spiralPoints.length-1;i++){
+    const geo=new CylinderGeometry(0.003,0.003,spiralPoints[i].distanceTo(spiralPoints[i+1]),4);
+    const seg=new Mesh(geo,metalMat(0x88aacc,0.2,0.85));
+    const mid=new Vector3().addVectors(spiralPoints[i],spiralPoints[i+1]).multiplyScalar(0.5);
+    seg.position.copy(mid);
+    seg.lookAt(spiralPoints[i+1]);
+    seg.rotateX(Math.PI/2);
+    hairspringGroup.add(seg);
+  }
+  registerPart(hairspringGroup.children[0]||hairspringGroup,'Hairspring (Spiral)','Nivarox Alloy','Ultra-thin spring that oscillates to regulate the balance wheel frequency','movement');
+  balanceGroup.add(hairspringGroup);
+
+  const collet=new Mesh(
+    new CylinderGeometry(0.035,0.035,0.03,12),
+    metalMat(0xccbb88,0.1,0.97)
+  );
+  collet.position.y=0.02;
+  balanceGroup.add(collet);
+
+  balanceGroup.userData.isBalance=true;
+  movementGroup.add(balanceGroup);
+}
+
+function createBridges(){
+  const bridgeData=[
+    {name:'Balance Cock',x:0.4,z:-0.65,w:0.6,d:0.5,h:0.06,rot:0.3},
+    {name:'Gear Train Bridge',x:0.55,z:0.1,w:1.0,d:0.5,h:0.05,rot:0.1},
+    {name:'Barrel Bridge',x:-0.9,z:0,w:0.7,d:0.6,h:0.05,rot:-0.2}
+  ];
+
+  bridgeData.forEach(b=>{
+    const bridge=new Mesh(
+      new BoxGeometry(b.w,b.h,b.d),
+      metalMat(0x8a9aaa,0.2,0.88)
+    );
+    bridge.position.set(b.x,0.28,b.z);
+    bridge.rotation.y=b.rot;
+    bridge.castShadow=true;
+    registerPart(bridge,b.name,'German Silver, Hand-Finished','Secures movement components and provides structural support','movement');
+    movementGroup.add(bridge);
+
+    const bevel=0.01;
+    const edge=new Mesh(
+      new BoxGeometry(b.w+bevel*2,b.h*0.3,b.d+bevel*2),
+      metalMat(0x9aaaba,0.15,0.9)
+    );
+    edge.position.set(b.x,0.28+b.h*0.35,b.z);
+    edge.rotation.y=b.rot;
+    movementGroup.add(edge);
+
+    for(let i=0;i<3;i++){
+      const sx=b.x+(Math.random()-0.5)*b.w*0.6;
+      const sz=b.z+(Math.random()-0.5)*b.d*0.6;
+      const screw=new Mesh(
+        new CylinderGeometry(0.025,0.025,0.04,12),
+        metalMat(0x6677cc,0.05,0.95)
+      );
+      screw.position.set(sx,0.32,sz);
+      movementGroup.add(screw);
+
+      const slot=new Mesh(
+        new BoxGeometry(0.04,0.005,0.008),
+        metalMat(0x4455aa,0.1,0.9)
+      );
+      slot.position.set(sx,0.34,sz);
+      movementGroup.add(slot);
+    }
+  });
+}
+
+function createRubyBearings(){
+  const rubyPositions=[
+    {x:0,y:0.1,z:0,label:'Center Wheel Jewel'},
+    {x:0.55,y:0.1,z:0.4,label:'Third Wheel Jewel'},
+    {x:0.75,y:0.1,z:-0.25,label:'Fourth Wheel Jewel'},
+    {x:0.4,y:0.1,z:-0.65,label:'Escape Wheel Jewel'},
+    {x:0.4,y:0.28,z:-0.65,label:'Balance Jewel (Upper)'},
+    {x:0.4,y:0.08,z:-0.65,label:'Balance Jewel (Lower)'},
+    {x:-0.9,y:0.1,z:0,label:'Barrel Jewel'}
+  ];
+
+  rubyPositions.forEach(r=>{
+    const setting=new Mesh(
+      new CylinderGeometry(0.055,0.055,0.025,16),
+      goldMat()
+    );
+    setting.position.set(r.x,r.y,r.z);
+    movementGroup.add(setting);
+
+    const jewel=new Mesh(
+      new CylinderGeometry(0.035,0.035,0.02,16),
+      rubyMat()
+    );
+    jewel.position.set(r.x,r.y+0.01,r.z);
+    registerPart(jewel,r.label,'Synthetic Ruby','Reduces friction at pivot point, provides shock absorption','movement');
+    movementGroup.add(jewel);
+
+    const glow=new Mesh(
+      new CylinderGeometry(0.06,0.06,0.005,16),
+      new MeshStandardMaterial({color:0xff2244,emissive:0xff0033,emissiveIntensity:0.3,transparent:true,opacity:0.4})
+    );
+    glow.position.set(r.x,r.y+0.015,r.z);
+    glowMeshes.push(glow);
+    movementGroup.add(glow);
+  });
+}
+
+function createHands(){
+  handsGroup=new Group();
+  handsGroup.position.y=0.25;
+
+  const hourHand=new Group();
+  const hGeo=new Shape();
+  hGeo.moveTo(0,-0.04);
+  hGeo.lineTo(0.7,0);
+  hGeo.lineTo(0,-0.04);
+  hGeo.lineTo(0.65,0);
+  hGeo.lineTo(0,0.04);
+  hGeo.lineTo(-0.05,0);
+
+  const hourShape=new Shape();
+  hourShape.moveTo(-0.05,0);
+  hourShape.lineTo(0,-0.045);
+  hourShape.lineTo(0.68,-0.012);
+  hourShape.lineTo(0.7,0);
+  hourShape.lineTo(0.68,0.012);
+  hourShape.lineTo(0,0.045);
+  hourShape.lineTo(-0.05,0);
+
+  const hMesh=new Mesh(
+    new ExtrudeGeometry(hourShape,{depth:0.025,bevelEnabled:true,bevelSize:0.005,bevelThickness:0.005,bevelSegments:2}),
+    glowMat(0xd4c090)
+  );
+  hMesh.rotation.x=-Math.PI/2;
+  hMesh.position.y=0.05;
+  registerPart(hMesh,'Hour Hand','18K Gold, Luminous','Points to current hour with SuperLuminova coating','hands');
+  hourHand.add(hMesh);
+  glowMeshes.push(hMesh);
+
+  const minuteShape=new Shape();
+  minuteShape.moveTo(-0.04,0);
+  minuteShape.lineTo(0,-0.035);
+  minuteShape.lineTo(0.95,-0.008);
+  minuteShape.lineTo(0.97,0);
+  minuteShape.lineTo(0.95,0.008);
+  minuteShape.lineTo(0,0.035);
+  minuteShape.lineTo(-0.04,0);
+
+  const minMesh=new Mesh(
+    new ExtrudeGeometry(minuteShape,{depth:0.02,bevelEnabled:true,bevelSize:0.004,bevelThickness:0.004,bevelSegments:2}),
+    glowMat(0xd4c090)
+  );
+  minMesh.rotation.x=-Math.PI/2;
+  minMesh.position.y=0.08;
+  registerPart(minMesh,'Minute Hand','18K Gold, Luminous','Points to current minute with fine finishing','hands');
+  handsGroup.add(minMesh);
+  glowMeshes.push(minMesh);
+  handsGroup.add(hourHand);
+
+  const secShape=new Shape();
+  secShape.moveTo(-0.02,0);
+  secShape.lineTo(0,-0.015);
+  secShape.lineTo(1.1,-0.003);
+  secShape.lineTo(1.15,0);
+  secShape.lineTo(1.1,0.003);
+  secShape.lineTo(0,0.015);
+  secShape.lineTo(-0.02,0);
+
+  const secMesh=new Mesh(
+    new ExtrudeGeometry(secShape,{depth:0.012,bevelEnabled:false}),
+    glowMat(0xe04040)
+  );
+  secMesh.rotation.x=-Math.PI/2;
+  secMesh.position.y=0.11;
+  registerPart(secMesh,'Second Hand','Blued Steel, Red Tip','Sweeping seconds hand with counterweight','hands');
+  handsGroup.add(secMesh);
+
+  const centerCap=new Mesh(
+    new CylinderGeometry(0.06,0.06,0.05,16),
+    goldMat()
+  );
+  centerCap.position.y=0.07;
+  handsGroup.add(centerCap);
+
+  hourHand.userData.isHourHand=true;
+  handsGroup.add(hourHand);
+
+  watchGroup.add(handsGroup);
+}
+
+function createCrown(){
+  const crownGroup=new Group();
+  crownGroup.position.set(2.2,0,0);
+
+  const crown=new Mesh(
+    new CylinderGeometry(0.12,0.14,0.25,24),
+    goldMat()
+  );
+  crown.rotation.z=Math.PI/2;
+  registerPart(crown,'Crown','18K Rose Gold','Winds the mainspring and sets the time','case');
+  crownGroup.add(crown);
+
+  for(let i=0;i<20;i++){
+    const a=(i/20)*Math.PI*2;
+    const grip=new Mesh(
+      new BoxGeometry(0.01,0.26,0.015),
+      metalMat(0xb08840,0.15,0.98)
+    );
+    grip.position.set(0,Math.sin(a)*0.13,Math.cos(a)*0.13);
+    grip.rotation.x=a;
+    crownGroup.add(grip);
+  }
+
+  const crownCap=new Mesh(
+    new CylinderGeometry(0.06,0.06,0.04,16),
+    metalMat(0xc09050,0.1,0.98)
+  );
+  crownCap.rotation.z=Math.PI/2;
+  crownCap.position.x=0.14;
+  crownGroup.add(crownCap);
+
+  watchGroup.add(crownGroup);
+}
+
+function createEnvironment(){
+  const floor=new Mesh(
+    new PlaneGeometry(30,30),
+    new MeshStandardMaterial({
+      color:0x080808,roughness:0.4,metalness:0.6,
+      envMapIntensity:0.5
+    })
+  );
+  floor.rotation.x=-Math.PI/2;
+  floor.position.y=-1.2;
+  floor.receiveShadow=true;
+  scene.add(floor);
+
+  const gridHelper=new Mesh(
+    new PlaneGeometry(20,20),
+    new MeshStandardMaterial({
+      color:0x111111,roughness:0.8,metalness:0.2,
+      transparent:true,opacity:0.3
+    })
+  );
+  gridHelper.rotation.x=-Math.PI/2;
+  gridHelper.position.y=-1.19;
+  scene.add(gridHelper);
+
+  const ringGeo=new TorusGeometry(4,0.005,8,128);
+  for(let i=0;i<3;i++){
+    const ring=new Mesh(ringGeo,new MeshStandardMaterial({color:0xc8b88a,transparent:true,opacity:0.03+i*0.01,emissive:0xc8b88a,emissiveIntensity:0.1}));
+    ring.rotation.x=Math.PI/2;
+    ring.position.y=-1.18;
+    ring.scale.setScalar(1+i*0.5);
+    scene.add(ring);
+  }
+}
+
+function onMouseMove(e){
+  mouse.x=(e.clientX/innerWidth)*2-1;
+  mouse.y=-(e.clientY/innerHeight)*2+1;
+
+  const label=document.getElementById('part-label');
+  raycaster.setFromCamera(mouse,camera);
+  const intersects=raycaster.intersectObjects(interactiveParts,true);
+
+  if(intersects.length>0){
+    const hit=intersects[0].object;
+    let info=hit.userData.partInfo;
+    if(!info){
+      for(const child of interactiveParts){
+        if(child.children&&child.children.includes(hit)){
+          info=child.userData.partInfo;
+          break;
+        }
+      }
+    }
+    if(info){
+      label.textContent=info.name;
+      label.style.left=e.clientX+20+'px';
+      label.style.top=e.clientY-15+'px';
+      label.style.opacity='1';
+      document.body.style.cursor='pointer';
+
+      if(hoveredPart!==hit){
+        resetHighlight();
+        hoveredPart=hit;
+        highlightPart(hit,true);
+      }
+    }else{
+      clearHover();
+    }
+  }else{
+    clearHover();
+  }
+}
+
+function clearHover(){
+  const label=document.getElementById('part-label');
+  label.style.opacity='0';
+  document.body.style.cursor='default';
+  if(hoveredPart){
+    resetHighlight();
+    hoveredPart=null;
+  }
+}
+
+function highlightPart(mesh,hover){
+  if(mesh.material){
+    mesh.userData.origEmissive=mesh.material.emissive?mesh.material.emissive.clone():null;
+    mesh.userData.origEmissiveIntensity=mesh.material.emissiveIntensity;
+    if(hover){
+      mesh.material.emissive=new Color(0xc8b88a);
+      mesh.material.emissiveIntensity=0.3;
+    }
+  }
+}
+
+function resetHighlight(){
+  if(hoveredPart&&hoveredPart.material){
+    if(hoveredPart.userData.origEmissive){
+      hoveredPart.material.emissive.copy(hoveredPart.userData.origEmissive);
+      hoveredPart.material.emissiveIntensity=hoveredPart.userData.origEmissiveIntensity||0;
+    }
+  }
+}
+
+function onClick(e){
+  raycaster.setFromCamera(mouse,camera);
+  const intersects=raycaster.intersectObjects(interactiveParts,true);
+  const panel=document.getElementById('info-panel');
+  const partDetail=document.getElementById('part-detail');
+
+  if(intersects.length>0){
+    const hit=intersects[0].object;
+    let info=hit.userData.partInfo;
+    if(!info){
+      for(const child of interactiveParts){
+        if(child.children&&child.children.includes(hit)){
+          info=child.userData.partInfo;break;
+        }
+      }
+    }
+    if(info){
+      selectedPart=hit;
+      document.getElementById('pd-name').textContent=info.name;
+      document.getElementById('pd-material').textContent=info.material;
+      document.getElementById('pd-function').textContent=info.func;
+      partDetail.style.display='block';
+      panel.classList.add('visible');
+    }
+  }
+}
+
+function toggleAutoRotate(){
+  autoRotate=!autoRotate;
+  document.getElementById('btn-rotate').classList.toggle('active',autoRotate);
+}
+document.getElementById('btn-rotate').classList.add('active');
+
+function toggleExplode(){
+  exploded=!exploded;
+  targetExplode=exploded?1:0;
+  document.getElementById('btn-explode').classList.toggle('active',exploded);
+}
+
+function toggleXray(){
+  xrayMode=!xrayMode;
+  document.getElementById('btn-xray').classList.toggle('active',xrayMode);
+
+  watchGroup.traverse(child=>{
+    if(child.isMesh&&child.material){
+      if(child.material.transmission!==undefined){
+        if(xrayMode){
+          child.userData.origOpacity=child.material.opacity;
+          child.userData.origTransmission=child.material.transmission;
+          child.material.transparent=true;
+          child.material.opacity=0.15;
+          child.material.needsUpdate=true;
+        }else if(child.userData.origOpacity!==undefined){
+          child.material.opacity=child.userData.origOpacity;
+          child.material.transmission=child.userData.origTransmission;
+          child.material.needsUpdate=true;
+        }
+      }
+    }
+  });
+}
+
+function toggleLume(){
+  lumeMode=!lumeMode;
+  document.getElementById('btn-lume').classList.toggle('active',lumeMode);
+
+  glowMeshes.forEach(m=>{
+    if(m.material&&m.material.emissive){
+      m.material.emissiveIntensity=lumeMode?2.5:0.8;
+    }
+  });
+
+  if(lumeMode){
+    scene.background=new Color(0x020204);
+  }else{
+    scene.background=new Color(0x0a0a0a);
+  }
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=clock.getDelta();
+  const t=clock.getElapsedTime();
+
+  if(autoRotate){
+    watchGroup.rotation.y+=dt*0.15;
+  }
+
+  watchGroup.rotation.x=Math.sin(t*0.3)*0.05+0.3;
+
+  const breathe=Math.sin(t*1.5)*0.002;
+  watchGroup.position.y=breathe;
+
+  secondAngle+=dt*Math.PI*2/60;
+  minuteAngle+=dt*Math.PI*2/3600;
+  hourAngle+=dt*Math.PI*2/43200;
+
+  handsGroup.children.forEach(child=>{
+    if(child.userData.isHourHand){
+      child.rotation.y=hourAngle;
+    }
+  });
+  const minHand=handsGroup.children.find(c=>!c.userData.isHourHand&&c.geometry);
+  const secHand=handsGroup.children[handsGroup.children.length-2];
+
+  if(handsGroup.children.length>=2){
+    handsGroup.children[0].rotation.y=hourAngle;
+  }
+
+  balanceSpeed=Math.sin(t*4)*3;
+  balanceAngle=Math.sin(t*8)*0.8;
+
+  movementGroup.children.forEach(child=>{
+    if(child.userData.isBalance){
+      child.rotation.y=balanceAngle;
+      if(hairspringGroup){
+        hairspringGroup.scale.setScalar(1+Math.sin(t*8)*0.03);
+      }
+    }
+    if(child.userData.isPallet){
+      child.rotation.y=Math.sin(t*8)*0.3;
+    }
+    if(child.userData.gearSpeed){
+      child.rotation.y+=dt*child.userData.gearSpeed*0.3;
+    }
+  });
+
+  explodeProgress+=(targetExplode-explodeProgress)*dt*3;
+
+  if(explodeProgress>0.01){
+    const layers=[
+      {parts:'case',offset:new Vector3(0,explodeProgress*1.5,0)},
+    ];
+
+    watchGroup.children.forEach(child=>{
+      if(child.userData.isCase){
+        child.position.y=explodeProgress*1.2;
+        child.children.forEach(c=>{
+          if(c.position.y>0.3)c.position.y=c.userData.origY!==undefined?c.userData.origY+explodeProgress*0.8:0.42+explodeProgress*0.8;
+        });
+      }
+    });
+
+    movementGroup.children.forEach((child,i)=>{
+      if(!child.userData.origPos){
+        child.userData.origPos=child.position.clone();
+      }
+      const dir=child.userData.origPos.clone().normalize();
+      const verticalOffset=new Vector3(0,explodeProgress*0.3*(i%2===0?1:-1),0);
+      child.position.copy(child.userData.origPos).add(dir.multiplyScalar(explodeProgress*0.8)).add(verticalOffset);
+    });
+
+    handsGroup.position.y=0.25+explodeProgress*2.0;
+  }else{
+    movementGroup.children.forEach(child=>{
+      if(child.userData.origPos){
+        child.position.copy(child.userData.origPos);
+      }
+    });
+    handsGroup.position.y=0.25;
+  }
+
+  renderer.render(scene,camera);
+}
+
+function onResize(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+}
+
+let isDragging=false;
+let prevMouse={x:0,y:0};
+let rotY=0,rotX=0.3;
+
+renderer.domElement.addEventListener('pointerdown',e=>{
+  isDragging=true;
+  prevMouse={x:e.clientX,y:e.clientY};
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+  if(!isDragging)return;
+  const dx=e.clientX-prevMouse.x;
+  const dy=e.clientY-prevMouse.y;
+  rotY+=dx*0.005;
+  rotX+=dy*0.005;
+  rotX=Math.max(-1,Math.min(1,rotX));
+  watchGroup.rotation.y=rotY;
+  watchGroup.rotation.x=rotX;
+  prevMouse={x:e.clientX,y:e.clientY};
+  autoRotate=false;
+  document.getElementById('btn-rotate').classList.remove('active');
+});
+renderer.domElement.addEventListener('pointerup',()=>{
+  isDragging=false;
+});
+renderer.domElement.addEventListener('wheel',e=>{
+  camera.position.z+=e.deltaY*0.005;
+  camera.position.z=Math.max(4,Math.min(15,camera.position.z));
+},{passive:true});
+
+document.getElementById('info-panel').classList.add('visible');
+</script>
+</body>
+</html>
