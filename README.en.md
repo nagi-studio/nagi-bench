@@ -42,23 +42,23 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | GPT-5.4 | OpenAI | Cursor · xhigh<br>Codex CLI · xhigh | 05 |
 | GPT-5.3 Codex | OpenAI | Cursor · xhigh | 02 |
 | GPT-5.2 | OpenAI | Cursor · xhigh | 02 |
-| Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 05 |
-| Gemini 3.5 Flash | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 05 |
+| Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 06 |
+| Gemini 3.5 Flash | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 06 |
 | Grok Build | xAI | Grok Build TUI · Max | 02 |
 | Nex-N2-Pro | Nex-AGI | Claude Code · Max | 02 |
 | Grok 4.3 | xAI | Cursor · Default | 02 |
 | Composer 2.5 | Cursor | Cursor · Max<br>Cursor · Default<br>Grok Build TUI · Default | 05 |
 | Mistral Medium 3.5 | Mistral AI | Vibe · Thinking | 02 |
-| DeepSeek-V4-Pro | DeepSeek | Claude Code · Max | 02 |
+| DeepSeek-V4-Pro | DeepSeek | Claude Code · Max | 03 |
 | Doubao Seed 2.0 Pro | ByteDance | Doubao Web · Pro Mode | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
-| MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
-| MiMo v2.5 Pro UltraSpeed | Xiaomi | Web · Default | 04 |
-| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 02 |
+| MiMo v2.5 Pro | Xiaomi | Claude Code · Max<br>MiMo Code · Max | 03 |
+| MiMo v2.5 Pro UltraSpeed | Xiaomi | Web · Default | 05 |
+| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 03 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 02 |
 | MiniMax M2.7 | MiniMax | MiniMax Code Web · Thinking | 01 |
-| GLM-5.2 | Zhipu AI | ZCode · Max | 03 |
+| GLM-5.2 | Zhipu AI | ZCode · Max | 04 |
 | GLM-5 Turbo | Zhipu AI | ZCode · Thinking | 03 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 | Step 3.7 Flash | StepFun | Claude Code · High | 02 |
