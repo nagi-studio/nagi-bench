@@ -39,7 +39,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | GLM-5.1 | Zhipu AI | ZCode · Max | 01 |
 | GPT-5.5 Pro | OpenAI | ChatGPT Web · Extended Pro | 03 |
 | GPT-5.5 | OpenAI | Codex CLI · xhigh | 03 |
-| GPT-5.4 | OpenAI | Cursor · xhigh<br>Codex CLI · xhigh | 05 |
+| GPT-5.4 | OpenAI | Cursor · xhigh<br>Codex CLI · xhigh | 06 |
 | GPT-5.3 Codex | OpenAI | Cursor · xhigh | 02 |
 | GPT-5.2 | OpenAI | Cursor · xhigh | 02 |
 | Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 05 |
