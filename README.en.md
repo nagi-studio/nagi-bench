@@ -43,6 +43,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | GPT-5.3 Codex | OpenAI | Cursor · xhigh | 02 |
 | GPT-5.2 | OpenAI | Cursor · xhigh | 02 |
 | Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 06 |
+| DeepSeek V4 Flash | DeepSeek | Reasonix · Max | 01 |
 | Gemini 3.5 Flash | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 06 |
 | Grok Build | xAI | Grok Build TUI · Max | 02 |
 | Nex-N2-Pro | Nex-AGI | Claude Code · Max | 02 |
