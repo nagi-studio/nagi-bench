@@ -75,13 +75,15 @@ and what you changed. **No emojis anywhere** (hard rule). zh first.
 
 Use the harness in its **default, out-of-the-box** configuration: no extra
 skills, plugins, MCP servers or custom system prompts beyond what it bundles.
-These shift the output as much as swapping the harness does, so loading them
-makes the run no longer comparable to others under the same harness. If you used
-any, it is a different setup — say so explicitly in `note`, otherwise it does
-not belong on the board.
+These shift the output as much as swapping the harness does, so such a run is
+not comparable to others under the same harness and **will not be accepted**.
+Disclosing it in `note` does not fix this: the leaderboard identity is only
+model × harness × effort, so a note gives the modified setup no separate
+identity — it would still be mixed into an Agent row it is not comparable with.
 （用 harness 的**默认形态**：不要额外加载 harness 自带以外的 skill / 插件 /
-MCP / 自定义系统提示——它们对产出的影响不亚于换 harness，会让这条 run 失去与
-同一 harness 下其它条目的可比性。确实用了就在 `note` 里写清楚，否则不该上榜。）
+MCP / 自定义系统提示——它们对产出的影响不亚于换 harness，这类 run 与同一
+harness 下其它条目不可比，**不予收录**。在 `note` 里写明也没用：榜单身份只看
+模型 × harness × effort，note 不另立身份，它仍会混进本不该可比的那一行。）
 
 ## Before you open the PR / 提交前
 

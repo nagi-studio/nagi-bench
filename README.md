@@ -21,7 +21,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 - **模型（Model）**：权重与推理引擎本身，如 GPT-5.5、Gemini 3.1 Pro、Claude Fable 5。思考配额（effort）是模型自身的能力旋钮——同一份权重在高/低思考强度下的推理深度判若两个模型，因此它和权重同属「模型」这一维度，脱离 effort 谈模型表现并不公允；本仓库默认拉满（Max），并在每个组合里如实标注。
 - **Harness（运行环境）**：包裹模型的产品/脚手架，如 Codex CLI、Cursor、AntiGravity、Claude 网页版——它决定工具调用、系统提示词、上下文管理与续写策略，对最终产出的影响往往不亚于模型本身。
 - 因此本仓库的测评单位是一个 **Agent**：同一个模型（含其思考配额）换一个 Harness，就是另一个 Agent，记为不同条目（例如 GPT-5.5 Pro 与跑在 Codex CLI 里的 GPT-5.5（xhigh）是同一模型家族的两个 Agent）。
-- **测的是 Harness 开箱即用的默认形态**：请勿额外加载 Harness 自带以外的 skill / 插件 / MCP / 自定义系统提示——它们对产出的影响不亚于换 Harness，会破坏 Agent 之间的可比性。确实用了，就不是同一套 Agent，必须在 `note` 里如实说明。
+- **测的是 Harness 开箱即用的默认形态**：请勿额外加载 Harness 自带以外的 skill / 插件 / MCP / 自定义系统提示——它们对产出的影响不亚于换 Harness，会破坏 Agent 之间的可比性。这类 run **不予收录**（榜单身份只看 模型 × Harness × effort，在 `note` 里说明也不另立身份）。
 
 ## 已测组合 / Registry
 
