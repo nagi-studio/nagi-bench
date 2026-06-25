@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MythosCraft — 神话方块世界</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0e1a;
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #e8eefc; user-select: none; }
+  #c { display: block; width: 100%; height: 100%; cursor: none; }
+
+  /* 准星 */
+  #crosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    width: 24px; height: 24px; pointer-events: none; mix-blend-mode: difference; z-index: 10; }
+  #crosshair::before, #crosshair::after { content:''; position:absolute; background:#fff; box-shadow:0 0 1px #000; }
+  #crosshair::before { left:50%; top:0; width:2px; height:100%; transform:translateX(-50%); }
+  #crosshair::after  { top:50%; left:0; height:2px; width:100%; transform:translateY(-50%); }
+
+  /* 物品栏 */
+  #hotbar { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 5px; padding: 6px; background: rgba(0,0,0,0.5);
+    border: 2px solid rgba(0,0,0,0.7); border-radius: 7px; z-index: 10;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+  .slot { width: 52px; height: 52px; border: 2px solid rgba(255,255,255,0.15);
+    background: rgba(35,38,52,0.55); border-radius: 4px; position: relative;
+    display:flex; align-items:center; justify-content:center; cursor: pointer;
+    transition: border-color .12s, transform .12s; }
+  .slot.active { border-color: #ffcf4d; box-shadow: 0 0 12px rgba(255,207,77,0.65); transform: translateY(-3px); }
+  .slot canvas { width: 38px; height: 38px; image-rendering: pixelated; border-radius: 3px; }
+  .slot .num { position:absolute; top:1px; left:3px; font-size:11px; color:#fff; text-shadow:1px 1px 0 #000; }
+  .slot .name { position:absolute; bottom:-18px; left:50%; transform:translateX(-50%); font-size:11px;
+    white-space:nowrap; opacity:0; transition:opacity .15s; text-shadow:1px 1px 0 #000; }
+  .slot.active .name { opacity: 1; }
+
+  /* HUD */
+  #hud { position: fixed; top: 10px; left: 12px; z-index: 10; font-size: 12.5px; line-height: 1.55;
+    text-shadow: 1px 1px 0 #000; background: rgba(0,0,0,0.32); padding: 8px 12px; border-radius: 6px; }
+  #hud b { color: #ffcf4d; }
+  #compass { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 10;
+    background: rgba(0,0,0,0.38); padding: 5px 16px; border-radius: 18px; font-size: 13px;
+    letter-spacing: 3px; text-shadow: 1px 1px 0 #000; }
+  #tip { position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%); z-index: 10;
+    font-size: 12px; color: #cfd8ee; text-shadow: 1px 1px 0 #000; opacity: 0.82; pointer-events: none; }
+
+  /* 加载/开始遮罩 */
+  #overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(20,28,55,0.86), rgba(4,7,18,0.97));
+    backdrop-filter: blur(3px); text-align: center; transition: opacity .45s; }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  .panel { max-width: 680px; padding: 38px 42px; }
+  .panel h1 { font-size: 48px; letter-spacing: 8px; margin-bottom: 4px;
+    background: linear-gradient(180deg,#fff,#bcd7ff 55%,#7fa8ff); -webkit-background-clip: text;
+    background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 2px 30px rgba(90,140,255,0.45); }
+  .panel .sub { font-size: 13px; letter-spacing: 9px; color: #8aa6d8; margin-bottom: 28px; }
+  .panel p { font-size: 14px; line-height: 1.95; color: #cdd9f0; margin-bottom: 18px; }
+  .panel .keys { display: grid; grid-template-columns: repeat(2,1fr); gap: 6px 22px; text-align: left;
+    font-size: 13px; color: #b8c4e4; margin: 10px auto 26px; max-width: 460px; }
+  .panel .keys b { display:inline-block; min-width: 78px; color:#ffcf4d; }
+  .btn { display: inline-block; padding: 13px 38px; font-size: 15px; letter-spacing: 4px; cursor: pointer;
+    background: linear-gradient(180deg,#3a64c8,#26408a); border: 2px solid #4a78e0; border-radius: 6px;
+    color: #fff; transition: transform .15s, box-shadow .15s; text-shadow: 1px 1px 0 rgba(0,0,0,0.4); }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(70,120,240,0.55); }
+  .loader { font-size: 13px; color: #8aa6d8; letter-spacing: 3px; margin-top: 18px; }
+
+  /* 破坏进度 */
+  #break { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 56px; height: 56px;
+    z-index: 11; pointer-events: none; opacity: 0; transition: opacity .1s; }
+  #break svg { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="crosshair"></div>
+<div id="break"><svg viewBox="0 0 56 56"><circle cx="28" cy="28" r="24" fill="none" stroke="rgba(0,0,0,0.5)" stroke-width="4"/><circle id="breakArc" cx="28" cy="28" r="24" fill="none" stroke="#ffcf4d" stroke-width="4" stroke-linecap="round" stroke-dasharray="150.8" stroke-dashoffset="150.8" transform="rotate(-90 28 28)"/></svg></div>
+
+<div id="hotbar"></div>
+<div id="hud"></div>
+<div id="compass">N</div>
+<div id="tip">左键破坏 · 右键放置 · 滚轮/数字键切换方块 · 双击全屏</div>
+
+<div id="overlay">
+  <div class="panel">
+    <h1>MYTHOSCRAFT</h1>
+    <div class="sub">神 话 方 块 世 界</div>
+    <p>在一片由古老神祇塑造的无尽大陆上，矗立着失落的神殿、悬浮的法师塔、巨龙骨脊与水晶圣坛。
+       柏林噪声雕琢山川河海，而你——旅人——可徒手重塑这片方块大地。</p>
+    <div class="keys">
+      <span><b>WASD</b> 移动</span><span><b>空格</b> 跳跃</span>
+      <span><b>Shift</b> 下蹲/缓行</span><span><b>鼠标</b> 环视</span>
+      <span><b>左键</b> 破坏方块</span><span><b>右键</b> 放置方块</span>
+      <span><b>滚轮/1-9</b> 选方块</span><span><b>F</b> 切换飞行</span>
+      <span><b>R</b> 回到神殿</span><span><b>ESC</b> 释放鼠标</span>
+    </div>
+    <div class="btn" id="startBtn">进 入 世 界</div>
+    <div class="loader" id="loader">正在召唤方块世界…</div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ─────────────────────────────────────────────────────────────
+//  基础常量
+// ─────────────────────────────────────────────────────────────
+const CHUNK = 16;          // 区块边长（X / Z）
+const WORLD_H = 48;        // 世界最大高度
+const SEA = 14;            // 海平面
+const VIEW = 5;            // 视距（区块数，每边）→ (2*VIEW+1)^2 区块
+const HALF = VIEW * CHUNK; // 半个渲染范围（方块）
+
+// 方块类型
+const B = {
+  AIR:0, GRASS:1, DIRT:2, STONE:3, SAND:4, WOOD:5, LEAF:6,
+  PLANK:7, COBBLE:8, BRICK:9, GOLD:10, OBSIDIAN:11, CRYSTAL:12,
+  SNOW:13, WATER:14, LAVA:15, MARBLE:16, BONE:17, MOSS:18, GLOW:19
+};
+
+// 方块元数据：颜色（顶/侧/底 用于程序化纹理）、是否透明、是否发光、硬度
+const DEF = {
+  [B.GRASS]:   { top:[96,176,64],  side:[120,86,56],  bot:[120,86,56],  hard:0.6, name:'草地' },
+  [B.DIRT]:    { top:[134,96,62],  side:[134,96,62],  bot:[120,84,52],  hard:0.5, name:'泥土' },
+  [B.STONE]:   { top:[128,128,134],side:[116,116,122],bot:[100,100,106],hard:1.5, name:'石头' },
+  [B.SAND]:    { top:[228,214,158],side:[214,198,140],bot:[196,180,128],hard:0.4, name:'沙子' },
+  [B.WOOD]:    { top:[160,120,66], side:[96,66,38],   bot:[160,120,66], hard:1.0, name:'原木' },
+  [B.LEAF]:    { top:[58,128,46],  side:[48,108,38],  bot:[40,92,32],   hard:0.2, name:'树叶', alpha:0.92 },
+  [B.PLANK]:   { top:[176,134,80], side:[176,134,80], bot:[160,120,70], hard:1.0, name:'木板' },
+  [B.COBBLE]:  { top:[120,120,124],side:[104,104,108],bot:[92,92,96],   hard:1.4, name:'圆石' },
+  [B.BRICK]:   { top:[150,60,48],  side:[140,52,42],  bot:[120,46,38],  hard:1.6, name:'红砖' },
+  [B.GOLD]:    { top:[240,200,70], side:[224,184,56], bot:[200,162,44], hard:2.0, name:'金块', metal:true },
+  [B.OBSIDIAN]:{ top:[28,22,44],   side:[24,18,38],   bot:[20,16,32],   hard:3.0, name:'黑曜石' },
+  [B.CRYSTAL]: { top:[120,200,255],side:[110,184,250],bot:[96,168,236], hard:1.2, name:'水晶', alpha:0.55, glow:true },
+  [B.SNOW]:    { top:[242,246,252],side:[232,236,244],bot:[214,220,230],hard:0.3, name:'雪块' },
+  [B.WATER]:   { top:[54,110,200], side:[44,96,184],  bot:[40,86,170],  hard:0,  name:'水', alpha:0.55, fluid:true },
+  [B.LAVA]:    { top:[238,120,30], side:[214,92,20],  bot:[180,72,16],  hard:0,  name:'岩浆', glow:true, fluid:true },
+  [B.MARBLE]:  { top:[236,234,240],side:[220,218,226],bot:[200,198,208],hard:1.6, name:'大理石' },
+  [B.BONE]:    { top:[232,224,200],side:[216,208,184],bot:[198,190,168],hard:0.8, name:'骨块' },
+  [B.MOSS]:    { top:[70,108,52],  side:[60,96,44],   bot:[50,82,36],   hard:0.5, name:'苔石' },
+  [B.GLOW]:    { top:[255,210,120],side:[240,180,90], bot:[220,160,70], hard:0.6, name:'荧石', glow:true }
+};
+
+// ─────────────────────────────────────────────────────────────
+//  程序化纹理（每方块 16×16，绘制到 canvas → CanvasTexture）
+// ─────────────────────────────────────────────────────────────
+function txCanvas(draw){ const c=document.createElement('canvas'); c.width=c.height=16;
+  const x=c.getContext('2d'); draw(x); return c; }
+function shade(rgb,f){ return `rgb(${(rgb[0]*f)|0},${(rgb[1]*f)|0},${(rgb[2]*f)|0})`; }
+function rnd(a){ let t=a*12.9898+a*78.233; return (Math.sin(t)*43758.5453)%1; }
+function noiseDot(x,p){ // 稳定伪随机
+  let s=Math.sin(p*12.9898)*43758.5453; s-=Math.floor(s);
+  return s;
+}
+function fill(x,rgb){ x.fillStyle=shade(rgb,1); x.fillRect(0,0,16,16); }
+function speckle(x,rgb,dark,bright,density){
+  for(let i=0;i<density;i++){
+    const px=(i*37)%16, py=(i*61)%16, n=noiseDot(i,px*0.7+py*1.3);
+    x.fillStyle = n<0.4? shade(rgb,dark) : n>0.85? shade(rgb,bright) : shade(rgb,1);
+    x.fillRect(px,py,1,1);
+  }
+}
+// 通用面纹理生成器
+function faceTex(type, face){
+  const d=DEF[type]; const rgb = face==='top'?d.top: face==='bot'?d.bot: d.side;
+  return txCanvas(x=>{
+    fill(x,rgb);
+    switch(type){
+      case B.GRASS:
+        if(face==='top'){ speckle(x,rgb,0.86,1.1,140); for(let i=0;i<24;i++){ x.fillStyle=shade(rgb,1.12); x.fillRect((i*7)%16,(i*11)%16,1,1);} }
+        else if(face==='side'){ // 顶部草边 + 泥土
+          for(let i=0;i<16;i++){ const h=2+((i*13)%3); x.fillStyle=shade(d.top,1); x.fillRect(i,0,1,h); }
+          speckle(x,d.side,0.86,1.08,90);
+        } else speckle(x,rgb,0.85,1.08,90);
+        break;
+      case B.DIRT:  speckle(x,rgb,0.8,1.1,110); break;
+      case B.STONE: speckle(x,rgb,0.82,1.12,150); for(let i=0;i<6;i++){ x.fillStyle=shade(rgb,0.7); x.fillRect((i*5)%16,(i*9)%16,3,1);} break;
+      case B.COBBLE:{ x.fillStyle=shade(rgb,0.75); for(let i=0;i<8;i++){ const cx=(i*5)%16, cy=(i*7)%16; x.fillRect(cx,cy,4,4);} speckle(x,rgb,0.85,1.15,120); break; }
+      case B.SAND:  speckle(x,rgb,0.93,1.05,90); break;
+      case B.WOOD:
+        if(face==='top'||face==='bot'){ // 年轮
+          x.fillStyle=shade(rgb,0.8); for(let r=2;r<8;r+=2){ x.beginPath(); x.arc(8,8,r,0,7); x.strokeStyle=shade(rgb,0.7); x.stroke(); }
+          x.fillStyle=shade(rgb,0.6); x.fillRect(7,7,2,2);
+        } else { // 竖纹
+          for(let i=0;i<16;i+=2){ x.fillStyle=shade(rgb, i%4?0.86:1.08); x.fillRect(i,0,1,16); }
+          x.fillStyle=shade(rgb,0.7); x.fillRect(3,0,1,16); x.fillRect(11,0,1,16);
+        } break;
+      case B.PLANK: for(let i=0;i<16;i+=4){ x.fillStyle=shade(rgb,i%8?0.94:1.06); x.fillRect(0,i,16,1); } speckle(x,rgb,0.9,1.08,60); break;
+      case B.LEAF:  speckle(x,rgb,0.7,1.18,170); for(let i=0;i<20;i++){ x.fillStyle=shade(rgb,0.6); x.fillRect((i*9)%16,(i*5)%16,2,2);} break;
+      case B.BRICK: { x.fillStyle=shade(rgb,0.7); for(let y=0;y<16;y+=4){ x.fillRect(0,y,16,1); } for(let y=0;y<16;y+=4){ const off=(y/4)%2? 0:4; for(let xx=off;xx<16;xx+=8){ x.fillRect(xx,y,1,4);} } speckle(x,rgb,0.92,1.06,40); break; }
+      case B.GOLD:  speckle(x,rgb,0.9,1.16,80); x.fillStyle=shade(rgb,1.2); for(let i=0;i<6;i++) x.fillRect((i*13)%16,(i*7)%16,2,2); break;
+      case B.OBSIDIAN: speckle(x,rgb,0.7,1.3,60); x.fillStyle=shade(rgb,1.4); x.fillRect(4,5,2,2); x.fillRect(10,9,2,2); break;
+      case B.CRYSTAL: speckle(x,rgb,0.85,1.25,40); x.fillStyle='rgba(255,255,255,0.5)'; x.fillRect(5,3,2,9); x.fillRect(9,5,2,7); break;
+      case B.SNOW:  speckle(x,rgb,0.95,1.03,60); break;
+      case B.WATER: speckle(x,rgb,0.9,1.1,50); for(let i=0;i<10;i++){ x.fillStyle='rgba(180,220,255,0.18)'; x.fillRect((i*5)%16,(i*11)%16,6,1);} break;
+      case B.LAVA:  speckle(x,rgb,0.85,1.3,120); x.fillStyle=shade(rgb,1.4); for(let i=0;i<8;i++) x.fillRect((i*7)%16,(i*13)%16,3,2); break;
+      case B.MARBLE: speckle(x,rgb,0.93,1.05,40); x.strokeStyle=shade(rgb,0.82); for(let i=0;i<3;i++){ x.beginPath(); x.moveTo(0,(i*5)+2); x.bezierCurveTo(6,(i*7),10,(i*3),16,(i*6)+1); x.stroke(); } break;
+      case B.BONE:  speckle(x,rgb,0.9,1.06,70); x.fillStyle=shade(rgb,0.8); x.fillRect(0,7,16,1); break;
+      case B.MOSS:  speckle(x,rgb,0.7,1.15,160); x.fillStyle=shade(rgb,0.6); for(let i=0;i<14;i++) x.fillRect((i*11)%16,(i*7)%16,2,2); break;
+      case B.GLOW:  speckle(x,rgb,0.88,1.25,110); x.fillStyle=shade(rgb,1.3); for(let i=0;i<10;i++) x.fillRect((i*13)%16,(i*5)%16,2,2); break;
+      default: speckle(x,rgb,0.85,1.1,90);
+    }
+  });
+}
+
+// 为每个方块预生成 6 面纹理（top/bot 复用 4 个 side）
+const TEX = {};
+for(const t in DEF){
+  TEX[t] = {
+    top: new THREE.CanvasTexture(faceTex(+t,'top')),
+    side:new THREE.CanvasTexture(faceTex(+t,'side')),
+    bot: new THREE.CanvasTexture(faceTex(+t,'bot'))
+  };
+  for(const k in TEX[t]){ TEX[t][k].magFilter=THREE.NearestFilter; TEX[t][k].minFilter=THREE.NearestFilter; TEX[t][k].colorSpace=THREE.SRGBColorSpace; }
+}
+
+// 材质缓存（按方块类型 → 6 面材质数组：+x,-x,+y,-y,+z,-z）
+const MAT = {};
+for(const t in DEF){
+  const d=DEF[+t];
+  const opt = { map:0, alphaTest:0, transparent:false };
+  if(d.alpha){ opt.transparent=true; opt.opacity=d.alpha; } 
+  const mk=(tex)=>{ const m=new THREE.MeshLambertMaterial({map:tex, transparent:!!d.alpha, opacity:d.alpha||1, emissive:0x000000, emissiveMap:tex, emissiveIntensity:0}); if(d.alpha&&!d.fluid) m.alphaTest=0.1; return m; };
+  const top=mk(TEX[t].top), bot=mk(TEX[t].bot), sd=mk(TEX[t].side);
+  if(d.glow){ const ec = d.fluid? 0.5:0.35; [top,bot,sd].forEach(m=>{ m.emissive=new THREE.Color(d.top[0]/255,d.top[1]/255,d.top[2]/255); m.emissiveIntensity=ec; }); }
+  // MeshLambertMaterial face order: [+x,-x,+y,-y,+z,-z]
+  MAT[t] = [sd,sd,top,bot,sd,sd];
+}
+
+// ─────────────────────────────────────────────────────────────
+//  柏林噪声（2D 经典 Perlin）
+// ─────────────────────────────────────────────────────────────
+class Perlin {
+  constructor(seed=1337){ this.p=new Uint8Array(512); const perm=new Uint8Array(256);
+    for(let i=0;i<256;i++) perm[i]=i;
+    let s=seed>>>0;
+    for(let i=255;i>0;i--){ s=(s*1664525+1013904223)>>>0; const j=s%(i+1); const t=perm[i]; perm[i]=perm[j]; perm[j]=t; }
+    for(let i=0;i<512;i++) this.p[i]=perm[i&255];
+  }
+  fade(t){ return t*t*t*(t*(t*6-15)+10); }
+  lerp(a,b,t){ return a+t*(b-a); }
+  grad(h,x,y){ const u=(h&1)?x:-x, v=(h&2)?y:-y; return u+v; }
+  noise2(x,y){
+    const X=Math.floor(x)&255, Y=Math.floor(y)&255; x-=Math.floor(x); y-=Math.floor(y);
+    const u=this.fade(x), v=this.fade(y);
+    const aa=this.p[this.p[X]+Y], ab=this.p[this.p[X]+Y+1], ba=this.p[this.p[X+1]+Y], bb=this.p[this.p[X+1]+Y+1];
+    return this.lerp(this.lerp(this.grad(aa,x,y),this.grad(ba,x-1,y),u),
+                     this.lerp(this.grad(ab,x,y-1),this.grad(bb,x-1,y-1),u), v);
+  }
+  fbm(x,y,oct=4,lac=2,gain=0.5){
+    let f=0,amp=0.5,fr=1,norm=0;
+    for(let i=0;i<oct;i++){ f+=amp*this.noise2(x*fr,y*fr); norm+=amp; amp*=gain; fr*=lac; }
+    return f/norm; // [-1,1]
+  }
+}
+const perlin = new Perlin(20260626);
+const perlin2 = new Perlin(88123);
+
+// 高度场：大陆 + 山脉 + 丘陵细节
+function heightAt(wx,wz){
+  const cont = perlin.fbm(wx*0.0035, wz*0.0035, 4);        // 大陆轮廓 [-1,1]
+  const mount = Math.max(0, perlin.fbm(wx*0.012, wz*0.012, 4)); // 山脉
+  const hill = perlin2.fbm(wx*0.05, wz*0.05, 3);           // 丘陵
+  let h = SEA + cont*10 + mount*mount*28 + hill*4;
+  // 远离中心的边缘抬高 → 自然边界屏障（环山）
+  const d = Math.sqrt(wx*wx+wz*wz)/HALF;
+  if(d>0.78){ const e=(d-0.78)/0.22; h += e*e*42; }
+  return Math.floor(h);
+}
+function biomeAt(wx,wz,h){
+  const m = perlin2.fbm(wx*0.008+100, wz*0.008+100, 2); // 湿度/温度
+  if(h<=SEA) return 'sea';
+  if(h<=SEA+1) return 'beach';
+  if(h>34) return 'mountain';
+  if(m>0.35) return 'forest'; if(m<-0.4) return 'desert'; return 'plain';
+}
+
+// ─────────────────────────────────────────────────────────────
+//  世界数据（体素存储）—— 以原点为中心的固定大小立方体
+//  采用 Map<key,Uint8Array> 区块切片，便于动态编辑；这里世界范围有限但足够大
+// ─────────────────────────────────────────────────────────────
+const SX = HALF*2, SZ = HALF*2; // X/Z 范围
+const world = new Map(); // key "x,z" -> Uint8Array(CHUNK*CHUNK*WORLD_H)
+function key(cx,cz){ return cx+','+cz; }
+function getCol(cx,cz){ let a=world.get(key(cx,cz)); if(!a){ a=new Uint8Array(CHUNK*CHUNK*WORLD_H); world.set(key(cx,cz),a);} return a; }
+function idx(lx,ly,lz){ return ly + WORLD_H*(lx + CHUNK*lz); }
+function inBoundsXZ(wx,wz){ return wx>=-HALF && wx<HALF && wz>=-HALF && wz<HALF; }
+function getVox(wx,wy,wz){
+  if(!inBoundsXZ(wx,wz)||wy<0||wy>=WORLD_H) return B.AIR;
+  const cx=Math.floor((wx+HALF)/CHUNK), cz=Math.floor((wz+HALF)/CHUNK);
+  const lx=wx+HALF-cx*CHUNK, lz=wz+HALF-cz*CHUNK;
+  return getCol(cx,cz)[idx(lx,wy,lz)];
+}
+function setVox(wx,wy,wz,t){
+  if(!inBoundsXZ(wx,wz)||wy<0||wy>=WORLD_H) return false;
+  const cx=Math.floor((wx+HALF)/CHUNK), cz=Math.floor((wz+HALF)/CHUNK);
+  const lx=wx+HALF-cx*CHUNK, lz=wz+HALF-cz*CHUNK;
+  getCol(cx,cz)[idx(lx,wy,lz)]=t; return true;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  地形生成（含生物群系 + 树木 + 水岩浆）
+// ─────────────────────────────────────────────────────────────
+const trees=[]; // {x,z,h}
+function genTerrain(){
+  for(let cx=-VIEW;cx<=VIEW;cx++) for(let cz=-VIEW;cz<=VIEW;cz++){
+    const col=getCol(cx,cz);
+    for(let lx=0;lx<CHUNK;lx++) for(let lz=0;lz<CHUNK;lz++){
+      const wx=cx*CHUNK+lx-HALF, wz=cz*CHUNK+lz-HALF;
+      const h=heightAt(wx,wz); const b=biomeAt(wx,wz,h);
+      for(let y=0;y<=Math.max(h,SEA);y++){
+        let t=B.AIR;
+        if(y>h){ if(y<=SEA) t=B.WATER; }
+        else if(y===h){
+          if(b==='beach') t=B.SAND;
+          else if(b==='mountain') t = h>40? B.SNOW: B.STONE;
+          else if(b==='desert') t=B.SAND;
+          else t=B.GRASS;
+        } else if(y>=h-3){
+          if(b==='desert'||b==='beach') t=B.SAND; else if(b==='mountain') t=B.STONE; else t=B.DIRT;
+        } else if(y>4) t=B.STONE;
+        else t=B.STONE;
+        col[idx(lx,y,lz)]=t;
+      }
+      // 沙地表面下方偶尔沙化
+      if(b==='desert'&&h>SEA){ for(let y=h;y>h-5;y--) if(col[idx(lx,y,lz)]===B.DIRT) col[idx(lx,y,lz)]=B.SAND; }
+      // 山顶雪盖
+      if(b==='mountain'&&h>38){ for(let y=h;y<h+2;y++) if(y<WORLD_H) col[idx(lx,y,lz)]=B.SNOW; }
+      // 记录可种树位置
+      if((b==='forest'||b==='plain') && h>SEA+1 && h<34 && Math.abs(wx)<HALF-12 && Math.abs(wz)<HALF-12){
+        const r=noiseDot(wx*1.7+wz*3.3, wx+wz);
+        if(b==='forest'? r<0.06 : r<0.018) trees.push({x:wx,z:wz,h});
+      }
+    }
+  }
+  // 地下岩浆池（随机几处）
+  for(let i=0;i<8;i++){
+    const lx=Math.floor((Math.random()-0.5)*(HALF*1.6)), lz=Math.floor((Math.random()-0.5)*(HALF*1.6));
+    const r=3+Math.random()*3;
+    for(let dx=-r;dx<=r;dx++) for(let dz=-r;dz<=r;dz++) for(let dy=-2;dy<=0;dy++){
+      if(dx*dx+dz*dz<=r*r){ const wy=4+dy; if(getVox(lx+dx,wy,lz+dz)===B.STONE) setVox(lx+dx,wy,lz+dz,B.LAVA); }
+    }
+  }
+}
+
+// 种树（自然生成）
+function plantTree(x,z,h){
+  if(getVox(x,h,z)!==B.GRASS) return;
+  const th=4+Math.floor(Math.random()*3);
+  for(let y=1;y<=th;y++) setVox(x,h+y,z,B.WOOD);
+  // 树冠
+  const cr=2;
+  for(let dx=-cr;dx<=cr;dx++) for(let dz=-cr;dz<=cr;dz++) for(let dy=th-2;dy<=th+1;dy++){
+    if(dx===0&&dz===0&&dy<=th) continue;
+    const d=Math.abs(dx)+Math.abs(dz)+Math.abs(dy-th);
+    if(d<=3 && !(Math.abs(dx)===2&&Math.abs(dz)===2)) setVox(x+dx,h+dy,z+dz,B.LEAF);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  神话 / 奇幻建筑 & 地形（手工程序化放置）
+// ─────────────────────────────────────────────────────────────
+// 工具：填充长方体
+function box(x0,y0,z0,x1,y1,z1,t){
+  for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++) for(let z=z0;z<=z1;z++) setVox(x,y,z,t);
+}
+function shell(x0,y0,z0,x1,y1,z1,t){ // 空心
+  for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++) for(let z=z0;z<=z1;z++){
+    if(x===x0||x===x1||y===y0||y===y1||z===z0||z===z1) setVox(x,y,z,t);
+  }
+}
+function disc(cx,cz,y,r,t){ for(let dx=-r;dx<=r;dx++) for(let dz=-r;dz<=r;dz++) if(dx*dx+dz*dz<=r*r) setVox(cx+dx,y,cz+dz,t); }
+function ring(cx,cz,y,r,t){ for(let dx=-r;dx<=r;dx++) for(let dz=-r;dz<=r;dz++){ const d=dx*dx+dz*dz; if(d<=r*r&&d>=(r-1)*(r-1)) setVox(cx+dx,y,cz+dz,t);} }
+function column(x,y0,z,y1,t){ for(let y=y0;y<=y1;y++) setVox(x,y,z,t); }
+// 找地表高度
+function surf(wx,wz){ let h=0; for(let y=WORLD_H-1;y>=0;y--){ if(getVox(wx,y,wz)!==B.AIR){ h=y; break;} } return h; }
+
+// 1) 中央太阳神殿（大理石 + 金 + 水晶）
+function buildSunTemple(){
+  const cx=0, cz=0; const base=surf(cx,cz)+1;
+  // 基座
+  box(-14,base-1,-14,14,base,14,B.MARBLE);
+  // 阶梯
+  for(let s=0;s<3;s++){ ring(0,0,base-1-s,14-s,B.MARBLE); }
+  // 8 根金顶大理石柱
+  const r=10;
+  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; const px=Math.round(Math.cos(a)*r), pz=Math.round(Math.sin(a)*r);
+    for(let y=base+1;y<=base+8;y++) setVox(px,y,pz,B.MARBLE);
+    setVox(px,base+9,pz,B.GOLD); setVox(px,base+10,pz,B.GOLD);
+  }
+  // 顶部圆坛 + 水晶圣坛
+  disc(0,0,base+11,7,B.MARBLE);
+  disc(0,0,base+12,6,B.GOLD);
+  for(let dx=-1;dx<=1;dx++) for(let dz=-1;dz<=1;dz++) setVox(dx,base+13,dz,B.CRYSTAL);
+  setVox(0,base+14,0,B.GLOW); setVox(0,base+15,0,B.CRYSTAL);
+  // 火盆（四角）
+  [[-12,-12],[12,-12],[-12,12],[12,12]].forEach(([x,z])=>{ setVox(x,base+1,z,B.COBBLE); setVox(x,base+2,z,B.LAVA); });
+  // 地下墓室（黑曜石密室 + 荧石灯）
+  box(-6,base-7,-6,6,base-2,6,B.OBSIDIAN);
+  for(let x=-5;x<=5;x++) for(let z=-5;z<=5;z++){ setVox(x,base-2,z,B.OBSIDIAN); }
+  // 挖空内部并放金箱骨堆
+  for(let x=-4;x<=4;x++) for(let z=-4;z<=4;z++) for(let y=base-6;y<=base-3;y++) setVox(x,y,z,B.AIR);
+  for(let x=-3;x<=3;x++) for(let z=-3;z<=3;z++) setVox(x,base-3,z,B.BONE);
+  box(-1,base-5,-1,1,base-4,1,B.GOLD);
+  setVox(-5,base-5,-5,B.GLOW); setVox(5,base-5,5,B.GLOW); setVox(-5,base-5,5,B.GLOW); setVox(5,base-5,-5,B.GLOW);
+  return {x:cx,z:cz,y:base+2};
+}
+
+// 2) 悬浮法师塔（远离神殿，含基岩链）
+function buildWizardTower(){
+  const cx=40, cz=-34; const top=surf(cx,cz)+22;
+  // 悬浮岛（泥土+草地圆盘）
+  for(let dx=-6;dx<=6;dx++) for(let dz=-6;dz<=6;dz++){ const d=dx*dx+dz*dz; if(d<=36){
+    setVox(cx+dx,top-1,cz+dz,B.DIRT); setVox(cx+dx,top,cz+dz,B.GRASS);
+    if(d>25) for(let y=top-1;y>top-4;y--) setVox(cx+dx,y,cz+dz,B.DIRT);
+  }}
+  // 塔身：黑曜石圆柱
+  for(let y=top+1;y<=top+18;y++) for(let dx=-3;dx<=3;dx++) for(let dz=-3;dz<=3;dz++){
+    if(dx*dx+dz*dz<=9 && dx*dx+dz*dz>=4) setVox(cx+dx,y,cz+dz,B.OBSIDIAN);
+  }
+  // 内挖空 + 螺旋楼梯（木板）
+  for(let y=top+1;y<=top+18;y++) for(let dx=-2;dx<=2;dx++) for(let dz=-2;dz<=2;dz++) if(dx*dx+dz*dz<=4) setVox(cx+dx,y,cz+dz,B.AIR);
+  for(let y=top+1;y<=top+18;y++){ const a=(y-top)*0.8; const sx=Math.round(Math.cos(a)*2), sz=Math.round(Math.sin(a)*2); setVox(cx+sx,y,cz+sz,B.PLANK); }
+  // 塔顶水晶尖塔
+  for(let y=top+19;y<=top+26;y++){ const r=Math.max(0,3-(y-top-19)/2|0); disc(cx,cz,y,r,B.CRYSTAL); }
+  setVox(cx,top+27,cz,B.GLOW);
+  // 从地面到岛的能量柱（细水晶链，半透明）
+  const groundY=surf(cx,cz)+1;
+  for(let y=groundY;y<top-1;y++){ if(y%2===0) setVox(cx,y,cz,B.CRYSTAL); }
+}
+
+// 3) 巨龙骨脊（沙滩上的白色骨拱）
+function buildDragonBones(){
+  const cx=-38, cz=30; const y=surf(cx,cz)+1;
+  // 脊椎拱
+  for(let i=0;i<24;i++){ const t=i/23; const x=Math.round(cx + (t-0.5)*30); const yy=Math.round(y + Math.sin(t*Math.PI)*8); const z=cz;
+    setVox(x,yy,z,B.BONE); setVox(x,yy+1,z,B.BONE);
+    if(i%3===0){ setVox(x,yy,z-2,B.BONE); setVox(x,yy,z+2,B.BONE); setVox(x,yy,z-1,B.BONE); setVox(x,yy,z+1,B.BONE); }
+  }
+  // 头骨
+  const hx=cx+16, hy=y+8;
+  box(hx,hy-2,hx+5,hy+2,hy+2,B.BONE);
+  // 眼洞
+  setVox(hx+1,hy-1,cz-1,B.OBSIDIAN); setVox(hx+1,hy-1,cz+1,B.OBSIDIAN);
+  setVox(hx+2,hy-1,cz-1,B.GLOW); setVox(hx+2,hy-1,cz+1,B.GLOW);
+  // 尾刺
+  for(let i=0;i<8;i++){ const x=cx-15-i*2; const yy=y+i%2; setVox(x,yy,cz,B.BONE); setVox(x,yy,cz+(i%2?2:-2),B.BONE); }
+}
+
+// 4) 精灵树海巨树（巨型橡树 + 树屋）
+function buildWorldTree(){
+  const cx=10, cz=44; const base=surf(cx,cz)+1;
+  const th=26;
+  for(let y=0;y<th;y++){ // 粗树干
+    for(let dx=-2;dx<=2;dx++) for(let dz=-2;dz<=2;dz++) if(dx*dx+dz*dz<=4) setVox(cx+dx,base+y,cz+dz,B.WOOD);
+  }
+  // 树冠
+  for(let dy=th-6;dy<=th+4;dy++) for(let dx=-7;dx<=7;dx++) for(let dz=-7;dz<=7;dz++){
+    const d=dx*dx+dz*dz+Math.abs(dy-th)*1.4;
+    if(d<40 && !(dx>-2&&dx<2&&dz>-2&&dz<2&&dy<th-2)) setVox(cx+dx,base+dy,cz+dz,B.LEAF);
+  }
+  // 树屋（木板小屋，挂在树干中段）
+  const wy=base+14;
+  box(cx-4,wy,cz-4,cx+4,wy+3,cz+4,B.PLANK);
+  for(let x=cx-3;x<=cx+3;x++) for(let z=cz-3;z<=cz+3;z++) setVox(x,wy+4,z,B.PLANK);
+  // 挖空 + 窗
+  for(let x=cx-3;x<=cx+3;x++) for(let z=cz-3;z<=cz+3;z++) for(let y=wy+1;y<=wy+2;y++) setVox(x,y,z,B.AIR);
+  setVox(cx-4,wy+1,cz,B.CRYSTAL); setVox(cx+4,wy+1,cz,B.CRYSTAL);
+  setVox(cx,wy+1,cz-4,B.CRYSTAL); setVox(cx,wy+1,cz+4,B.CRYSTAL);
+  // 蘑菇灯（地面）
+  setVox(cx,base-1,cz+5,B.GLOW); setVox(cx,base-1,cz-5,B.GLOW);
+}
+
+// 5) 远古神殿废墟（半埋的砖石废墟 + 拱门）
+function buildRuins(){
+  const cx=-46, cz=-40; const base=surf(cx,cz)+1;
+  // 断墙
+  box(-3,base,-3,3,base+4,3,B.BRICK);
+  for(let x=-3;x<=3;x++){ setVox(x,base+1,-3,B.AIR); setVox(x,base+2,-3,B.AIR); if(x%2===0) setVox(x,base+3,-3,B.AIR); }
+  box(-3,base,-3,-3,base+3,3,B.BRICK);
+  box(3,base,3,-3,base+4,3,B.BRICK);
+  // 倾斜拱门
+  for(let y=0;y<7;y++){ const x=-2+(y>3?1:0); setVox(x,base+y,-1,B.BRICK); setVox(x+4,base+y,-1,B.BRICK); }
+  for(let x=-1;x<=3;x++) setVox(x+(x>1?1:0),base+7,-1,B.BRICK);
+  // 散落苔石 + 半埋
+  for(let i=0;i<14;i++){ const dx=(i*13)%20-10, dz=(i*7)%20-10; setVox(cx+dx,base,cz+dz,B.MOSS); if(i%3===0) setVox(cx+dx,base+1,cz+dz,B.MOSS); }
+}
+
+// 6) 冰晶峰（雪山顶的水晶矿脉 + 冰洞）
+function buildIcePeak(){
+  const cx=46, cz=44; const base=surf(cx,cz);
+  // 已由地形生成雪顶，这里嵌入水晶
+  for(let dy=-4;dy<=4;dy++) for(let dx=-3;dx<=3;dx++) for(let dz=-3;dz<=3;dz++){
+    if(dx*dx+dz*dz<=9){ const y=base+dy; if(getVox(cx+dx,y,cz+dz)===B.SNOW||getVox(cx+dx,y,cz+dz)===B.STONE){
+      if(Math.random()<0.4) setVox(cx+dx,y,cz+dz,B.CRYSTAL);
+    }}
+  }
+  // 冰洞入口
+  for(let dx=-1;dx<=1;dx++) for(let dy=0;dy<=2;dy++) setVox(cx+dx,base-2-dy,cz-5,B.AIR);
+  setVox(cx,base-3,cz-5,B.GLOW); setVox(cx,base-4,cz-5,B.GLOW);
+}
+
+// 7) 沙漠金子塔（4 面金字塔 + 内部墓室）
+function buildPyramid(){
+  const cx=-12, cz=46; const base=surf(cx,cz)+1; const size=12;
+  for(let y=0;y<size;y++){ const r=size-y; for(let dx=-r;dx<=r;dx++) for(let dz=-r;dz<=r;dz++) setVox(cx+dx,base+y,cz+dz,B.SAND); }
+  // 内部墓室
+  for(let dx=-3;dx<=3;dx++) for(let dz=-3;dz<=3;dz++) for(let dy=3;dy<=6;dy++) setVox(cx+dx,base+dy,cz+dz,B.AIR);
+  box(-2,base+3,-2,2,base+3,2,B.GOLD);
+  // 入口
+  for(let dy=0;dy<=2;dy++) for(let dx=-1;dx<=1;dx++) setVox(cx+dx,base+dy,cz+size,B.AIR);
+  // 顶部金帽
+  setVox(cx,base+size,cz,B.GOLD);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  构建：地形 → 自然 → 建筑
+// ─────────────────────────────────────────────────────────────
+genTerrain();
+trees.forEach(t=>plantTree(t.x,t.z,t.h));
+const spawn = buildSunTemple();
+buildWizardTower();
+buildDragonBones();
+buildWorldTree();
+buildRuins();
+buildIcePeak();
+buildPyramid();
+
+// ─────────────────────────────────────────────────────────────
+//  Three.js 场景
+// ─────────────────────────────────────────────────────────────
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x8fc4ff);
+scene.fog=new THREE.Fog(0x9fd0ff, CHUNK*VIEW*0.75, CHUNK*VIEW*1.45);
+
+const camera=new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.08, 2000);
+
+// 光照：天空 + 日光 + 环境
+const sun=new THREE.DirectionalLight(0xfff2d8, 1.05);
+sun.position.set(60,120,40);
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0xb8c8e8, 0.55));
+scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x4a4030, 0.5));
+
+// 天空盒：渐变 + 太阳
+const skyMat=new THREE.ShaderMaterial({
+  side:THREE.BackSide, depthWrite:false,
+  uniforms:{ top:{value:new THREE.Color(0x2e6fd6)}, bot:{value:new THREE.Color(0xbfe0ff)}, sunPos:{value:new THREE.Vector3(0.4,0.5,0.3)} },
+  vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader:`varying vec3 vP; uniform vec3 top; uniform vec3 bot; uniform vec3 sunPos;
+    void main(){ vec3 d=normalize(vP); float h=clamp(d.y*0.5+0.5,0.,1.); vec3 c=mix(bot,top,smoothstep(0.,1.,h));
+      float s=pow(max(dot(d,normalize(sunPos)),0.),64.); c+=vec3(1.,0.9,0.7)*s*0.8; gl_FragColor=vec4(c,1.); }`
+});
+const sky=new THREE.Mesh(new THREE.SphereGeometry(800,24,16), skyMat);
+scene.add(sky);
+
+// 云层（简易白色面片飘动）
+const cloudGroup=new THREE.Group(); scene.add(cloudGroup);
+for(let i=0;i<26;i++){
+  const w=12+Math.random()*26, d=12+Math.random()*26;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,3,d), new THREE.MeshLambertMaterial({color:0xffffff, transparent:true, opacity:0.62}));
+  m.position.set((Math.random()-0.5)*HALF*2.2, 60+Math.random()*22, (Math.random()-0.5)*HALF*2.2);
+  cloudGroup.add(m);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  贪婪网格生成（Greedy Meshing）—— 每个区块独立 mesh
+// ─────────────────────────────────────────────────────────────
+// 顶面/底面/侧面方向定义
+const FACES=[
+  { dir:[ 1,0,0], corners:[[1,0,0],[1,1,0],[1,0,1],[1,1,1]] }, // +x
+  { dir:[-1,0,0], corners:[[0,0,0],[0,0,1],[0,1,0],[0,1,1]] }, // -x
+  { dir:[0, 1,0], corners:[[0,1,0],[0,1,1],[1,1,0],[1,1,1]] }, // +y
+  { dir:[0,-1,0], corners:[[0,0,0],[1,0,0],[0,0,1],[1,0,1]] }, // -y
+  { dir:[0,0, 1], corners:[[0,0,1],[1,0,1],[0,1,1],[1,1,1]] }, // +z
+  { dir:[0,0,-1], corners:[[0,0,0],[0,1,0],[1,0,0],[1,1,0]] }, // -z
+];
+
+function isOpaque(t){ return t!==B.AIR && !(DEF[t]&&DEF[t].alpha); }
+function isAir(t){ return t===B.AIR; }
+function visible(t, neighbor){
+  if(t===B.AIR) return false;
+  const da=DEF[t]&&DEF[t].alpha;
+  if(neighbor===B.AIR) return true;
+  if(isOpaque(neighbor)) return false;
+  // 透明/半透明：与自己不同则可见
+  return neighbor!==t;
+}
+
+// 区块 mesh 构建：贪婪网格 + 纹理 Atlas（更还原 Minecraft 材质）
+const chunkMeshes=new Map(); // key -> {solid, water}
+
+// ── 纹理 Atlas：每方块 3 种面(top/side/bot)，每格 16x16，横向排列 ──
+const TILE=16;
+const atlasCols=Object.keys(DEF).length*3;
+const atlas=document.createElement('canvas'); atlas.width=atlasCols*TILE; atlas.height=TILE;
+const ax=atlas.getContext('2d');
+const atlasIndex={}; // type -> {top,side,bot} 列号
+let col=0;
+for(const t in DEF){ atlasIndex[t]={top:col,side:col+1,bot:col+2};
+  ax.drawImage(faceTex(+t,'top'), col*TILE,0); ax.drawImage(faceTex(+t,'side'),(col+1)*TILE,0); ax.drawImage(faceTex(+t,'bot'),(col+2)*TILE,0); col+=3; }
+const atlasTex=new THREE.CanvasTexture(atlas);
+atlasTex.magFilter=THREE.NearestFilter; atlasTex.minFilter=THREE.NearestFilter;
+atlasTex.colorSpace=THREE.SRGBColorSpace;
+
+// 区块 mesh：逐方块面 + atlas UV(0..1)，无纹理拉伸
+// DoubleSide 材质消除 winding/culling 问题；顶点色做方向明暗（伪 AO）
+function buildChunkMeshAtlas(cx,cz){
+  const col0=getCol(cx,cz);
+  const ox=cx*CHUNK-HALF, oz=cz*CHUNK-HALF;
+  const positions=[], normals=[], colors=[], uvs=[], indices=[];
+  const waterPos=[],waterNorm=[],waterCol=[],waterUv=[],waterIdx=[];
+  let v=0, wv=0;
+
+  for(let lx=0;lx<CHUNK;lx++) for(let lz=0;lz<CHUNK;lz++) for(let ly=0;ly<WORLD_H;ly++){
+    const t=col0[idx(lx,ly,lz)];
+    if(t===B.AIR) continue;
+    const fluid=!!(DEF[t]&&DEF[t].fluid);
+    const tgtP=fluid?waterPos:positions, tgtN=fluid?waterNorm:normals, tgtC=fluid?waterCol:colors, tgtU=fluid?waterUv:uvs, tgtI=fluid?waterIdx:indices;
+    const wx=ox+lx, wy=ly, wz=oz+lz;
+    const c=DEF[t]||( {top:[255,255,255],side:[255,255,255],bot:[255,255,255]});
+    const aColOf=(kk)=> atlasIndex[t][kk===2?'top':kk===3?'bot':'side'];
+    const uOf=(kk)=>{ const ac=aColOf(kk); return [ac/atlasCols,(ac+1)/atlasCols]; };
+    // 添加一个面：fi=面索引(0..5)，sh=明暗，rgb=该面颜色，[u0,u1]=uv 范围
+    function face(fi, sh, rgb, u0, u1){
+      const [nx,ny,nz]=FACES[fi].dir;
+      const x0=wx,y0=wy,z0=wz,x1=wx+1,y1=wy+1,z1=wz+1;
+      let p;
+      if(fi===0)      p=[[x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0]];
+      else if(fi===1) p=[[x0,y0,z1],[x0,y0,z0],[x0,y1,z0],[x0,y1,z1]];
+      else if(fi===2) p=[[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[x0,y1,z0]];
+      else if(fi===3) p=[[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]];
+      else if(fi===4) p=[[x1,y0,z1],[x0,y0,z1],[x0,y1,z1],[x1,y1,z1]];
+      else            p=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0]];
+      const uvq=[[u0,0],[u1,0],[u1,1],[u0,1]];
+      const b0=fluid?wv:v;
+      for(let i=0;i<4;i++){ tgtP.push(p[i][0],p[i][1],p[i][2]); tgtN.push(nx,ny,nz); tgtU.push(uvq[i][0],uvq[i][1]); tgtC.push(rgb[0]*sh/255,rgb[1]*sh/255,rgb[2]*sh/255); }
+      tgtI.push(b0,b0+1,b0+2, b0,b0+2,b0+3);
+      if(fluid) wv+=4; else v+=4;
+    }
+    if(visible(t,getVox(wx+1,wy,wz)))  face(0,0.72,c.side, ...uOf(0));
+    if(visible(t,getVox(wx-1,wy,wz)))  face(1,0.72,c.side, ...uOf(1));
+    if(visible(t,getVox(wx,wy+1,wz)))  face(2,1.00,c.top,  ...uOf(2));
+    if(visible(t,getVox(wx,wy-1,wz)))  face(3,0.55,c.bot,  ...uOf(3));
+    if(visible(t,getVox(wx,wy,wz+1)))  face(4,0.86,c.side, ...uOf(4));
+    if(visible(t,getVox(wx,wy,wz-1)))  face(5,0.86,c.side, ...uOf(5));
+  }
+  // 构建几何
+  const out={solid:null,water:null};
+  if(positions.length){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+    g.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+    g.setIndex(indices);
+    const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({map:atlasTex,vertexColors:true,alphaTest:0.4,side:THREE.DoubleSide}));
+    out.solid=m;
+  }
+  if(waterPos.length){
+    const wg=new THREE.BufferGeometry();
+    wg.setAttribute('position',new THREE.Float32BufferAttribute(waterPos,3));
+    wg.setAttribute('normal',new THREE.Float32BufferAttribute(waterNorm,3));
+    wg.setAttribute('color',new THREE.Float32BufferAttribute(waterCol,3));
+    wg.setAttribute('uv',new THREE.Float32BufferAttribute(waterUv,2));
+    wg.setIndex(waterIdx);
+    out.water=new THREE.Mesh(wg,new THREE.MeshLambertMaterial({map:atlasTex,vertexColors:true,transparent:true,opacity:0.62,side:THREE.DoubleSide}));
+  }
+  return out;
+}
+
+// 全部区块 mesh
+const chunkGroup=new THREE.Group(); scene.add(chunkGroup);
+function rebuildAllChunks(){
+  while(chunkGroup.children.length) chunkGroup.remove(chunkGroup.children[0]);
+  chunkMeshes.clear();
+  for(let cx=-VIEW;cx<=VIEW;cx++) for(let cz=-VIEW;cz<=VIEW;cz++){
+    const m=buildChunkMeshAtlas(cx,cz);
+    if(m.solid) chunkGroup.add(m.solid);
+    if(m.water) chunkGroup.add(m.water);
+    chunkMeshes.set(key(cx,cz),m);
+  }
+}
+rebuildAllChunks();
+
+// 单区块重建（编辑后）
+function rebuildChunk(cx,cz){
+  const old=chunkMeshes.get(key(cx,cz));
+  if(old){ if(old.solid){chunkGroup.remove(old.solid); old.solid.geometry.dispose();} if(old.water){chunkGroup.remove(old.water); old.water.geometry.dispose();} }
+  const m=buildChunkMeshAtlas(cx,cz);
+  if(m.solid) chunkGroup.add(m.solid);
+  if(m.water) chunkGroup.add(m.water);
+  chunkMeshes.set(key(cx,cz),m);
+  // 邻接区块边界更新
+  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=cx+dx,nz=cz+dz; if(nx>=-VIEW&&nx<=VIEW&&nz>=-VIEW&&nz<=VIEW) rebuildOnly(nx,nz); }
+}
+let _rebuildQueue=new Set();
+function rebuildOnly(cx,cz){ if(_rebuildQueue.has(key(cx,cz))) return; _rebuildQueue.add(key(cx,cz));
+  const old=chunkMeshes.get(key(cx,cz)); if(old){ if(old.solid){chunkGroup.remove(old.solid); old.solid.geometry.dispose();} if(old.water){chunkGroup.remove(old.water); old.water.geometry.dispose();} }
+  const m=buildChunkMeshAtlas(cx,cz); if(m.solid) chunkGroup.add(m.solid); if(m.water) chunkGroup.add(m.water); chunkMeshes.set(key(cx,cz),m);
+}
+function flushRebuild(){ _rebuildQueue.clear(); }
+
+// ─────────────────────────────────────────────────────────────
+//  玩家 & 控制
+// ─────────────────────────────────────────────────────────────
+const player={ pos:new THREE.Vector3(spawn.x+0.5, spawn.y+2.2, spawn.z+0.5), vel:new THREE.Vector3(),
+  yaw:Math.PI*0.25, pitch:-0.15, onGround:false, flying:false, height:1.7, width:0.3 };
+const keys={};
+let pointerLocked=false;
+
+addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.code==='KeyF'){ player.flying=!player.flying; player.vel.y=0; }
+  if(e.code==='KeyR'){ player.pos.set(spawn.x+0.5,spawn.y+2.2,spawn.z+0.5); player.vel.set(0,0,0); }
+  if(/Digit[1-9]/.test(e.code)) selectSlot(+e.code.slice(5)-1);
+});
+addEventListener('keyup',e=>keys[e.code]=false);
+
+canvas.addEventListener('click',()=>{ if(!pointerLocked) canvas.requestPointerLock(); });
+document.addEventListener('pointerlockchange',()=>{ pointerLocked=document.pointerLockElement===canvas; overlay.classList.toggle('hidden',pointerLocked); });
+document.addEventListener('mousemove',e=>{ if(!pointerLocked) return;
+  player.yaw -= e.movementX*0.0024; player.pitch -= e.movementY*0.0024;
+  player.pitch=Math.max(-1.55,Math.min(1.55,player.pitch));
+});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('dblclick',()=>{ if(!document.fullscreenElement) document.documentElement.requestFullscreen(); });
+
+// 鼠标按钮
+let mouseDown=[false,false], breakTarget=null, breakProgress=0;
+canvas.addEventListener('mousedown',e=>{ if(!pointerLocked) return; if(e.button===0){mouseDown[0]=true; tryBreak();} if(e.button===2){mouseDown[2]=true; tryPlace();} });
+canvas.addEventListener('mouseup',e=>{ if(e.button===0){mouseDown[0]=false; breakTarget=null; breakProgress=0; updateBreakOverlay();} if(e.button===2) mouseDown[2]=false; });
+canvas.addEventListener('wheel',e=>{ if(!pointerLocked) return; e.preventDefault(); const d=Math.sign(e.deltaY); let s=selectedSlot+d; if(s<0)s=hotbarSlots.length-1; if(s>=hotbarSlots.length)s=0; selectSlot(s); },{passive:false});
+
+// ── 物品栏 ──
+const hotbarSlots=[
+  {t:B.GRASS,label:'草地'},{t:B.DIRT,label:'泥土'},{t:B.STONE,label:'石头'},
+  {t:B.WOOD,label:'原木'},{t:B.PLANK,label:'木板'},{t:B.LEAF,label:'树叶'},
+  {t:B.COBBLE,label:'圆石'},{t:B.BRICK,label:'红砖'},{t:B.GOLD,label:'金块'},
+  {t:B.OBSIDIAN,label:'黑曜石'},{t:B.CRYSTAL,label:'水晶'},{t:B.MARBLE,label:'大理石'},
+  {t:B.SAND,label:'沙子'},{t:B.SNOW,label:'雪块'},{t:B.GLOW,label:'荧石'},{t:B.BONE,label:'骨块'},
+  {t:B.MOSS,label:'苔石'},{t:B.LAVA,label:'岩浆'},{t:B.WATER,label:'水'}
+].slice(0,9); // 只取 9 个槽
+let selectedSlot=0;
+const hotbarEl=document.getElementById('hotbar');
+function buildHotbar(){
+  hotbarEl.innerHTML='';
+  hotbarSlots.forEach((s,i)=>{
+    const el=document.createElement('div'); el.className='slot'+(i===0?' active':''); el.dataset.i=i;
+    const num=document.createElement('div'); num.className='num'; num.textContent=i+1; el.appendChild(num);
+    const cv=document.createElement('canvas'); cv.width=cv.height=16;
+    const x=cv.getContext('2d'); x.drawImage(faceTex(s.t,'side'),0,0);
+    el.appendChild(cv);
+    const nm=document.createElement('div'); nm.className='name'; nm.textContent=s.label; el.appendChild(nm);
+    el.addEventListener('click',()=>selectSlot(i));
+    hotbarEl.appendChild(el);
+  });
+}
+function selectSlot(i){ selectedSlot=i; [...hotbarEl.children].forEach((el,k)=>el.classList.toggle('active',k===i)); }
+buildHotbar();
+
+// ── 射线投射（DDA 体素遍历） ──
+function raycast(maxDist=6){
+  const o=camera.getWorldPosition(new THREE.Vector3());
+  const d=camera.getWorldDirection(new THREE.Vector3()).normalize();
+  let x=Math.floor(o.x), y=Math.floor(o.y), z=Math.floor(o.z);
+  const stepX=Math.sign(d.x), stepY=Math.sign(d.y), stepZ=Math.sign(d.z);
+  const tDeltaX=stepX!==0?Math.abs(1/d.x):Infinity, tDeltaY=stepY!==0?Math.abs(1/d.y):Infinity, tDeltaZ=stepZ!==0?Math.abs(1/d.z):Infinity;
+  let tMaxX=stepX!==0?((stepX>0? (x+1-o.x):(o.x-x))*tDeltaX):Infinity;
+  let tMaxY=stepY!==0?((stepY>0? (y+1-o.y):(o.y-y))*tDeltaY):Infinity;
+  let tMaxZ=stepZ!==0?((stepZ>0? (z+1-o.z):(o.z-z))*tDeltaZ):Infinity;
+  let face=null, dist=0;
+  for(let i=0;i<80 && dist<maxDist;i++){
+    const t=getVox(x,y,z);
+    if(t!==B.AIR && !(DEF[t]&&DEF[t].fluid)) return {x,y,z,t,face,prev:{x:x-(face?face[0]:0),y:y-(face?face[1]:0),z:z-(face?face[2]:0)}};
+    if(tMaxX<tMaxY && tMaxX<tMaxZ){ x+=stepX; dist=tMaxX; tMaxX+=tDeltaX; face=[-stepX,0,0]; }
+    else if(tMaxY<tMaxZ){ y+=stepY; dist=tMaxY; tMaxY+=tDeltaY; face=[0,-stepY,0]; }
+    else { z+=stepZ; dist=tMaxZ; tMaxZ+=tDeltaZ; face=[0,0,-stepZ]; }
+  }
+  return null;
+}
+
+// 选择框
+const selBoxMat=new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:0.5});
+const selBox=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002,1.002,1.002)),selBoxMat);
+selBox.visible=false; scene.add(selBox);
+
+function tryBreak(){
+  const hit=raycast(); if(!hit) return;
+  breakTarget=hit; breakProgress=0; updateBreakOverlay();
+}
+function finishBreak(hit){
+  setVox(hit.x,hit.y,hit.z,B.AIR);
+  const cx=Math.floor((hit.x+HALF)/CHUNK), cz=Math.floor((hit.z+HALF)/CHUNK);
+  rebuildChunk(cx,cz); flushRebuild();
+}
+function tryPlace(){
+  const hit=raycast(); if(!hit||!hit.face) return;
+  const px=hit.x+hit.face[0], py=hit.y+hit.face[1], pz=hit.z+hit.face[2];
+  if(!inBoundsXZ(px,pz)||py<0||py>=WORLD_H) return;
+  if(getVox(px,py,pz)!==B.AIR) return;
+  // 不能放进玩家身上
+  const pminx=Math.floor(player.pos.x-player.width), pmaxx=Math.floor(player.pos.x+player.width);
+  const pminz=Math.floor(player.pos.z-player.width), pmaxz=Math.floor(player.pos.z+player.width);
+  const pminy=Math.floor(player.pos.y-player.height), pmaxy=Math.floor(player.pos.y);
+  if(px>=pminx&&px<=pmaxx&&pz>=pminz&&pz<=pmaxz&&py>=pminy&&py<=pmaxy) return;
+  const t=hotbarSlots[selectedSlot].t;
+  setVox(px,py,pz,t);
+  const cx=Math.floor((px+HALF)/CHUNK), cz=Math.floor((pz+HALF)/CHUNK);
+  rebuildChunk(cx,cz); flushRebuild();
+}
+
+const breakArc=document.getElementById('breakArc'), breakEl=document.getElementById('break');
+function updateBreakOverlay(){
+  if(breakProgress<=0||!breakTarget){ breakEl.style.opacity=0; return; }
+  breakEl.style.opacity=1; const C=150.8; breakArc.setAttribute('stroke-dashoffset', C*(1-breakProgress));
+}
+
+// ── 碰撞 ──
+function collides(px,py,pz){
+  const w=player.width, h=player.height;
+  const minx=Math.floor(px-w), maxx=Math.floor(px+w), minz=Math.floor(pz-w), maxz=Math.floor(pz+w);
+  const miny=Math.floor(py-h), maxy=Math.floor(py);
+  for(let x=minx;x<=maxx;x++) for(let y=miny;y<=maxy;y++) for(let z=minz;z<=maxz;z++){
+    const t=getVox(x,y,z); if(t!==B.AIR && !(DEF[t]&&DEF[t].fluid)) return true;
+  } return false;
+}
+
+// ── 物理 / 移动 ──
+function updatePlayer(dt){
+  const speed=(player.flying?9:5)*(keys['ShiftLeft']?0.4:1);
+  const dir=new THREE.Vector3();
+  const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  if(keys['KeyW']) dir.add(fwd); if(keys['KeyS']) dir.sub(fwd);
+  if(keys['KeyD']) dir.add(right); if(keys['KeyA']) dir.sub(right);
+  if(dir.lengthSq()>0) dir.normalize().multiplyScalar(speed);
+
+  player.vel.x=dir.x; player.vel.z=dir.z;
+  if(player.flying){
+    let vy=0; if(keys['Space']) vy+=speed; if(keys['ShiftLeft']) vy-=speed; player.vel.y=vy;
+  } else {
+    player.vel.y -= 24*dt; // 重力
+    if(keys['Space']&&player.onGround){ player.vel.y=8.0; player.onGround=false; }
+    if(player.vel.y< -40) player.vel.y=-40;
+  }
+
+  // 分轴移动 + 碰撞
+  let nx=player.pos.x+player.vel.x*dt;
+  if(!collides(nx,player.pos.y,player.pos.z)) player.pos.x=nx; else player.vel.x=0;
+  let nz=player.pos.z+player.vel.z*dt;
+  if(!collides(player.pos.x,player.pos.y,nz)) player.pos.z=nz; else player.vel.z=0;
+  let ny=player.pos.y+player.vel.y*dt;
+  player.onGround=false;
+  if(!collides(player.pos.x,ny,player.pos.z)) player.pos.y=ny;
+  else { if(player.vel.y<0) player.onGround=true; player.vel.y=0; }
+
+  // 掉出世界保护
+  if(player.pos.y<-20){ player.pos.set(spawn.x+0.5,spawn.y+2.2,spawn.z+0.5); player.vel.set(0,0,0); }
+  // 水中浮力
+  const headVox=getVox(Math.floor(player.pos.x),Math.floor(player.pos.y+0.2),Math.floor(player.pos.z));
+  if(headVox===B.WATER){ player.vel.y=Math.max(player.vel.y, -2); if(keys['Space']) player.vel.y=3; }
+}
+
+// ── 渲染循环 ──
+const overlay=document.getElementById('overlay');
+const hud=document.getElementById('hud');
+const compass=document.getElementById('compass');
+let last=performance.now(), fps=0, fc=0, ft=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now(); let dt=(now-last)/1000; last=now; if(dt>0.1)dt=0.1;
+  fc++; ft+=dt; if(ft>=0.5){ fps=Math.round(fc/ft); fc=0; ft=0; }
+
+  if(pointerLocked) updatePlayer(dt);
+
+  // 相机
+  camera.position.set(player.pos.x, player.pos.y, player.pos.z);
+  const euler=new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ');
+  camera.quaternion.setFromEuler(euler);
+
+  // 选择框 + 破坏
+  const hit=raycast();
+  if(hit){ selBox.visible=true; selBox.position.set(hit.x+0.5,hit.y+0.5,hit.z+0.5); }
+  else selBox.visible=false;
+
+  if(mouseDown[0] && hit){
+    if(!breakTarget || breakTarget.x!==hit.x||breakTarget.y!==hit.y||breakTarget.z!==hit.z){ breakTarget=hit; breakProgress=0; }
+    const hard=DEF[hit.t]?DEF[hit.t].hard:1;
+    breakProgress += dt/(hard*0.5+0.3);
+    updateBreakOverlay();
+    if(breakProgress>=1){ finishBreak(hit); breakTarget=null; breakProgress=0; updateBreakOverlay(); }
+  } else if(!mouseDown[0]){ breakTarget=null; breakProgress=0; updateBreakOverlay(); }
+
+  // 云移动
+  cloudGroup.position.x += dt*1.2; if(cloudGroup.position.x>HALF) cloudGroup.position.x=-HALF;
+
+  // HUD
+  const dirName = (()=>{ const a=((player.yaw%(2*Math.PI))+2*Math.PI)%(2*Math.PI); const dirs=['S','SW','W','NW','N','NE','E','SE']; return dirs[Math.round(a/(Math.PI/4))%8]; })();
+  compass.textContent = dirName;
+  hud.innerHTML = `FPS <b>${fps}</b> · XYZ <b>${player.pos.x.toFixed(1)} ${player.pos.y.toFixed(1)} ${player.pos.z.toFixed(1)}</b><br>`+
+    `方块 <b>${hotbarSlots[selectedSlot].label}</b> · 模式 <b>${player.flying?'飞行':'步行'}</b> · 区块 <b>${chunkMeshes.size}</b>`;
+
+  renderer.render(scene,camera);
+}
+
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+// 启动
+document.getElementById('startBtn').addEventListener('click',()=>{ canvas.requestPointerLock(); });
+document.getElementById('loader').textContent='世界已就绪 · 点击进入';
+animate();
+</script>
+</body>
+</html>
