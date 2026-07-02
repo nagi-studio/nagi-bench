@@ -85,6 +85,25 @@ MCP / 自定义系统提示——它们对产出的影响不亚于换 harness，
 harness 下其它条目不可比，**不予收录**。在 `note` 里写明也没用：榜单身份只看
 模型 × harness × effort，note 不另立身份，它仍会混进本不该可比的那一行。）
 
+## Review guidelines
+
+NAGI BENCH stores raw benchmark artifacts. Reviewers, including Codex Review,
+must **not** request fixes for gameplay, rendering, animation, JavaScript
+correctness, UX, visual quality, performance, accessibility, or any other
+internal behavior of files under `outputs/`. Broken or low-quality artifacts are
+valid benchmark data when their provenance is documented.
+
+Only flag:
+
+- visible model, vendor, harness, contributor, or other identity leaks inside
+  `outputs/` that would break blind Arena review;
+- contribution format or schema issues that violate this file or would fail
+  `bun scripts/validate-data.ts`.
+
+Do not ask contributors to improve or repair the submitted artifacts themselves.
+If an artifact bug matters, mention it only as optional context for maintainers,
+not as required PR feedback.
+
 ## Before you open the PR / 提交前
 
 ```bash
