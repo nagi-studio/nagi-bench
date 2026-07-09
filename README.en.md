@@ -39,7 +39,8 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Claude Haiku 4.5 | Anthropic | Claude Code · Default | 02 |
 | GLM-5.1 | Zhipu AI | ZCode · Max | 01 |
 | GPT-5.5 Pro | OpenAI | ChatGPT Web · Extended Pro | 03 |
-| GPT-5.6-Sol | OpenAI | Codex CLI · ultra | 03 |
+| GPT-5.6-Sol | OpenAI | Codex CLI · ultra | 07 |
+| GPT-5.6-Terra | OpenAI | Codex CLI · ultra | 03 |
 | GPT-5.5 | OpenAI | Codex CLI · xhigh | 03 |
 | GPT-5.4 | OpenAI | Cursor · xhigh<br>Codex CLI · xhigh | 06 |
 | GPT-5.3 Codex | OpenAI | Cursor · xhigh | 02 |
