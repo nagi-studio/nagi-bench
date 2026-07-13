@@ -28,6 +28,10 @@ const isBilingual = (v: unknown): boolean => {
 const modelIds = new Set<string>()
 const artifactDirs = new Map<string, string>()
 const declaredArtifacts = new Set<string>()
+// React cases declare a whole project directory (built to a single file at
+// deploy time), not one artifact file — track those so the loose-file scan
+// below skips their subtree.
+const declaredDirs = new Set<string>()
 for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
   const id = f.replace(/\.json$/, '')
   modelIds.add(id)
@@ -92,6 +96,23 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
       if (run?.contributor !== undefined && (typeof run.contributor !== 'string' || !run.contributor.trim())) {
         errors.push(`models/${f}: ${where}.contributor must be a non-empty GitHub username`)
       }
+      if (caseKind.get(caseId) === 'react') {
+        // React case: the artifact is a full project directory, not a file.
+        const dirName = (typeof run?.file === 'string' && run.file) || caseId
+        if (seenFiles.has(dirName)) {
+          errors.push(`models/${f}: ${where} resolves to the same project dir "${dirName}" as another variant`)
+        }
+        seenFiles.add(dirName)
+        const relDir = `${artifactDir}/${dirName}`
+        declaredDirs.add(relDir)
+        const dirPath = join(outputsDir, artifactDir, dirName)
+        if (!existsSync(dirPath) || !statSync(dirPath).isDirectory()) {
+          errors.push(`models/${f}: ${where} declares a React project but directory missing: outputs/${relDir}/`)
+        } else if (!existsSync(join(dirPath, 'package.json'))) {
+          errors.push(`models/${f}: ${where}: outputs/${relDir}/ must contain a package.json (a full project)`)
+        }
+        return
+      }
       const file = (typeof run?.file === 'string' && run.file) || `${caseId}.${caseKind.get(caseId)}`
       if (seenFiles.has(file)) {
         errors.push(`models/${f}: ${where} resolves to the same artifact "${file}" as another variant — extra variants must set a distinct "file"`)
@@ -118,6 +139,7 @@ function walkOutputs(dir: string, prefix = '') {
     if (entry.name.startsWith('.')) continue
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name
     if (entry.isDirectory()) {
+      if (declaredDirs.has(rel)) continue // React project dir — declared wholesale
       walkOutputs(join(dir, entry.name), rel)
     } else if (!declaredArtifacts.has(rel)) {
       errors.push(`outputs/${rel} is not declared by any run in models/*.json`)
