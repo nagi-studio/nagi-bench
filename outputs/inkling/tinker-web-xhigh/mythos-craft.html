@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>神话幻想：无尽幻境 | Mythic Fantasy Voxel Realm</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Noto+Serif+SC:wght@700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #050a14;
+    color: #e8dcc8;
+    overflow: hidden;
+    font-family: 'Noto Serif SC', serif;
+    user-select: none;
+  }
+
+  #canvas-container { width: 100vw; height: 100vh; position: relative; }
+
+  /* Crosshair */
+  .crosshair {
+    position: fixed; left: 50%; top: 50%; width: 24px; height: 24px;
+    transform: translate(-50%, -50%) rotate(45deg); pointer-events: none;
+    border: 2px solid rgba(255, 215, 150, 0.9); box-shadow: 0 0 10px rgba(255,200,100,0.5);
+    z-index: 20;
+  }
+  .crosshair::after {
+    content: ''; position: absolute; width: 6px; height: 6px; background: rgba(255,230,180,0.9);
+    left: 50%; top: 50%; transform: translate(-50%, -50%);
+  }
+
+  /* UI Overlay */
+  .overlay {
+    position: fixed; z-index: 30; pointer-events: none;
+    text-align: center; width: 100%; text-shadow: 0 2px 12px rgba(0,0,0,0.9);
+  }
+  .top-bar {
+    top: 16px; left: 0; right: 0;
+  }
+  .bottom-bar {
+    bottom: 16px; left: 0; right: 0; display: flex; justify-content: center; gap: 24px;
+  }
+
+  h1 {
+    font-family: 'Cinzel Decorative', 'Noto Serif SC', serif;
+    font-size: 2.6rem; letter-spacing: 6px;
+    background: linear-gradient(180deg, #ffeaa7, #d4a843, #8a4b1c);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 8px rgba(255,200,100,0.6));
+  }
+  .subtitle {
+    font-size: 1.1rem; color: #cbbfa8; letter-spacing: 3px; margin-top: 4px;
+  }
+
+  /* Block Selector HUD */
+  .hud-block {
+    display: inline-block; padding: 8px 16px; border-radius: 8px;
+    background: rgba(15, 25, 45, 0.7); border: 1px solid rgba(255,215,150,0.2);
+    backdrop-filter: blur(6px); font-weight: bold; color: #ffdca8; letter-spacing: 1px;
+  }
+
+  /* Info Panel */
+  .info-panel {
+    position: fixed; top: 90px; left: 20px; width: 300px;
+    background: rgba(10,18,30,0.85); border: 1px solid rgba(255,215,150,0.15);
+    border-radius: 12px; padding: 18px; pointer-events: auto;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.8);
+  }
+  .info-panel h3 {
+    font-family: 'Cinzel Decorative', serif; color: #ffdca8; font-size: 1.1rem; margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255,215,150,0.2); padding-bottom: 6px;
+  }
+  .info-panel p { font-size: 0.9rem; line-height: 1.7; color: #cbbfa8; margin-bottom: 6px; }
+  .info-panel .key { color: #ffeaa7; font-weight: bold; }
+
+  /* Start Screen */
+  #start-screen {
+    position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at center, rgba(20,30,60,0.9) 0%, #03070f 100%);
+    flex-direction: column; transition: opacity 0.8s ease;
+  }
+  #start-screen.hidden { opacity: 0; pointer-events: none; }
+  .start-btn {
+    margin-top: 30px; padding: 16px 48px; font-family: 'Cinzel Decorative', serif; font-size: 1.3rem;
+    color: #ffeaa7; background: linear-gradient(180deg, rgba(255,200,100,0.15), rgba(150,80,20,0.3));
+    border: 2px solid rgba(255,200,100,0.4); border-radius: 8px; cursor: pointer; letter-spacing: 4px;
+    box-shadow: 0 0 30px rgba(255,200,50,0.2); transition: all 0.3s;
+  }
+  .start-btn:hover {
+    background: linear-gradient(180deg, rgba(255,220,150,0.25), rgba(180,100,30,0.5));
+    border-color: rgba(255,230,180,0.8); box-shadow: 0 0 40px rgba(255,220,120,0.4);
+    transform: translateY(-2px);
+  }
+
+  /* Block Type Label */
+  .label-block {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    background: rgba(10,18,30,0.8); padding: 8px 20px; border-radius: 20px;
+    border: 1px solid rgba(255,215,150,0.3); color: #ffdca8; font-weight: bold;
+    letter-spacing: 2px; z-index: 25; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+  }
+</style>
+
+<!-- Import Map for Three.js Module -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+  <div id="start-screen">
+    <h1 style="font-size:3.2rem;">神话幻想 · 无尽幻境</h1>
+    <p class="subtitle">Mythic Fantasy · Endless Illusion</p>
+    <p style="margin-top:20px; color:#8a8070; max-width: 520px; line-height:1.8; font-size:0.95rem;">
+      欢迎进入由 <strong style="color:#ffdca8;">柏林噪声</strong> 编织的远古神话世界。<br>
+      穿越晶石尖塔、远古遗迹、悬浮花园与魔法阵。<br>
+      <span style="font-size:0.8rem; opacity:0.7;">点击下方按钮，进入幻境。</span>
+    </p>
+    <button class="start-btn" onclick="startGame()">进入幻境 · ENTER REALM</button>
+    <div style="margin-top:24px; color:#5a6a7a; font-size:0.75rem;">
+      WASD 移动 · 鼠标环视 · 左键破坏 · 右键放置 · 1-6 切换方块
+    </div>
+  </div>
+
+  <div id="canvas-container">
+    <div class="crosshair"></div>
+
+    <div class="overlay top-bar">
+      <h1>神话幻想：无尽幻境</h1>
+      <div class="subtitle">Mythic Voxel Realm · Procedural Perlin Terrain</div>
+    </div>
+
+    <div class="info-panel" id="infoPanel">
+      <h3>● 幻境指南</h3>
+      <p><span class="key">WASD</span> — 移动</p>
+      <p><span class="key">鼠标</span> — 环视</p>
+      <p><span class="key">左键</span> — 破坏方块</p>
+      <p><span class="key">右键</span> — 放置方块</p>
+      <p><span class="key">1~6</span> — 切换神话材质</p>
+      <p style="margin-top:10px; border-top:1px solid rgba(255,215,150,0.15); padding-top:8px;">
+        <span style="color:#ffeaa7;">远古晶石尖塔</span> 矗立于中心，<br>
+        <span style="color:#ffeaa7;">悬浮花园</span> 浮于天际，<br>
+        <span style="color:#c5a86e;">远古遗迹</span> 隐于迷雾。
+      </p>
+    </div>
+
+    <div class="overlay bottom-bar">
+      <div class="hud-block">泥土 Dirt [1]</div>
+      <div class="hud-block">草地 Grass [2]</div>
+      <div class="hud-block">石头 Stone [3]</div>
+      <div class="hud-block">水晶 Crystal [4]</div>
+      <div class="hud-block">远古石 Ancient [5]</div>
+      <div class="hud-block">神秘草 Mystic [6]</div>
+    </div>
+  </div>
+
+  <div class="label-block" id="blockLabel">当前：泥土 Dirt</div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+    // ============================================
+    // 1. PERLIN NOISE (Embedded Simplex-style)
+    // ============================================
+    const PERM = [];
+    for (let i = 0; i < 256; i++) PERM[i] = i;
+    for (let i = 255; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [PERM[i], PERM[j]] = [PERM[j], PERM[i]];
+    }
+    const PERM2 = new Array(512);
+    for (let i = 0; i < 512; i++) PERM2[i] = PERM[i & 255];
+
+    function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+    function lerp(t, a, b) { return a + t * (b - a); }
+    function grad(hash, x, y, z) {
+      const h = hash & 15;
+      const u = h < 8 ? x : y;
+      const v = h < 4 ? y : (h === 12 || h === 14 ? x : z);
+      return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+    }
+
+    function noise3d(x, y, z) {
+      const X = Math.floor(x) & 255;
+      const Y = Math.floor(y) & 255;
+      const Z = Math.floor(z) & 255;
+      x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+      const u = fade(x); const v = fade(y); const w = fade(z);
+      const A = PERM2[X] + Y, AA = PERM2[A] + Z, AB = PERM2[A + 1] + Z;
+      const B = PERM2[X + 1] + Y, BA = PERM2[B] + Z, BB = PERM2[B + 1] + Z;
+      return lerp(w, lerp(v, lerp(u, grad(PERM2[AA], x, y, z),
+                                      grad(PERM2[BA], x - 1, y, z)),
+                             lerp(u, grad(PERM2[AB], x, y - 1, z),
+                                      grad(PERM2[BB], x - 1, y - 1, z))),
+                     lerp(v, lerp(u, grad(PERM2[AA + 1], x, y, z - 1),
+                                      grad(PERM2[BA + 1], x - 1, y, z - 1)),
+                             lerp(u, grad(PERM2[AB + 1], x, y - 1, z - 1),
+                                      grad(PERM2[BB + 1], x - 1, y - 1, z - 1))));
+    }
+
+    // Fractal Brownian Motion
+    function fbm(x, y, z, octaves = 4, lacunarity = 2.0, gain = 0.5) {
+      let total = 0, frequency = 1, amplitude = 1;
+      for (let i = 0; i < octaves; i++) {
+        total += noise3d(x * frequency, y * frequency, z * frequency) * amplitude;
+        frequency *= lacunarity;
+        amplitude *= gain;
+      }
+      return total;
+    }
+
+    // ============================================
+    // 2. PROCEDURAL TEXTURES (Canvas-based)
+    // ============================================
+    function createTexture(drawFn) {
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 128;
+      const ctx = c.getContext('2d');
+      drawFn(ctx, 128);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    const TEX_GRASS_TOP = createTexture((ctx, s) => {
+      const grad = ctx.createLinearGradient(0, 0, 0, s);
+      grad.addColorStop(0, '#4caf50');
+      grad.addColorStop(0.4, '#66bb6a');
+      grad.addColorStop(1, '#2e7d32');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, s, s);
+      // Grass blades
+      ctx.strokeStyle = '#558b2f';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 30; i++) {
+        const x = Math.random() * s;
+        const h = 10 + Math.random() * 15;
+        ctx.beginPath();
+        ctx.moveTo(x, s);
+        ctx.lineTo(x + (Math.random() - 0.5) * 6, s - h);
+        ctx.stroke();
+      }
+    });
+
+    const TEX_GRASS_SIDE = createTexture((ctx, s) => {
+      // Dirt bottom
+      const g1 = ctx.createLinearGradient(0, s * 0.5, 0, s);
+      g1.addColorStop(0, '#6d4c41');
+      g1.addColorStop(1, '#5d4037');
+      ctx.fillStyle = g1;
+      ctx.fillRect(0, s * 0.45, s, s * 0.55);
+      // Grass top
+      const g2 = ctx.createLinearGradient(0, 0, 0, s * 0.45);
+      g2.addColorStop(0, '#4caf50');
+      g2.addColorStop(1, '#558b2f');
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, s, s * 0.45);
+      // Details
+      ctx.fillStyle = '#3e2723';
+      for (let i = 0; i < 20; i++) {
+        ctx.fillRect(Math.random() * s, s * (0.45 + Math.random() * 0.55), 2 + Math.random() * 4, 2 + Math.random() * 4);
+      }
+    });
+
+    const TEX_DIRT = createTexture((ctx, s) => {
+      const g = ctx.createLinearGradient(0, 0, 0, s);
+      g.addColorStop(0, '#8d6e63');
+      g.addColorStop(0.5, '#795548');
+      g.addColorStop(1, '#6d4c41');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, s, s);
+      ctx.fillStyle = '#5d4037';
+      for (let i = 0; i < 40; i++) {
+        ctx.fillRect(Math.random() * s, Math.random() * s, 3 + Math.random() * 5, 3 + Math.random() * 5);
+      }
+    });
+
+    const TEX_STONE = createTexture((ctx, s) => {
+      const g = ctx.createLinearGradient(0, 0, s, s);
+      g.addColorStop(0, '#9e9e9e');
+      g.addColorStop(0.5, '#757575');
+      g.addColorStop(1, '#616161');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, s, s);
+      // Cracks
+      ctx.strokeStyle = '#424242';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 15; i++) {
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * s, Math.random() * s);
+        ctx.lineTo(Math.random() * s, Math.random() * s);
+        ctx.stroke();
+      }
+    });
+
+    const TEX_CRYSTAL = createTexture((ctx, s) => {
+      const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      g.addColorStop(0, '#e1f5fe');
+      g.addColorStop(0.3, '#81d4fa');
+      g.addColorStop(0.7, '#4fc3f7');
+      g.addColorStop(1, '#0288d1');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, s, s);
+      // Facets
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 8; i++) {
+        const x1 = Math.random() * s, y1 = Math.random() * s;
+        const x2 = Math.random() * s, y2 = Math.random() * s;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    });
+
+    const TEX_ANCIENT = createTexture((ctx, s) => {
+      const g = ctx.createLinearGradient(0, 0, s, s);
+      g.addColorStop(0, '#cfc8b0');
+      g.addColorStop(0.5, '#a89f91');
+      g.addColorStop(1, '#8a7e72');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, s, s);
+      // Gold veins
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 10; i++) {
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * s, 0);
+        ctx.lineTo(Math.random() * s, s);
+        ctx.stroke();
+      }
+    });
+
+    const TEX_MYSTIC_GRASS_TOP = createTexture((ctx, s) => {
+      const g = ctx.createLinearGradient(0, 0, 0, s);
+      g.addColorStop(0, '#b388ff');
+      g.addColorStop(0.5, '#7e57c2');
+      g.addColorStop(1, '#5e35b1');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, s, s);
+      ctx.fillStyle = '#512da8';
+      for (let i = 0; i < 25; i++) {
+        const x = Math.random() * s;
+        const h = 8 + Math.random() * 12;
+        ctx.beginPath();
+        ctx.moveTo(x, s);
+        ctx.lineTo(x + (Math.random() - 0.5) * 8, s - h);
+        ctx.stroke();
+      }
+    });
+
+    const TEX_MYSTIC_GRASS_SIDE = createTexture((ctx, s) => {
+      // Purple dirt
+      const g1 = ctx.createLinearGradient(0, s * 0.5, 0, s);
+      g1.addColorStop(0, '#6a1b9a');
+      g1.addColorStop(1, '#4a148c');
+      ctx.fillStyle = g1;
+      ctx.fillRect(0, s * 0.45, s, s * 0.55);
+      // Purple grass
+      const g2 = ctx.createLinearGradient(0, 0, 0, s * 0.45);
+      g2.addColorStop(0, '#9575cd');
+      g2.addColorStop(1, '#7e57c2');
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, s, s * 0.45);
+    });
+
+    // Block definitions
+    const BLOCKS = [
+      { name: '泥土 Dirt', key: '1', mat: new THREE.MeshStandardMaterial({ map: TEX_DIRT }) },
+      { name: '草地 Grass', key: '2', matTop: new THREE.MeshStandardMaterial({ map: TEX_GRASS_TOP }), matSide: new THREE.MeshStandardMaterial({ map: TEX_GRASS_SIDE }), matBottom: new THREE.MeshStandardMaterial({ map: TEX_DIRT }) },
+      { name: '石头 Stone', key: '3', mat: new THREE.MeshStandardMaterial({ map: TEX_STONE }) },
+      { name: '水晶 Crystal', key: '4', mat: new THREE.MeshStandardMaterial({ map: TEX_CRYSTAL, emissive: '#4fc3f7', emissiveIntensity: 0.3 }) },
+      { name: '远古石 Ancient', key: '5', mat: new THREE.MeshStandardMaterial({ map: TEX_ANCIENT }) },
+      { name: '神秘草 Mystic', key: '6', matTop: new THREE.MeshStandardMaterial({ map: TEX_MYSTIC_GRASS_TOP }), matSide: new THREE.MeshStandardMaterial({ map: TEX_MYSTIC_GRASS_SIDE }), matBottom: new THREE.MeshStandardMaterial({ map: TEX_DIRT }) },
+    ];
+
+    // ============================================
+    // 3. WORLD DATA & GEOMETRY SETUP
+    // ============================================
+    const WORLD_W = 36;
+    const WORLD_D = 36;
+    const WORLD_H = 24;
+    const HALF = Math.floor(WORLD_W / 2);
+    const HALF_D = Math.floor(WORLD_D / 2);
+    // Use a flat array for quick lookup: world[x + HALF][y][z + HALF_D]
+    const world = Array(WORLD_W).fill(null).map(() => Array(WORLD_H).fill(null).map(() => Array(WORLD_D).fill(0)));
+
+    // Block instances storage: position key "x,y,z" -> mesh
+    const meshMap = new Map();
+
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+
+    // Material arrays for multi-face blocks
+    const grassMats = [
+      BLOCKS[1].matSide, BLOCKS[1].matSide, // right, left
+      BLOCKS[1].matTop, BLOCKS[1].matBottom, // top, bottom
+      BLOCKS[1].matSide, BLOCKS[1].matSide  // front, back
+    ];
+    const mysticMats = [
+      BLOCKS[5].matSide, BLOCKS[5].matSide,
+      BLOCKS[5].matTop, BLOCKS[5].matBottom,
+      BLOCKS[5].matSide, BLOCKS[5].matSide
+    ];
+
+    // Helper to get block id at world coord
+    function getBlock(x, y, z) {
+      if (x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D || y < 0 || y >= WORLD_H) return 0;
+      return world[x][y][z];
+    }
+
+    function setBlock(x, y, z, id) {
+      if (x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D || y < 0 || y >= WORLD_H) return;
+      world[x][y][z] = id;
+    }
+
+    // Mesh creation helpers
+    function createMesh(x, y, z, id) {
+      // We offset world so 0,0 is center: world array is 0..W-1 mapped to -HALF..HALF
+      const wx = x - HALF;
+      const wz = z - HALF_D;
+      let mesh;
+      if (id === 2) {
+        mesh = new THREE.Mesh(geometry, grassMats);
+      } else if (id === 6) {
+        mesh = new THREE.Mesh(geometry, mysticMats);
+      } else {
+        const mat = BLOCKS[id - 1].mat;
+        mesh = new THREE.Mesh(geometry, mat);
+      }
+      mesh.position.set(wx, y, wz);
+      mesh.userData = { x: x, y: y, z: z, id: id };
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function spawnBlock(x, y, z, id) {
+      if (getBlock(x, y, z) !== 0) return;
+      setBlock(x, y, z, id);
+      const mesh = createMesh(x, y, z, id);
+      scene.add(mesh);
+      meshMap.set(`${x},${y},${z}`, mesh);
+    }
+
+    function destroyBlock(x, y, z) {
+      const id = getBlock(x, y, z);
+      if (id === 0) return;
+      setBlock(x, y, z, 0);
+      const key = `${x},${y},${z}`;
+      const mesh = meshMap.get(key);
+      if (mesh) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+      }
+      meshMap.delete(key);
+    }
+
+    // ============================================
+    // 4. TERRAIN GENERATION (Perlin + Fantasy)
+    // ============================================
+    function generateWorld() {
+      // Base terrain using Perlin noise
+      for (let x = 0; x < WORLD_W; x++) {
+        for (let z = 0; z < WORLD_D; z++) {
+          // Map to continuous noise space
+          const nx = (x - HALF) * 0.08;
+          const nz = (z - HALF_D) * 0.08;
+          const h = Math.floor(fbm(nx, 0, nz, 3, 2.0, 0.5) * 4 + 6);
+          // Make valleys and hills
+          const height = Math.max(0, Math.min(WORLD_H - 2, h));
+          for (let y = 0; y < WORLD_H; y++) {
+            if (y < height - 3) {
+              world[x][y][z] = 3; // Stone deep underground
+            } else if (y < height - 1) {
+              world[x][y][z] = 1; // Dirt middle
+            } else if (y < height) {
+              world[x][y][z] = 2; // Grass top
+            }
+          }
+        }
+      }
+
+      // Build Fantasy Structures
+      // 1. Crystal Spire (Center)
+      const cx = HALF, cz = HALF_D;
+      for (let y = 0; y < 16; y++) {
+        const w = Math.max(1, 5 - Math.floor(y / 4));
+        for (let dx = -Math.floor(w / 2); dx <= Math.floor(w / 2); dx++) {
+          for (let dz = -Math.floor(w / 2); dz <= Math.floor(w / 2); dz++) {
+            spawnBlock(cx + dx, y, cz + dz, 4);
+          }
+        }
+      }
+      // Spire tip
+      spawnBlock(cx, 16, cz, 4);
+      spawnBlock(cx, 17, cz, 4);
+      spawnBlock(cx, 18, cz, 4);
+      // Crystal ring around base
+      for (let r = 6; r <= 10; r += 4) {
+        for (let a = 0; a < Math.PI * 2; a += 0.6) {
+          spawnBlock(cx + Math.round(Math.cos(a) * r), 0, cz + Math.round(Math.sin(a) * r), 4);
+        }
+      }
+
+      // 2. Ancient Ruins (Left-West)
+      const rx = 10, rz = 10;
+      // Wall outline
+      for (let dx = -4; dx <= 4; dx++) {
+        spawnBlock(rx + dx, 1, rz - 4, 5);
+        spawnBlock(rx + dx, 1, rz + 4, 5);
+      }
+      for (let dz = -3; dz <= 3; dz++) {
+        spawnBlock(rx - 4, 1, rz + dz, 5);
+        spawnBlock(rx + 4, 1, rz + dz, 5);
+      }
+      // Broken archway (gap in wall)
+      destroyBlock(rx + 4, 1, rz);
+      // Pillar inside
+      spawnBlock(rx, 1, rz, 5);
+      spawnBlock(rx, 2, rz, 5);
+      spawnBlock(rx, 3, rz, 5);
+      // Ruins floor
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          if (!(dx === 0 && dz === 0)) {
+            spawnBlock(rx + dx, 1, rz + dz, 5);
+          }
+        }
+      }
+
+      // 3. Floating Sky Garden (North-East high)
+      const fx = HALF + 12, fz = HALF_D + 12;
+      const floatY = 20;
+      // Island base
+      for (let dx = -3; dx <= 3; dx++) {
+        for (let dz = -3; dz <= 3; dz++) {
+          if (Math.sqrt(dx*dx + dz*dz) <= 3.5) {
+            spawnBlock(fx + dx, floatY, fz + dz, 6);
+            spawnBlock(fx + dx, floatY - 1, fz + dz, 5); // Ancient base below
+          }
+        }
+      }
+      // Crystal pillars down
+      for (let dy = floatY - 2; dy > floatY - 8; dy--) {
+        spawnBlock(fx, dy, fz, 4);
+      }
+      // Mystic flowers (crystal blocks floating around)
+      spawnBlock(fx + 3, floatY + 1, fz, 4);
+      spawnBlock(fx - 3, floatY + 1, fz, 4);
+      spawnBlock(fx, floatY + 1, fz + 3, 4);
+
+      // 4. Mystic Magic Circle (South-West)
+      const mx = HALF - 10, mz = HALF_D - 10;
+      for (let a = 0; a < Math.PI * 2; a += 0.5) {
+        const dx = Math.round(Math.cos(a) * 5);
+        const dz = Math.round(Math.sin(a) * 5);
+        spawnBlock(mx + dx, 2, mz + dz, 4);
+      }
+      spawnBlock(mx, 3, mz, 5); // Center pillar
+
+      // Add scattered crystal veins underground hint
+      for (let i = 0; i < 30; i++) {
+        const rx = Math.floor(Math.random() * WORLD_W);
+        const rz = Math.floor(Math.random() * WORLD_D);
+        const ry = 2 + Math.floor(Math.random() * 4);
+        if (getBlock(rx, ry, rz) === 0 || getBlock(rx, ry, rz) === 1) {
+          spawnBlock(rx, ry, rz, 4);
+          spawnBlock(rx, ry + 1, rz, 4);
+        }
+      }
+
+      // Visualize all world blocks in scene
+      for (let x = 0; x < WORLD_W; x++) {
+        for (let y = 0; y < WORLD_H; y++) {
+          for (let z = 0; z < WORLD_D; z++) {
+            const id = world[x][y][z];
+            if (id !== 0) {
+              const mesh = createMesh(x, y, z, id);
+              scene.add(mesh);
+              meshMap.set(`${x},${y},${z}`, mesh);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================
+    // 5. THREE.JS SCENE SETUP
+    // ============================================
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a1220);
+    scene.fog = new THREE.FogExp2(0x2a3a5a, 0.012);
+
+    // Lights
+    const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambient);
+    const sun = new THREE.DirectionalLight(0xfff0d8, 1.2);
+    sun.position.set(50, 80, 30);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    sun.shadow.camera.left = -60;
+    sun.shadow.camera.right = 60;
+    sun.shadow.camera.top = 60;
+    sun.shadow.camera.bottom = -60;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 200;
+    scene.add(sun);
+
+    // Ground plane (visual only, to cover void)
+    const planeGeo = new THREE.PlaneGeometry(200, 200);
+    const planeMat = new THREE.MeshStandardMaterial({ color: 0x111830, roughness: 1, metalness: 0 });
+    const plane = new THREE.Mesh(planeGeo, planeMat);
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.y = -2;
+    plane.receiveShadow = true;
+    scene.add(plane);
+
+    // Sky dome (fantasy atmosphere)
+    const skyGeo = new THREE.SphereGeometry(120, 32, 32);
+    const skyMat = new THREE.MeshStandardMaterial({
+      color: 0x1a2a4a, emissive: 0x223355, emissiveIntensity: 0.3,
+      side: THREE.BackSide, fog: false
+    });
+    const sky = new THREE.Mesh(skyGeo, skyMat);
+    scene.add(sky);
+
+    // Camera
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300);
+    camera.position.set(0, 12, 0);
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    // Controls
+    const controls = new PointerLockControls(camera, document.body);
+
+    // State
+    let selectedBlock = 1; // Default Dirt
+    let isLocked = false;
+
+    // Block selection by keyboard
+    window.addEventListener('keydown', (e) => {
+      const keys = ['1','2','3','4','5','6'];
+      const idx = keys.indexOf(e.key);
+      if (idx !== -1) {
+        selectedBlock = idx + 1;
+        document.getElementById('blockLabel').textContent = '当前：' + BLOCKS[idx].name.split(' ')[1] + ' ' + BLOCKS[idx].name.split(' ')[0];
+        document.getElementById('blockLabel').style.borderColor = idx === 3 ? 'rgba(255,200,100,0.6)' : (idx === 4 ? 'rgba(76,175,80,0.6)' : 'rgba(255,215,150,0.3)');
+      }
+      // Jump
+      if (e.code === 'Space' && isLocked) {
+        if (camera.position.y < 15) camera.position.y += 0.3;
+      }
+    });
+
+    // Pointer lock start
+    document.getElementById('start-screen').addEventListener('click', () => {
+      // Already handled by button, but just in case
+    });
+
+    // Interaction (raycasting)
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    function getFaceNormal(mesh, point, faceIndex) {
+      // Simplified: for box geometry, we approximate by checking which axis of face center differs most
+      // But for block placement we just need an adjacent empty cell.
+      return null;
+    }
+
+    window.addEventListener('mousedown', (e) => {
+      if (!isLocked) return;
+      // Only process if pointer is locked (e.button works)
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      raycaster.set(camera.position, dir);
+      const objects = [];
+      meshMap.forEach(mesh => objects.push(mesh));
+      const intersects = raycaster.intersectObjects(objects);
+      if (intersects.length > 0) {
+        const hit = intersects[0];
+        const mesh = hit.object;
+        const pos = mesh.userData;
+        if (e.button === 0) {
+          // Left click: destroy
+          destroyBlock(pos.x, pos.y, pos.z);
+        } else if (e.button === 2) {
+          // Right click: place adjacent
+          // Compute adjacent position based on face normal
+          const faceNormal = hit.face ? hit.face.normal.clone() : new THREE.Vector3();
+          // Face normal in world space requires applying mesh rotation. Since mesh has no rotation:
+          faceNormal.transformDirection(mesh.matrixWorld);
+          const nx = Math.round(pos.x - HALF + faceNormal.x);
+          const ny = Math.round(pos.y + faceNormal.y);
+          const nz = Math.round(pos.z - HALF_D + faceNormal.z);
+          // Check bounds and emptiness
+          if (nx >= 0 && nx < WORLD_W && nz >= 0 && nz < WORLD_D && ny >= 0 && ny < WORLD_H) {
+            if (getBlock(nx, ny, nz) === 0) {
+              spawnBlock(nx, ny, nz, selectedBlock);
+            }
+          }
+        }
+      }
+      e.preventDefault();
+    });
+
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Pointer lock change
+    controls.addEventListener('lock', () => {
+      isLocked = true;
+      document.getElementById('start-screen').classList.add('hidden');
+    });
+    controls.addEventListener('unlock', () => {
+      isLocked = false;
+    });
+
+    // Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================
+    // 6. START GAME & MAIN LOOP
+    // ============================================
+    window.startGame = function() {
+      controls.lock();
+    };
+
+    // Build world
+    generateWorld();
+
+    // Animation loop
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      if (isLocked) {
+        // Simple physics: no gravity for now (fantasy float feel)
+        // Movement handled by PointerLockControls
+      }
+      renderer.render(scene, camera);
+    }
+    animate();
+
+  </script>
+</body>
+</html>
