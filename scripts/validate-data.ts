@@ -96,6 +96,10 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
       if (run?.contributor !== undefined && (typeof run.contributor !== 'string' || !run.contributor.trim())) {
         errors.push(`models/${f}: ${where}.contributor must be a non-empty GitHub username`)
       }
+      const agentName = (run as { agentName?: unknown })?.agentName
+      if (agentName !== undefined && (typeof agentName !== 'string' || !agentName.trim() || agentName.length > 20)) {
+        errors.push(`models/${f}: ${where}.agentName must be a short non-empty string (max 20 chars)`)
+      }
       if (caseKind.get(caseId) === 'react') {
         // React case: the artifact is a full project directory, not a file.
         const dirName = (typeof run?.file === 'string' && run.file) || caseId
@@ -113,7 +117,15 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
         }
         return
       }
-      const file = (typeof run?.file === 'string' && run.file) || `${caseId}.${caseKind.get(caseId)}`
+      const kind = caseKind.get(caseId)
+      if (kind === 'agent') {
+        // Agent policies are deliberately NOT public (anti-scouting): the run
+        // entry registers the combo for the roster/board, but the artifact
+        // lives on the private referee side, so there is nothing to check
+        // under outputs/ here.
+        return
+      }
+      const file = (typeof run?.file === 'string' && run.file) || `${caseId}.${kind}`
       if (seenFiles.has(file)) {
         errors.push(`models/${f}: ${where} resolves to the same artifact "${file}" as another variant — extra variants must set a distinct "file"`)
       }
