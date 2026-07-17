@@ -30,21 +30,22 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 
 | 模型 | 厂商 | 运行环境（Harness）× 思考配额 | 产出 |
 |---|---|---|---|
-| Claude Fable 5 | Anthropic | Claude Web App · Max<br>Claude Code · High<br>Claude Code · Max<br>Claude Code · xhigh<br>Cursor · High | 08 |
-| Claude Opus 4.8 | Anthropic | Claude Code · Max | 06 |
+| Claude Fable 5 | Anthropic | Claude Web App · Max<br>Claude Code · High<br>Claude Code · Max<br>Claude Code · xhigh<br>Cursor · High | 11 |
+| Claude Sonnet 5 | Anthropic | Claude Code · Max | 01 |
+| Claude Opus 4.8 | Anthropic | Claude Code · Max<br>Claude Code · xhigh | 08 |
 | Claude Opus 4.7 | Anthropic | Claude Code · Max<br>Cursor · Max | 05 |
 | Claude Opus 4.6 | Anthropic | Claude Code · Max<br>Cursor · Max | 04 |
 | Claude Opus 4.5 | Anthropic | Cursor · Thinking | 02 |
 | Claude Sonnet 4.6 | Anthropic | Claude Code · Max<br>Cursor · High | 03 |
 | Claude Haiku 4.5 | Anthropic | Claude Code · Default | 02 |
-| GPT-5.6-Sol | OpenAI | Codex CLI · ultra | 07 |
-| GPT-5.6-Terra | OpenAI | Codex CLI · ultra | 03 |
+| GPT-5.6-Sol | OpenAI | Codex CLI · ultra<br>Codex CLI · max<br>Codex CLI · xhigh | 09 |
+| GPT-5.6-Terra | OpenAI | Codex CLI · ultra<br>Codex CLI · xhigh | 04 |
 | GPT-5.5 Pro | OpenAI | ChatGPT Web · Extended Pro | 03 |
 | GPT-5.5 | OpenAI | Codex CLI · xhigh | 03 |
 | GPT-5.4 | OpenAI | Cursor · xhigh<br>Codex CLI · xhigh | 06 |
 | GPT-5.3 Codex | OpenAI | Cursor · xhigh | 02 |
 | GPT-5.2 | OpenAI | Cursor · xhigh | 02 |
-| Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Gemini Web · Deep Think<br>Google AI Studio · High | 10 |
+| Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Gemini Web · Deep Think<br>Google AI Studio · High | 11 |
 | DeepSeek V4 Flash | DeepSeek | Claude Code · Max<br>Reasonix · Max | 02 |
 | Gemini 3.5 Flash | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 06 |
 | Grok 4.5 | xAI | Grok Build TUI · High | 03 |
@@ -59,6 +60,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | MiMo V2.5 | Xiaomi | MiMo Code · High | 03 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max<br>MiMo Code · Max | 03 |
 | MiMo v2.5 Pro UltraSpeed | Xiaomi | Web · Default | 05 |
+| Kimi K3 | Moonshot AI | Kimi Code · Max<br>Kimi Web · Max | 04 |
 | Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 03 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 02 |
@@ -68,6 +70,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | GLM-5 Turbo | Zhipu AI | ZCode · Thinking | 03 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
 | Step 3.7 Flash | StepFun | Claude Code · High | 02 |
+| Inkling | Thinking Machines Lab | Tinker Web · xHigh | 02 |
 <!-- registry:end -->
 
 ## Arena 盲评与社区榜单
