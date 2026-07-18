@@ -49,7 +49,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Grok 4.3 | xAI | Cursor · Default | 02 |
 | Composer 2.5 | Cursor | Cursor · Max<br>Cursor · Default<br>Grok Build TUI · Default | 05 |
 | Mistral Medium 3.5 | Mistral AI | Vibe · Thinking | 02 |
-| DeepSeek-V4-Pro | DeepSeek | Claude Code · Max | 02 |
+| DeepSeek-V4-Pro | DeepSeek | Claude Code · Max<br>Open Code · High | 03 |
 | Doubao Seed 2.0 Pro | ByteDance | Doubao Web · Pro Mode | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max | 02 |
