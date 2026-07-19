@@ -69,6 +69,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | GLM-5.1 | Zhipu AI | ZCode · Max | 01 |
 | GLM-5 Turbo | Zhipu AI | ZCode · Thinking | 03 |
 | Qwen3.7-Max | Alibaba | Qoder · Default | 03 |
+| Qwen3.8-Max-Preview | Alibaba | Qoder · Default | 05 |
 | Step 3.7 Flash | StepFun | Claude Code · High | 02 |
 | Spark X2 | iFlytek | Web · Reasoning | 01 |
 | Inkling | Thinking Machines Lab | Tinker Web · xHigh | 02 |
