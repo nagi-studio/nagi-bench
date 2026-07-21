@@ -73,6 +73,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | Step 3.7 Flash | StepFun | Claude Code · High | 02 |
 | Spark X2 | iFlytek | Web · Reasoning | 01 |
 | Inkling | Thinking Machines Lab | Tinker Web · xHigh | 02 |
+| Qoder Ultimate | Qoder | Qoder · Default | 04 |
 <!-- registry:end -->
 
 ## Arena 盲评与社区榜单

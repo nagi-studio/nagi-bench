@@ -73,6 +73,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Step 3.7 Flash | StepFun | Claude Code · High | 02 |
 | Spark X2 | iFlytek | Web · Reasoning | 01 |
 | Inkling | Thinking Machines Lab | Tinker Web · xHigh | 02 |
+| Qoder Ultimate | Qoder | Qoder · Default | 04 |
 <!-- registry:end -->
 
 ## Arena blind battles & community board
