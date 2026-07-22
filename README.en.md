@@ -61,7 +61,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | MiMo V2.5 | Xiaomi | MiMo Code · High | 03 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max<br>MiMo Code · Max | 03 |
 | MiMo v2.5 Pro UltraSpeed | Xiaomi | Web · Default | 05 |
-| Kimi K3 | Moonshot AI | Kimi Code · Max<br>Kimi Web · Max | 06 |
+| Kimi K3 | Moonshot AI | Claude Code · Max<br>Kimi Code · Max<br>Kimi Web · Max | 10 |
 | Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking<br>Qoder · Default | 04 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
 | MiniMax M3 | MiniMax | MiniMax Code Web · Thinking<br>Qoder · Default | 03 |
@@ -74,7 +74,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Step 3.7 Flash | StepFun | Claude Code · High | 02 |
 | Spark X2 | iFlytek | Web · Reasoning | 01 |
 | Inkling | Thinking Machines Lab | Tinker Web · xHigh | 02 |
-| Qoder Ultimate | Qoder | Qoder · Default | 04 |
+| Qoder Ultimate | Alibaba | Qoder · Default | 04 |
 <!-- registry:end -->
 
 ## Arena blind battles & community board
