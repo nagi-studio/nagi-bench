@@ -152,7 +152,7 @@ export class NavMesh {
 
         const tentativeG = (gScore.get(currentId) || 0) + currentWp.position.distanceTo(neighborWp.position);
 
-        if (tentativeG < (gScore.get(neighborId) || Infinity)) {
+        if (tentativeG < (gScore.get(neighborId) ?? Infinity)) {
           cameFrom.set(neighborId, currentId);
           gScore.set(neighborId, tentativeG);
           fScore.set(neighborId, tentativeG + neighborWp.position.distanceTo(targetWp.position));
