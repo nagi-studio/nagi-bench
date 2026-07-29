@@ -11,7 +11,7 @@ const checkOnly = process.argv.includes('--check')
 const START = '<!-- registry:start -->'
 const END = '<!-- registry:end -->'
 
-type RunJson = { file?: unknown }
+type RunJson = { file?: unknown; evaluation?: unknown }
 type ModelJson = {
   label?: unknown
   vendor?: unknown
@@ -31,6 +31,7 @@ type RegistryGroup = {
   vendor: string
   order: number
   runs: number
+  showcases: number
   harnesses: Map<string, HarnessEntry>
 }
 
@@ -39,8 +40,16 @@ function requiredString(value: unknown, field: string, file: string): string {
   return value.trim()
 }
 
-function runCount(runs: ModelJson['runs']): number {
-  return Object.values(runs ?? {}).reduce((sum, run) => sum + (Array.isArray(run) ? run.length : 1), 0)
+function runCounts(runs: ModelJson['runs']): { total: number; showcases: number } {
+  return Object.values(runs ?? {}).reduce(
+    (counts, run) => {
+      const variants = Array.isArray(run) ? run : [run]
+      counts.total += variants.length
+      counts.showcases += variants.filter((variant) => variant.evaluation === 'showcase').length
+      return counts
+    },
+    { total: 0, showcases: 0 },
+  )
 }
 
 function harnessLabel(def: ModelJson): string {
@@ -65,12 +74,14 @@ function registryGroups(): RegistryGroup[] {
     const key = `${label}\0${vendor}`
     let group = groups.get(key)
     if (!group) {
-      group = { label, vendor, order, runs: 0, harnesses: new Map() }
+      group = { label, vendor, order, runs: 0, showcases: 0, harnesses: new Map() }
       groups.set(key, group)
     }
 
     group.order = Math.min(group.order, order)
-    group.runs += runCount(def.runs)
+    const counts = runCounts(def.runs)
+    group.runs += counts.total
+    group.showcases += counts.showcases
     const harness = harnessLabel(def)
     const existing = group.harnesses.get(harness)
     if (!existing || order < existing.order) group.harnesses.set(harness, { label: harness, order })
@@ -97,7 +108,13 @@ function table(lang: 'zh' | 'en'): string {
       .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
       .map((entry) => escapeCell(entry.label))
       .join('<br>')
-    return `| ${escapeCell(group.label)} | ${escapeCell(group.vendor)} | ${harnesses} | ${String(group.runs).padStart(2, '0')} |`
+    const runs = String(group.runs).padStart(2, '0')
+    const runLabel = group.showcases
+      ? lang === 'zh'
+        ? `${runs}（仅展示 ${String(group.showcases).padStart(2, '0')}）`
+        : `${runs} (showcase ${String(group.showcases).padStart(2, '0')})`
+      : runs
+    return `| ${escapeCell(group.label)} | ${escapeCell(group.vendor)} | ${harnesses} | ${runLabel} |`
   })
 
   const lines = [START, note, '', header, '|---|---|---|---|', ...rows]

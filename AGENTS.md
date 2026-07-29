@@ -98,10 +98,16 @@ the harness ships with and would auto-invoke** — and add no MCP servers and no
 custom system prompt. A skill or plugin (a built-in `design`, `gsap`, game, or
 diagram helper, an added toolset, etc.) rewrites the output far more than the
 model itself does, so a run with any of them active measures the tooling, not the
-model × harness × effort. It is not comparable to other entries and **will not be
-accepted**. Disclosing it in `note` does not fix this: leaderboard identity is
-only model × harness × effort, so a modified setup gets no separate identity — it
-would just be mixed into a row it is not comparable with.
+model × harness × effort. It is not comparable to other entries and cannot be a
+formal benchmark run.
+
+An enhanced/tool-assisted run may be preserved only as a **showcase** when a
+maintainer explicitly agrees it is useful: set `"evaluation": "showcase"` on
+that run and disclose the non-standard setup in both `note` languages. Showcase
+runs remain visible in Demo Show, but the site excludes them from Arena blind
+battles, votes, category/overall rankings, artifact progress, and qualification
+thresholds. They carry a permanent non-comparable disclosure and never become a
+leaderboard result merely by collecting more data.
 
 ### Keep the artifact anonymous — no identity leaks
 
@@ -162,6 +168,8 @@ Only flag:
 
 - visible model, vendor, harness, contributor, or other identity leaks inside
   `outputs/` that would break blind Arena review;
+- an enhanced/skill-assisted run missing `"evaluation": "showcase"`, or a
+  showcase note that does not disclose why the run is non-comparable;
 - contribution format or schema issues that violate this file or would fail
   `bun scripts/validate-data.ts`.
 

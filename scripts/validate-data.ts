@@ -39,7 +39,7 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
     errors.push(`models/${f}: id "${id}" must be lowercase letters/digits/dashes only (it is the stable voting key and default outputs folder)`)
   }
 
-  type RunJson = { note?: unknown; file?: unknown; contributor?: unknown }
+  type RunJson = { note?: unknown; file?: unknown; contributor?: unknown; evaluation?: unknown }
   let def: {
     label?: unknown
     vendor?: unknown
@@ -95,6 +95,12 @@ for (const f of readdirSync(modelsDir).filter((f) => f.endsWith('.json'))) {
       }
       if (run?.contributor !== undefined && (typeof run.contributor !== 'string' || !run.contributor.trim())) {
         errors.push(`models/${f}: ${where}.contributor must be a non-empty GitHub username`)
+      }
+      if (run?.evaluation !== undefined && run.evaluation !== 'showcase') {
+        errors.push(`models/${f}: ${where}.evaluation must be "showcase" when set`)
+      }
+      if (caseKind.get(caseId) === 'agent' && run?.evaluation === 'showcase') {
+        errors.push(`models/${f}: ${where}.evaluation cannot be "showcase" for objective agent cases`)
       }
       const agentName = (run as { agentName?: unknown })?.agentName
       if (agentName !== undefined && (typeof agentName !== 'string' || !agentName.trim() || agentName.length > 20)) {
