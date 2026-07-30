@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Skeleton Mechanical — 3D Interactive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #d4af37;
+    --gold-soft: #bfa043;
+    --ink: #030305;
+    --paper: #f0e6c8;
+    --glass: rgba(255,255,255,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--ink); color: var(--paper); font-family: 'Inter', system-ui, sans-serif; }
+  canvas { display: block; }
+
+  /* Background subtle radial vignette via CSS overlay */
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background: radial-gradient(circle at 50% 35%, rgba(212,175,55,0.08) 0%, rgba(3,3,5,0.95) 70%);
+  }
+
+  /* UI overlays */
+  #ui {
+    position: fixed; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 2.5rem 3rem;
+  }
+  header { pointer-events: auto; max-width: 600px; }
+  h1 {
+    font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 300; font-size: clamp(3rem, 7vw, 5.5rem); line-height: 0.92; letter-spacing: -0.03em; color: var(--paper);
+    text-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 40px rgba(212,175,55,0.15);
+  }
+  .subtitle {
+    margin-top: 0.75rem; font-size: 0.85rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold-soft); font-weight: 400;
+  }
+  .line { width: 60px; height: 1px; background: linear-gradient(90deg, var(--gold-soft), transparent); margin-top: 1.25rem; }
+
+  .ctrls {
+    pointer-events: auto; display: flex; gap: 1rem; align-items: flex-end; justify-content: flex-start;
+  }
+  button {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: var(--paper); padding: 0.7rem 1.6rem; font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase; font-family: inherit; cursor: pointer; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); transition: all 0.3s ease;
+  }
+  button:hover { background: rgba(255,255,255,0.08); border-color: rgba(212,175,55,0.6); color: #fff; box-shadow: 0 0 20px rgba(212,175,55,0.15); }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed; z-index: 30; pointer-events: none; background: rgba(8,8,14,0.92); border: 1px solid rgba(212,175,55,0.35); padding: 0.6rem 1rem; color: var(--paper); font-size: 0.85rem; backdrop-filter: blur(16px); opacity: 0; transform: translate(-50%, -130%); white-space: nowrap; box-shadow: 0 10px 40px rgba(0,0,0,0.7); transition: opacity 0.15s ease;
+  }
+  #tooltip .tag { color: var(--gold); font-weight: 500; font-family: 'Cormorant Garamond', serif; font-size: 1rem; }
+
+  /* Info panel */
+  #panel {
+    position: fixed; bottom: 2.5rem; right: 2.5rem; z-index: 20; width: 320px; pointer-events: auto;
+    background: rgba(12,10,18,0.78); border: 1px solid rgba(212,175,55,0.15); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); padding: 1.5rem; opacity: 0; transition: opacity 0.35s ease; box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+  }
+  #panel.active { opacity: 1; }
+  #panel h2 { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; color: var(--gold); letter-spacing: 0.02em; line-height: 1; margin-bottom: 0.3rem; }
+  .meta { font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: #9a8b6e; margin-bottom: 0.9rem; }
+  #panel p.desc { font-size: 0.9rem; line-height: 1.55; color: #ccc5b0; }
+  .specs { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08); display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.75rem; font-size: 0.8rem; color: #bbb; }
+  .specs span:first-child { color: #777; font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .specs span:last-child { color: #c8ba92; font-weight: 400; }
+
+  /* Small decorative corner mark */
+  .corner { position: fixed; bottom: 2.5rem; left: 2.5rem; z-index: 10; pointer-events: none; font-family: 'Cormorant Garamond', serif; font-style: italic; color: rgba(212,175,55,0.35); font-size: 0.85rem; letter-spacing: 0.05em; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="vignette"></div>
+
+<div id="ui">
+  <header>
+    <h1>Skeleton<br>Mécanique</h1>
+    <div class="subtitle">Calibre 912 — Open-Work Tourbillon</div>
+    <div class="line"></div>
+  </header>
+  <div class="ctrls">
+    <button id="btn-explode">爆炸视图</button>
+    <button id="btn-reset">重置视角</button>
+    <button id="btn-auto">自动旋转</button>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<div id="panel">
+  <h2 id="p-name">Select Component</h2>
+  <div class="meta" id="p-cat">—</div>
+  <p class="desc" id="p-desc">点击机芯零件可查看详细参数。使用鼠标拖拽旋转，滚轮缩放，点击“爆炸视图”展开机械结构。</p>
+  <div class="specs" id="p-specs"></div>
+</div>
+
+<div class="corner">Open-Work • 42 Jewels • Swiss Made</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ====================== SCENE SETUP ======================
+const container = document.body;
+const tooltip = document.getElementById('tooltip');
+const panel = document.getElementById('panel');
+const pName = document.getElementById('p-name');
+const pCat = document.getElementById('p-cat');
+const pDesc = document.getElementById('p-desc');
+const pSpecs = document.getElementById('p-specs');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x030305);
+scene.fog = new THREE.FogExp2(0x030305, 0.012);
+
+const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 5.5, 10);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.04;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.7;
+controls.target.set(0, 1.2, 0);
+controls.update();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ====================== LIGHTING ======================
+const hemi = new THREE.HemisphereLight(0xccccff, 0x222233, 0.6);
+scene.add(hemi);
+
+const key = new THREE.DirectionalLight(0xfff0dd, 4);
+key.position.set(6, 12, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.bias = -0.001;
+key.shadow.camera.near = 0.5;
+key.shadow.camera.far = 30;
+key.shadow.camera.left = -12;
+key.shadow.camera.right = 12;
+key.shadow.camera.top = 12;
+key.shadow.camera.bottom = -12;
+scene.add(key);
+
+const warm = new THREE.PointLight(0xffaa55, 20, 40);
+warm.position.set(-4, 4, -3);
+scene.add(warm);
+
+const cool = new THREE.PointLight(0x88caff, 18, 40);
+cool.position.set(5, 3, 4);
+scene.add(cool);
+
+const spot = new THREE.SpotLight(0xffffff, 25, 60, Math.PI / 10, 0.4, 1);
+spot.position.set(0, 14, 0);
+spot.target.position.set(0, 0, 0);
+scene.add(spot);
+scene.add(spot.target);
+
+// ====================== MATERIALS ======================
+const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.95, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.2 });
+const steelMat = new THREE.MeshStandardMaterial({ color: 0xc9ced6, metalness: 1.0, roughness: 0.08, clearcoat: 1, envMapIntensity: 1.2 });
+const darkMat = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.95, roughness: 0.22, envMapIntensity: 0.8 });
+const rubyMat = new THREE.MeshStandardMaterial({ color: 0x8a0a14, metalness: 0.35, roughness: 0.05, emissive: 0x330000, emissiveIntensity: 0.8 });
+const luminousMat = new THREE.MeshStandardMaterial({ color: 0x00e8ff, metalness: 0.15, roughness: 0.35, emissive: 0x00e8ff, emissiveIntensity: 3.2 });
+const sapphireMat = new THREE.MeshPhysicalMaterial({
+  color: 0xe8f6ff, metalness: 0.0, roughness: 0.02,
+  transmission: 0.94, ior: 1.76, thickness: 0.25,
+  clearcoat: 1, clearcoatRoughness: 0.0, transparent: true
+});
+
+// ====================== WATCH GROUP ======================
+const watch = new THREE.Group();
+watch.position.set(0, 1.2, 0);
+scene.add(watch);
+
+const interactive = [];
+let hovered = null;
+let selected = null;
+let exploded = false;
+let targets = {};
+
+function tag(obj, data) {
+  obj.userData = Object.assign({ initPos: obj.position.clone() }, data);
+  interactive.push(obj);
+  return obj;
+}
+
+function resetHighlight(obj) {
+  if (!obj) return;
+  obj.scale.set(1, 1, 1);
+  if (obj.material && obj.material.emissive) {
+    obj.material.emissive.setHex(0x000000);
+    obj.material.emissiveIntensity = 0;
+  }
+}
+
+function highlightObj(obj) {
+  obj.scale.set(1.25, 1.25, 1.25);
+  if (obj.material && obj.material.emissive) {
+    obj.material.emissive.setHex(0xffffff);
+    obj.material.emissiveIntensity = 1;
+  }
+}
+
+function computeTargets() {
+  interactive.forEach(obj => {
+    const init = obj.userData.initPos.clone();
+    const dir = init.clone().normalize();
+    targets[obj.uuid] = exploded ? init.clone().add(dir.multiplyScalar(2.4)) : init.clone();
+  });
+}
+
+// --- Case / Crystal ---
+const caseRing = new THREE.Mesh(new THREE.TorusGeometry(3.45, 0.22, 32, 110), steelMat);
+caseRing.position.set(0, 0.05, 0);
+caseRing.receiveShadow = true;
+watch.add(caseRing);
+
+const crystal = new THREE.Mesh(new THREE.SphereGeometry(3.1, 48, 32), sapphireMat);
+crystal.scale.set(1, 0.35, 1);
+crystal.position.set(0, 1.05, 0);
+crystal.renderOrder = 10;
+watch.add(crystal);
+
+const plate = new THREE.Mesh(new THREE.CylinderGeometry(3.3, 3.3, 0.08, 80), darkMat);
+plate.rotation.x = Math.PI / 2;
+plate.position.set(0, 0, 0);
+plate.receiveShadow = true;
+watch.add(plate);
+
+// --- Mainspring Barrel ---
+const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.85, 36), goldMat);
+barrel.rotation.x = Math.PI / 2;
+barrel.position.set(-1.6, 0.45, 0.05);
+barrel.castShadow = true;
+tag(barrel, { name: "Mainspring Barrel", category: "Power Source", desc: "Swiss hand-coiled mainspring storing mechanical torque. The barrel arbor drives the entire gear train.", specs: { Material: "Swiss Brass", Torque: "42 N·mm" } });
+
+// --- Center & Gear Train ---
+function makeGear(r, h, mat, pos, spin) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 48), mat);
+  m.rotation.x = Math.PI / 2;
+  m.position.copy(pos);
+  if (spin) m.userData.spinSpeed = spin;
+  return m;
+}
+
+const cWheel = makeGear(0.65, 0.22, steelMat, new THREE.Vector3(0, 0.15, 0), 0.003);
+tag(cWheel, { name: "Center Wheel", category: "Gear Train", desc: "Central transmission wheel transferring torque from the barrel to the going train.", specs: { Teeth: "24", Ratio: "1:4" } });
+
+const tWheel = makeGear(0.55, 0.22, steelMat, new THREE.Vector3(1.1, 0.15, 0.9), 0.005);
+tag(tWheel, { name: "Third Wheel", category: "Gear Train", desc: "Intermediate reduction gear delivering energy to the escapement.", specs: { Teeth: "28", Ratio: "1:3.3" } });
+
+const eWheel = makeGear(0.42, 0.22, steelMat, new THREE.Vector3(0.5, 0.15, -1.0), 0.012);
+tag(eWheel, { name: "Escape Wheel", category: "Gear Train", desc: "Provides precise impulse to the pallet fork, locking and unlocking at 21,600 vph.", specs: { Teeth: "15", Material: "Hardened Steel" } });
+
+// --- Balance / Regulator ---
+const bal = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.1, 24, 64), goldMat);
+bal.rotation.x = Math.PI / 2;
+bal.position.set(0, 0.6, 1.45);
+bal.castShadow = true;
+tag(bal, { name: "Balance Wheel", category: "Regulator", desc: "18k rose-gold rim with free-sprung balance. The Breguet overcoil hairspring ensures isochronism.", specs: { Diameter: "21.0 mm", Freq: "21,600 vph", Material: "18k Gold" }, spinSpeed: 0.08 });
+
+const hairPoints = [];
+for (let i = 0; i <= 100; i++) {
+  const t = i / 100;
+  const r = 0.35 + t * 0.55;
+  const theta = t * Math.PI * 10;
+  hairPoints.push(new THREE.Vector3(Math.cos(theta) * r, Math.sin(theta) * r, 1.45));
+}
+const hairCurve = new THREE.CatmullRomCurve3(hairPoints);
+const hairspring = new THREE.Mesh(new THREE.TubeGeometry(hairCurve, 80, 0.018, 8, false), steelMat);
+hairspring.position.set(0, 0.6, 1.45);
+tag(hairspring, { name: "Hairspring", category: "Regulator", desc: "Nivarox alloy overcoil hairspring minimizing positional error.", specs: { Material: "Nivarox", Diameter: "0.18 mm" } });
+
+// --- Bridges & Jewels ---
+function buildBridge(x, y, z, ry) {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.1, 0.55), darkMat);
+  b.position.set(x, y, z);
+  b.rotation.y = ry || 0;
+  watch.add(b);
+
+  for (let i = 0; i < 2; i++) {
+    const j = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), rubyMat);
+    const dx = (i === 0 ? 0.95 : -0.95);
+    const dz = (i === 0 ? 0.2 : -0.2);
+    j.position.set(x + dx, y, z + dz);
+    watch.add(j);
+    tag(j, { name: "Ruby Eyestone", category: "Jewels", desc: "Synthetic ruby bearing at pivot points to eliminate friction.", specs: { Grade: "AAAA", Count: "42 total" } });
+  }
+  tag(b, { name: "Bridge Plate", category: "Movement", desc: "Hand-engraved German silver bridge supporting balance staff jewels.", specs: { Material: "German Silver", Finish: "Côtes de Genève" } });
+  return b;
+}
+
+buildBridge(0.1, 0.35, 1.0, 0.15);
+buildBridge(-1.0, 0.35, -0.6, -0.3);
+
+// --- Escapement ---
+const anchor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.26), darkMat);
+anchor.position.set(0, 0.55, 0.7);
+anchor.rotation.z = Math.PI / 5;
+watch.add(anchor);
+
+const pallet = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.12), steelMat);
+pallet.position.set(0.35, 0.55, 0.72);
+watch.add(pallet);
+
+tag(anchor, { name: "Escapement Anchor", category: "Escapement", desc: "Swiss lever escapement delivering impulse and controlling energy release.", specs: { Angle: "50°", Material: "Nickel-Phosphorus" } });
+
+// --- Winding Crown (visible through open case) ---
+const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.28, 16), steelMat);
+crown.rotation.z = Math.PI / 2;
+crown.position.set(3.48, 0.0, 0);
+watch.add(crown);
+tag(crown, { name: "Winding Crown", category: "Case", desc: "Manual winding and time-setting crown with polished steel finish.", specs: { Material: "Polished Steel" } });
+
+// --- Luminous Hands ---
+const hourHand = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.3, 0.035), luminousMat);
+hourHand.position.set(0, 0.15, 0.03);
+watch.add(hourHand);
+
+const minuteHand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.9, 0.025), luminousMat);
+minuteHand.position.set(0, 0.15, 0.04);
+watch.add(minuteHand);
+
+const secondHand = new THREE.Mesh(new THREE.BoxGeometry(0.03, 2.0, 0.015), new THREE.MeshStandardMaterial({ color: 0xff3344, emissive: 0xaa0000, emissiveIntensity: 2 }));
+secondHand.position.set(0, 0.15, 0.05);
+watch.add(secondHand);
+
+// --- Luminous Indices ---
+for (let i = 0; i < 12; i++) {
+  const angle = (i / 12) * Math.PI * 2;
+  const idx = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.35, 0.05), luminousMat);
+  idx.position.set(Math.sin(angle) * 2.75, Math.cos(angle) * 2.75, 0.05);
+  idx.rotation.z = -angle;
+  watch.add(idx);
+  if (i === 0) tag(idx, { name: "Luminous Index", category: "Dial", desc: "Super-LumiNova marker for high-visibility reading.", specs: { Luminosity: "20,000 cd/m²" } });
+}
+
+// --- Additional Decorative Jewels ---
+for (let i = 0; i < 5; i++) {
+  const j = new THREE.Mesh(new THREE.SphereGeometry(0.08, 14, 10), rubyMat);
+  const a = Math.PI * 2 * Math.random();
+  j.position.set(Math.sin(a) * 2.3, Math.cos(a) * 2.3, 0.08);
+  watch.add(j);
+  tag(j, { name: "Ruby Bearing", category: "Jewels", desc: "Synthetic ruby reducing wear at high-speed rotating pivots.", specs: { Grade: "AAAA", Count: "42" } });
+}
+
+// --- Floor for reflection ---
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x06060a, metalness: 0.3, roughness: 0.7 });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -3.2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// ====================== RAYCASTING / INTERACTION ======================
+const ray = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const ptr = new THREE.Vector2();
+
+function onMove(e) {
+  ptr.x = (e.clientX / window.innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(interactive, false);
+  if (hits.length) {
+    const obj = hits[0].object;
+    if (hovered !== obj) {
+      if (hovered) resetHighlight(hovered);
+      hovered = obj;
+      highlightObj(hovered);
+      tooltip.style.opacity = 1;
+      tooltip.style.left = (e.clientX + 18) + 'px';
+      tooltip.style.top = (e.clientY - 18) + 'px';
+      tooltip.innerHTML = `<span class="tag">${obj.userData.name || 'Component'}</span><br><span style="font-size:0.75rem;opacity:0.7">${obj.userData.category || ''}</span>`;
+    }
+  } else {
+    if (hovered) resetHighlight(hovered);
+    hovered = null;
+    tooltip.style.opacity = 0;
+  }
+}
+
+function onDown(e) {
+  if (hovered) {
+    selected = hovered;
+    highlightObj(selected);
+    panel.classList.add('active');
+    pName.textContent = selected.userData.name || 'Component';
+    pCat.textContent = selected.userData.category || '';
+    pDesc.textContent = selected.userData.desc || '';
+    if (selected.userData.specs) {
+      const s = selected.userData.specs;
+      pSpecs.innerHTML = Object.entries(s).map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join('');
+    } else {
+      pSpecs.innerHTML = '';
+    }
+  }
+}
+
+window.addEventListener('pointermove', onMove);
+window.addEventListener('pointerdown', onDown);
+
+// ====================== EXPLODED VIEW ======================
+document.getElementById('btn-explode').onclick = () => {
+  exploded = !exploded;
+  computeTargets();
+};
+
+document.getElementById('btn-reset').onclick = () => {
+  controls.reset();
+};
+
+// Toggle auto-rotate
+document.getElementById('btn-auto').onclick = () => {
+  controls.autoRotate = !controls.autoRotate;
+};
+
+// Initial compute
+computeTargets();
+
+// ====================== ANIMATION LOOP ======================
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  const t = clock.getElapsedTime();
+
+  controls.update();
+
+  // Gentle idle sway of entire watch
+  watch.rotation.y = Math.sin(t * 0.25) * 0.06;
+
+  // Mechanical motion
+  interactive.forEach(obj => {
+    if (obj.userData.spinSpeed) obj.rotation.z += obj.userData.spinSpeed;
+  });
+
+  // Second hand sweep
+  secondHand.rotation.z = -t * 1.8;
+
+  // Exploded interpolation
+  interactive.forEach(obj => {
+    const target = targets[obj.uuid];
+    if (target) obj.position.lerp(target, 0.06);
+  });
+
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>
