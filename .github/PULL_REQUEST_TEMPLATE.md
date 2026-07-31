@@ -24,7 +24,7 @@ Please attach a screenshot of the generation showing the **model name + effort**
 - [ ] **没有**手改 `README.md` / `README.en.md`（注册表合并后由 CI 自动同步）/ did **not** hand-edit the README registry (auto-synced after merge)
 - [ ] 模型 id 用短横线、以**模型**命名（非 harness），如 `deepseek-v4-flash-reasonix` / dash-case id named after the model, not the harness
 - [ ] `harness` 与 `effort` 如实填写（站点据此生成 metadata 与品牌 icon）/ `harness` and `effort` are accurate
-- [ ] 用 harness 的**默认模型与 effort**，但**关掉了所有 skill 和插件**（包括 harness 自带、会自动触发的那些），未加 MCP、未加自定义系统提示 / default model & effort, but with **every skill and plugin disabled — including the ones the harness ships with and auto-invokes** — no MCP, no custom system prompt
+- [ ] 模型与 effort 由我自己选定并如实填写；harness 其余设置保持**开箱默认**，**关掉了所有 skill 和插件**（包括 harness 自带、会自动触发的那些），未加 MCP、未加自定义系统提示 / my chosen model & effort, declared truthfully; the harness otherwise left at its out-of-the-box settings with **every skill and plugin disabled — including the ones it ships with and auto-invokes** — no MCP, no custom system prompt
 - [ ] 每条 run 的 `note` 双语（zh + en，zh 先，无 emoji）填了来历 / bilingual `note`, zh first, no emojis
 - [ ] 同一模型换 Harness 或思考配额是**新建一个 JSON 条目** / a different harness or effort = a NEW json entry
 - [ ] `contributor` 是我的 GitHub 用户名 / `contributor` is my GitHub username

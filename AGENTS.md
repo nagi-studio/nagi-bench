@@ -92,10 +92,11 @@ and what you changed. **No emojis anywhere** (hard rule). zh first.
 
 ### Run the bare harness — NO skills, NO plugins
 
-Run the model with the harness's default model and effort, but otherwise
-**stripped down**: **disable every skill and every plugin — including the ones
-the harness ships with and would auto-invoke** — and add no MCP servers and no
-custom system prompt. A skill or plugin (a built-in `design`, `gsap`, game, or
+Pick the model and effort you want to benchmark and declare them truthfully —
+that combination is the entry. Everything else stays at the harness's
+out-of-the-box settings, **stripped down**: **disable every skill and every
+plugin — including the ones the harness ships with and would auto-invoke** —
+and add no MCP servers and no custom system prompt. A skill or plugin (a built-in `design`, `gsap`, game, or
 diagram helper, an added toolset, etc.) rewrites the output far more than the
 model itself does, so a run with any of them active measures the tooling, not the
 model × harness × effort. It is not comparable to other entries and cannot be a
