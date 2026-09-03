@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAGI | Skeleton Tourbillon — 镂空机械表</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--gold:#C9A86A;--gold2:#E8D5B5;--bg:#07080A;--panel:rgba(20,22,26,0.72)}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:#E8E6E1}
+#canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+.vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(120% 120% at 50% 50%, transparent 45%, rgba(0,0,0,0.55) 88%), radial-gradient(80% 60% at 50% 20%, rgba(201,168,106,0.08), transparent 60%);z-index:2}
+.noise{position:fixed;inset:0;opacity:0.04;pointer-events:none;z-index:2;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E")}
+
+/* header */
+.header{position:fixed;top:0;left:0;right:0;z-index:10;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid rgba(255,255,255,0.06);background:linear-gradient(to bottom, rgba(7,8,10,0.9), rgba(7,8,10,0.35));backdrop-filter:blur(12px)}
+.brand{display:flex;align-items:center;gap:14px}
+.brand-mark{width:34px;height:34px;border:1px solid rgba(201,168,106,0.4);display:grid;place-items:center;font-family:'Cormorant Garamond',serif;font-weight:600;letter-spacing:0.14em;color:var(--gold);font-size:13px;position:relative}
+.brand-mark:after{content:'';position:absolute;inset:3px;border:1px solid rgba(201,168,106,0.18)}
+.brand-text h1{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:19px;letter-spacing:0.18em;text-transform:uppercase;color:#F2EDE3;line-height:1}
+.brand-text p{font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(232,230,225,0.55);margin-top:3px}
+.header-right{display:flex;align-items:center;gap:18px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.55)}
+.dot{width:7px;height:7px;border-radius:50%;background:#4ADE80;box-shadow:0 0 10px rgba(74,222,128,0.8);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+.sep{width:1px;height:14px;background:rgba(255,255,255,0.1)}
+
+/* left info panel */
+.panel{position:fixed;z-index:8;background:var(--panel);backdrop-filter:blur(16px) saturate(1.15);border:1px solid rgba(255,255,255,0.08);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)}
+.panel-left{left:20px;top:84px;width:300px;padding:20px 18px 16px}
+.panel-right{right:20px;top:84px;width:282px;padding:18px}
+.panel h3{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:13px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.panel h3 i{width:20px;height:1px;background:var(--gold);display:inline-block;opacity:0.6}
+.spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.spec{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px 11px}
+.spec label{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px}
+.spec strong{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:400;color:#F2EDE3}
+.spec strong em{color:var(--gold);font-style:normal}
+.movement-desc{font-size:12px;line-height:1.75;color:rgba(232,230,225,0.72);border-top:1px solid rgba(255,255,255,0.06);padding-top:12px}
+.movement-desc b{color:var(--gold2);font-weight:500}
+.tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tag{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;padding:5px 8px;border-radius:99px;background:rgba(201,168,106,0.12);border:1px solid rgba(201,168,106,0.22);color:var(--gold2)}
+
+/* right panel controls */
+.ctrl-group{margin-bottom:16px}
+.ctrl-group:last-child{margin-bottom:0}
+.ctrl-label{font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:10px;display:block}
+.btn-row{display:flex;gap:8px}
+.btn{flex:1;height:38px;border-radius:99px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#E8E6E1;font-size:12px;letter-spacing:0.08em;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:'Inter',sans-serif}
+.btn:hover{background:rgba(255,255,255,0.09);border-color:rgba(201,168,106,0.25)}
+.btn.active{background:linear-gradient(180deg, #C9A86A, #A98A4F);color:#111;border-color:#C9A86A;box-shadow:0 6px 20px rgba(201,168,106,0.35)}
+.btn-ghost{flex:unset;padding:0 14px;height:36px;font-size:11px;background:rgba(255,255,255,0.03)}
+.parts-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;padding-right:4px}
+.parts-list::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:99px}
+.part-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid transparent;cursor:pointer;transition:all 0.2s}
+.part-item:hover,.part-item.hover{border-color:rgba(201,168,106,0.35);background:rgba(201,168,106,0.09)}
+.part-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;box-shadow:0 0 8px currentColor}
+.part-name{font-size:12px;color:#E8E6E1;letter-spacing:0.02em}
+.part-sub{font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:0.06em}
+.slider-row{display:flex;align-items:center;gap:10px}
+input[type=range]{-webkit-appearance:none;flex:1;height:4px;background:rgba(255,255,255,0.1);border-radius:99px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gold);border:2px solid #111;box-shadow:0 0 0 4px rgba(201,168,106,0.15);cursor:pointer}
+.toggle{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.toggle input{display:none}
+.toggle i{width:38px;height:22px;border-radius:99px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.08);position:relative;transition:all 0.2s;display:inline-block}
+.toggle i:after{content:'';position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:white;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+.toggle input:checked + i{background:var(--gold);border-color:var(--gold)}
+.toggle input:checked + i:after{transform:translateX(16px)}
+.toggle span{font-size:12px;color:rgba(255,255,255,0.8);letter-spacing:0.02em}
+
+/* bottom hint */
+.hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:8;display:flex;align-items:center;gap:14px;padding:10px 16px;border-radius:99px;background:rgba(16,18,22,0.72);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(14px);font-size:11px;color:rgba(255,255,255,0.6);letter-spacing:0.06em;white-space:nowrap}
+.hint b{color:var(--gold2);font-weight:500}
+.hint kbd{padding:3px 7px;border-radius:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);font-family:'JetBrains Mono',monospace;font-size:10px;color:#E8E6E1}
+
+/* tooltip */
+#tooltip{position:fixed;z-index:20;pointer-events:none;min-width:180px;max-width:240px;padding:12px 13px;border-radius:12px;background:rgba(18,20,24,0.92);border:1px solid rgba(201,168,106,0.25);backdrop-filter:blur(14px);box-shadow:0 16px 40px rgba(0,0,0,0.6);opacity:0;transform:translateY(6px);transition:opacity 0.18s, transform 0.18s}
+#tooltip.show{opacity:1;transform:translateY(0)}
+#tooltip h4{font-family:'Cormorant Garamond',serif;font-size:13px;font-weight:500;color:var(--gold2);letter-spacing:0.06em;margin-bottom:4px}
+#tooltip p{font-size:11px;line-height:1.6;color:rgba(255,255,255,0.7)}
+#tooltip small{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(201,168,106,0.9);letter-spacing:0.08em}
+
+/* loading */
+#loader{position:fixed;inset:0;z-index:30;background:#07080A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity 0.6s}
+#loader.out{opacity:0;pointer-events:none}
+.loader-ring{width:48px;height:48px;border-radius:50%;border:1px solid rgba(201,168,106,0.18);border-top-color:var(--gold);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-text{font-family:'Cormorant Garamond',serif;letter-spacing:0.22em;text-transform:uppercase;font-size:11px;color:var(--gold)}
+.loader-sub{font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:0.08em}
+
+@media(max-width:1100px){.panel-left{width:270px}.panel-right{width:260px}}
+@media(max-width:820px){
+  .header{padding:0 14px;height:56px}
+  .panel-left{left:10px;right:10px;width:auto;top:66px;padding:14px}
+  .panel-right{left:10px;right:10px;width:auto;top:auto;bottom:62px;max-height:38vh;overflow:auto}
+  .hint{display:none}
+  .spec-grid{grid-template-columns:1fr 1fr 1fr}
+}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div class="vignette"></div>
+<div class="noise"></div>
+
+<div id="loader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">NAGI — Atelier</div>
+  <div class="loader-sub">正在抛光夹板 · 装配擒纵 · 调校游丝…</div>
+</div>
+
+<header class="header">
+  <div class="brand">
+    <div class="brand-mark">N</div>
+    <div class="brand-text">
+      <h1>NAGI Skeleton</h1>
+      <p>Manufacture · Tourbillon 42mm · 24 Jewels</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <span style="display:flex;align-items:center;gap:8px"><span class="dot"></span> 机芯运转中</span>
+    <span class="sep"></span>
+    <span>28,800 VPH</span>
+    <span class="sep"></span>
+    <span style="color:var(--gold2)">日内瓦印记</span>
+  </div>
+</header>
+
+<!-- Left Panel -->
+<div class="panel panel-left">
+  <h3><i></i> 机芯档案</h3>
+  <div class="spec-grid">
+    <div class="spec"><label>动力储存</label><strong>48 <em>小时</em></strong></div>
+    <div class="spec"><label>振频</label><strong>4 <em>Hz</em></strong></div>
+    <div class="spec"><label>宝石数</label><strong>24 <em>Jewels</em></strong></div>
+    <div class="spec"><label>防水</label><strong>50 <em>m</em></strong></div>
+  </div>
+  <div class="movement-desc">
+    <b>NAGI Cal. N-01 镂空手卷机芯。</b> 完全自制，三层镂空夹板以日内瓦波纹与倒角抛光呈现。主发条盒、上链轮系与擒纵系统完全外露；摆轮与硅游丝以 28,800 次/小时持续振荡，擒纵叉与擒纵轮的每一次释放皆清晰可见。蓝宝石水晶上下通透，犹如悬浮于空中的微型城市。
+    <div class="tag-row">
+      <span class="tag">蓝宝石水晶</span><span class="tag">日内瓦波纹</span><span class="tag">蓝钢螺丝</span><span class="tag">倒角抛光</span>
+    </div>
+  </div>
+</div>
+
+<!-- Right Panel -->
+<div class="panel panel-right">
+  <div class="ctrl-group">
+    <span class="ctrl-label">展示控制</span>
+    <div class="btn-row">
+      <button class="btn" id="btnExploded">◈ 爆炸视图</button>
+      <button class="btn" id="btnLume">✦ 夜光</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-ghost" id="btnAuto">⟳ 自动旋转</button>
+      <button class="btn btn-ghost" id="btnReset">◎ 重置视角</button>
+      <label class="toggle" style="margin-left:auto"><input type="checkbox" id="chkShadow" checked><i></i><span style="font-size:11px">阴影</span></label>
+    </div>
+  </div>
+
+  <div class="ctrl-group">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="ctrl-label" style="margin:0">运行速度</span>
+      <span id="speedVal" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--gold)">1.0×</span>
+    </div>
+    <div class="slider-row" style="margin-top:8px">
+      <span style="font-size:10px;color:rgba(255,255,255,0.4)">慢</span>
+      <input type="range" id="speed" min="0" max="2" step="0.1" value="1">
+      <span style="font-size:10px;color:rgba(255,255,255,0.4)">快</span>
+    </div>
+    <label class="toggle" style="margin-top:10px"><input type="checkbox" id="chkTick" checked><i></i><span>擒纵滴答声可视化</span></label>
+  </div>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">零件导览 · 悬停高亮</span>
+    <div class="parts-list" id="partsList"></div>
+  </div>
+</div>
+
+<div class="hint">
+  <span><kbd>拖拽</kbd> <b>旋转</b></span> · <span><kbd>滚轮</kbd> <b>缩放</b></span> · <span><kbd>右键拖拽</kbd> <b>平移</b></span> · <span style="color:rgba(255,255,255,0.35)">点击 / 悬停零件查看详情</span>
+</div>
+
+<div id="tooltip">
+  <small id="tipOver">—</small>
+  <h4 id="tipTitle">—</h4>
+  <p id="tipDesc">—</p>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+const canvas = document.getElementById('canvas');
+const tooltip = document.getElementById('tooltip');
+const tipOver = document.getElementById('tipOver');
+const tipTitle = document.getElementById('tipTitle');
+const tipDesc = document.getElementById('tipDesc');
+
+let W = window.innerWidth, H = window.innerHeight;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07080A);
+scene.fog = new THREE.Fog(0x07080A, 60, 140);
+
+const camera = new THREE.PerspectiveCamera(32, W/H, 0.1, 500);
+camera.position.set(0, 9.5, 38);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(W,H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.35;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 14;
+controls.maxDistance = 70;
+controls.target.set(0, 0, 0);
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.autoRotate = false;
+controls.autoRotateSpeed = 0.6;
+
+// composer for bloom (lume + jewels)
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(W,H), 0.55, 0.85, 0.35);
+composer.addPass(bloom);
+
+// --- lights : luxury studio ---
+scene.add(new THREE.HemisphereLight(0xffffff, 0x0a0a12, 0.35));
+
+const key = new THREE.DirectionalLight(0xfff6e5, 3.2);
+key.position.set(12, 18, 10);
+key.castShadow = true;
+key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.near = 0.5; key.shadow.camera.far = 80;
+key.shadow.camera.left = -20; key.shadow.camera.right = 20; key.shadow.camera.top = 20; key.shadow.camera.bottom = -20;
+key.shadow.bias = -0.0003;
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0xc8d8ff, 1.1);
+fill.position.set(-10, 10, -6);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffe9c2, 1.6);
+rim.position.set(0, 6, -14);
+scene.add(rim);
+
+const pointGold = new THREE.PointLight(0xffc97a, 22, 30);
+pointGold.position.set(6, 8, 6);
+scene.add(pointGold);
+const pointBlue = new THREE.PointLight(0x7aa8ff, 14, 30);
+pointBlue.position.set(-7, 5, -4);
+scene.add(pointBlue);
+
+const spot1 = new THREE.SpotLight(0xffffff, 18, 40, Math.PI*0.22, 0.45, 0.6);
+spot1.position.set(0, 22, 8); spot1.castShadow = true; spot1.target.position.set(0,0,0); scene.add(spot1, spot1.target);
+const spot2 = new THREE.SpotLight(0xffe8b5, 10, 30, Math.PI*0.28, 0.5, 0.6);
+spot2.position.set(-12, 8, 10); scene.add(spot2);
+
+// moving sparkle for jewels
+const sparkle = new THREE.PointLight(0xff2a2a, 6, 8);
+sparkle.position.set(3, 0.6, 0);
+scene.add(sparkle);
+
+// environment fake (cube gradient) for metal reflections
+function makeEnvMap(){
+  const size = 256;
+  const canvases = [];
+  for(let i=0;i<6;i++){
+    const c = document.createElement('canvas'); c.width=c.height=size;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0,0,size,size);
+    grad.addColorStop(0, i%2? '#1a1d24' : '#0e1116');
+    grad.addColorStop(0.5, '#202530');
+    grad.addColorStop(1, '#0a0c10');
+    g.fillStyle = grad; g.fillRect(0,0,size,size);
+    // add soft highlight blob
+    g.fillStyle = 'rgba(201,168,106,0.08)';
+    g.beginPath(); g.arc(180, 70, 60, 0, Math.PI*2); g.fill();
+    canvases.push(c);
+  }
+  const cube = new THREE.CubeTexture(canvases.map(c=>{const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t.image;}));
+  // use CanvasTexture cube workaround: create CubeTexture from images
+  const ct = new THREE.CubeTextureLoader();
+  // Instead create procedurally via PMREM
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  envScene.background = new THREE.Color(0x0f1217);
+  // add gradient sphere
+  const rt = pmrem.fromScene(envScene);
+  scene.environment = rt.texture;
+  // also subtle background
+  scene.background = new THREE.Color(0x07080A);
+}
+makeEnvMap();
+
+// ground + reflection
+const groundGeo = new THREE.CircleGeometry(60, 128);
+const groundMat = new THREE.MeshStandardMaterial({ color:0x0a0c10, roughness:0.18, metalness:0.55, envMapIntensity:0.6 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2; ground.position.y = -7.2; ground.receiveShadow = true;
+scene.add(ground);
+// second reflective disc
+const reflGeo = new THREE.CircleGeometry(22, 96);
+const reflMat = new THREE.MeshStandardMaterial({ color:0x15181e, roughness:0.08, metalness:0.85, transparent:true, opacity:0.55 });
+const refl = new THREE.Mesh(reflGeo, reflMat);
+refl.rotation.x = -Math.PI/2; refl.position.y = -7.18;
+scene.add(refl);
+const ring = new THREE.Mesh(new THREE.RingGeometry(9.2, 9.35, 128), new THREE.MeshBasicMaterial({ color:0xC9A86A, transparent:true, opacity:0.18, side:THREE.DoubleSide }));
+ring.rotation.x = Math.PI/2; ring.position.y = -7.15; scene.add(ring);
+
+// materials
+const steelPolished = new THREE.MeshStandardMaterial({ color:0xE8EAEF, metalness:0.92, roughness:0.16, envMapIntensity:1.2 });
+const steelBrushed = new THREE.MeshStandardMaterial({ color:0xD0D4DA, metalness:0.88, roughness:0.32, envMapIntensity:0.9 });
+const steelDark = new THREE.MeshStandardMaterial({ color:0xB8BDC6, metalness:0.9, roughness:0.28 });
+const goldMat = new THREE.MeshStandardMaterial({ color:0xC9A86A, metalness:0.85, roughness:0.28, envMapIntensity:1.0 });
+const brassMat = new THREE.MeshStandardMaterial({ color:0xBFA06A, metalness:0.82, roughness:0.35 });
+const plateMat = new THREE.MeshStandardMaterial({ color:0xD6D8DE, metalness:0.88, roughness:0.22, envMapIntensity:1.0 });
+const bridgeMat = new THREE.MeshStandardMaterial({ color:0xE6E8EE, metalness:0.9, roughness:0.18, envMapIntensity:1.1 });
+const rubyMat = new THREE.MeshPhysicalMaterial({ color:0xE11D2A, metalness:0.0, roughness:0.08, transmission:0.35, thickness:0.4, clearcoat:1, clearcoatRoughness:0.12, emissive:0x330005, emissiveIntensity:0.25 });
+const bluedMat = new THREE.MeshStandardMaterial({ color:0x2B4C8A, metalness:0.75, roughness:0.22, envMapIntensity:0.9 });
+const lumeMat = new THREE.MeshStandardMaterial({ color:0xE8FFE8, emissive:0x3DD67A, emissiveIntensity:0.9, roughness:0.4 });
+const lumeDim = new THREE.MeshStandardMaterial({ color:0xDDEEDD, emissive:0x2A8A4A, emissiveIntensity:0.15, roughness:0.5 });
+
+// helpers
+function jewel(x,y,z, r=0.22){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.22, 24), rubyMat);
+  m.rotation.x = Math.PI/2; m.position.set(x,y,z); m.castShadow=true;
+  // chaton rim
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(r+0.06, 0.05, 10, 24), goldMat);
+  rim.rotation.x = Math.PI/2; rim.position.set(x,y,z);
+  const g = new THREE.Group(); g.add(m, rim);
+  g.userData.part = { id:'jewel', name:`红宝石轴承`, desc:'合成刚玉轴承，减少摩擦，19世纪以来高端机芯的标志。N-01 共 24 颗。' };
+  return g;
+}
+function screw(x,y,z, r=0.18){
+  const head = new THREE.Mesh(new THREE.CylinderGeometry(r+0.07, r+0.07, 0.12, 20), bluedMat);
+  head.position.set(x,y,z); head.rotation.x = Math.PI/2;
+  // slot
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.02, 0.06), new THREE.MeshStandardMaterial({ color:0x0a0a0a, roughness:0.8 }));
+  slot.position.set(x,y,z+0.07);
+  const g = new THREE.Group(); g.add(head, slot);
+  g.userData.part = { id:'screw', name:'蓝钢螺丝', desc:'经 300°C 回火呈矢车菊蓝，镜面抛光，逐颗手工倒角。' };
+  return g;
+}
+
+// gear creation (cylinder + teeth boxes)
+function createGear(radius, teeth, thickness, colorMat, withSpokes=false){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(radius*0.88, radius*0.88, thickness, 48), colorMat);
+  base.rotation.x = Math.PI/2; base.castShadow=true; base.receiveShadow=true; g.add(base);
+  // teeth
+  const toothGeo = new THREE.BoxGeometry(0.22, thickness+0.02, 0.42);
+  for(let i=0;i<teeth;i++){
+    const a = i/teeth * Math.PI*2;
+    const t = new THREE.Mesh(toothGeo, colorMat);
+    const r = radius -0.02;
+    t.position.set(Math.cos(a)*r, Math.sin(a)*r, 0);
+    t.rotation.z = -a;
+    t.castShadow=true; g.add(t);
+  }
+  if(withSpokes){
+    for(let i=0;i<3;i++){
+      const a = i/3*Math.PI*2;
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(radius*0.9, thickness*0.6, 0.18), colorMat);
+      spoke.position.set(Math.cos(a)*radius*0.45, Math.sin(a)*radius*0.45, 0);
+      spoke.rotation.z = -a; g.add(spoke);
+    }
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,thickness+0.18,20), steelPolished);
+    hub.rotation.x=Math.PI/2; g.add(hub);
+    // jewel in center
+    const j = jewel(0,0,thickness/2+0.12, 0.18); g.add(j);
+  }
+  g.userData.radius=radius; g.userData.teeth=teeth;
+  return g;
+}
+function createEscapeWheel(){
+  const g = new THREE.Group();
+  const shape = new THREE.Shape();
+  const R=1.35, r=0.9, teeth=15;
+  for(let i=0;i<teeth;i++){
+    const a0 = i/teeth*Math.PI*2;
+    const a1 = a0 + 0.18;
+    const a2 = a0 + Math.PI/teeth;
+    if(i===0) shape.moveTo(Math.cos(a0)*r, Math.sin(a0)*r);
+    shape.lineTo(Math.cos(a0)*R, Math.sin(a0)*R);
+    shape.lineTo(Math.cos(a1)*R*0.96, Math.sin(a1)*R*0.96);
+    shape.lineTo(Math.cos(a2)*r, Math.sin(a2)*r);
+  }
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape,{ depth:0.24, bevelEnabled:true, bevelThickness:0.02, bevelSize:0.02, bevelSegments:2 });
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0xE8C87A, metalness:0.88, roughness:0.25 }));
+  mesh.rotation.z = 0; mesh.position.z = -0.12; mesh.castShadow=true;
+  g.add(mesh);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.36,16), steelPolished); hub.rotation.x=Math.PI/2; g.add(hub);
+  return g;
+}
+
+// hairspring curve
+function createHairspring(){
+  const pts=[];
+  const turns=7, r0=0.18, r1=1.05;
+  for(let i=0;i<=130;i++){
+    const t=i/130, ang=t*Math.PI*2*turns, rad= r0 + (r1-r0)*t;
+    pts.push(new THREE.Vector3(Math.cos(ang)*rad, Math.sin(ang)*rad, t*0.12));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const geo = new THREE.TubeGeometry(curve, 180, 0.018, 8, false);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0x6A8DFF, metalness:0.6, roughness:0.25, emissive:0x1a2a5a, emissiveIntensity:0.15 }));
+  return mesh;
+}
+
+// main watch assembly
+const watchGroup = new THREE.Group();
+scene.add(watchGroup);
+
+// CASE: 42mm reference -> radius ~5.2 in our units
+const caseGroup = new THREE.Group(); watchGroup.add(caseGroup);
+const caseRadius = 5.6;
+const caseThickness = 1.65;
+ // case body with brushed sides
+const caseBody = new THREE.Mesh(new THREE.CylinderGeometry(caseRadius, caseRadius, caseThickness, 64), steelBrushed);
+caseBody.castShadow=true; caseBody.receiveShadow=true; caseGroup.add(caseBody);
+// bezel polished
+const bezel = new THREE.Mesh(new THREE.TorusGeometry(caseRadius, 0.28, 16, 96), steelPolished);
+bezel.rotation.x = Math.PI/2; bezel.position.y = caseThickness/2 -0.02; bezel.castShadow=true; caseGroup.add(bezel);
+// bezel top chamfer ring
+const bezelTop = new THREE.Mesh(new THREE.CylinderGeometry(caseRadius+0.05, caseRadius-0.12, 0.22, 64), steelPolished);
+bezelTop.position.y = caseThickness/2+0.08; caseGroup.add(bezelTop);
+// lugs (4)
+function lug(x,z, rot){
+  const s = new THREE.Shape();
+  s.moveTo(0,0); s.lineTo(2.1,0); s.bezierCurveTo(2.6,0.2, 2.8,0.8, 2.4,1.5); s.lineTo(0.2,1.5); s.lineTo(0,0);
+  const geo = new THREE.ExtrudeGeometry(s,{ depth:0.55, bevelEnabled:true, bevelThickness:0.04, bevelSize:0.04, bevelSegments:3});
+  const m = new THREE.Mesh(geo, steelBrushed); m.castShadow=true;
+  m.position.set(x, -0.35, z); m.rotation.y = rot; m.rotation.x = Math.PI/2;
+  return m;
+}
+caseGroup.add(lug(caseRadius-0.6, 2.9, 0.18), lug(caseRadius-0.6, -2.9, -0.18), lug(-caseRadius+0.6-2.1, 2.9, -0.18), lug(-caseRadius+0.6-2.1, -2.9, 0.18));
+// crown
+const crownBody = new THREE.Mesh(new THREE.CylinderGeometry(0.62,0.62,0.9,32), steelPolished);
+crownBody.rotation.z = Math.PI/2; crownBody.position.set(caseRadius+0.55, 0, 0); crownBody.castShadow=true; caseGroup.add(crownBody);
+const crownLogo = new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.38,0.92,32), new THREE.MeshStandardMaterial({color:0x0a0a0a, roughness:0.6}));
+crownLogo.rotation.z=Math.PI/2; crownLogo.position.set(caseRadius+0.56,0,0); caseGroup.add(crownLogo);
+for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; const c=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.06,0.04), steelDark); const rr=0.62; c.position.set(caseRadius+0.55, Math.cos(a)*rr, Math.sin(a)*rr); c.rotation.x=a; caseGroup.add(c); }
+
+// sapphire crystal front
+const crystalGeo = new THREE.CylinderGeometry(caseRadius-0.18, caseRadius-0.18, 0.42, 64);
+const crystalMat = new THREE.MeshPhysicalMaterial({ color:0xffffff, metalness:0, roughness:0.02, transmission:1, thickness:0.5, ior:1.48, clearcoat:1, clearcoatRoughness:0.04, transparent:true, opacity:0.42, envMapIntensity:1.2 });
+const crystal = new THREE.Mesh(crystalGeo, crystalMat);
+crystal.position.y = caseThickness/2+0.28; caseGroup.add(crystal);
+// AR coating reflection helper (slightly tinted)
+const crystalTop = new THREE.Mesh(new THREE.CylinderGeometry(caseRadius-0.2, caseRadius-0.2, 0.02, 64), new THREE.MeshPhysicalMaterial({ color:0x9ad0ff, metalness:0, roughness:0, transmission:0.6, transparent:true, opacity:0.08 }));
+crystalTop.position.y = caseThickness/2+0.49; caseGroup.add(crystalTop);
+// caseback crystal
+const backCrystal = new THREE.Mesh(new THREE.CylinderGeometry(caseRadius-0.35, caseRadius-0.35, 0.18, 64), new THREE.MeshPhysicalMaterial({ color:0xffffff, transmission:1, thickness:0.3, ior:1.45, roughness:0.04, transparent:true, opacity:0.32 }));
+backCrystal.position.y = -caseThickness/2-0.06; caseGroup.add(backCrystal);
+
+// dial markers (skeleton, only chapter ring)
+const chapterRing = new THREE.Mesh(new THREE.TorusGeometry(4.85, 0.07, 12, 96), steelPolished);
+chapterRing.rotation.x = Math.PI/2; chapterRing.position.y = 0.78; watchGroup.add(chapterRing);
+const markerGroup = new THREE.Group(); watchGroup.add(markerGroup);
+for(let i=0;i<12;i++){
+  const ang = i/12*Math.PI*2;
+  const is12 = i===0;
+  const len = is12? 0.9 : 0.42, wid = is12? 0.22:0.14, h=0.18;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(wid, h, len), is12? goldMat : lumeDim);
+  const r=4.85;
+  m.position.set(Math.cos(ang)*r, 0.82, Math.sin(ang)*r);
+  m.rotation.y = -ang;
+  m.castShadow=true; m.userData.isLume = !is12;
+  // lume insert
+  if(!is12){ const lume = new THREE.Mesh(new THREE.BoxGeometry(wid*0.7, 0.02, len*0.75), lumeMat); lume.position.y=0.1; m.add(lume); m.userData.lumeMesh=lume; }
+  markerGroup.add(m);
+  // lume dot at 5min
+  if(i%1===0){ const dot = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.04,12), lumeMat); dot.rotation.x=Math.PI/2; dot.position.set(Math.cos(ang)*(r-0.55), 0.84, Math.sin(ang)*(r-0.55)); markerGroup.add(dot); }
+}
+
+// MOVEMENT GROUP
+const movement = new THREE.Group(); watchGroup.add(movement);
+movement.position.y = 0.05;
+
+// main plate (skeletonized with cutouts)
+const plateShape = new THREE.Shape();
+plateShape.absarc(0,0,4.95,0,Math.PI*2,false);
+const holes=[];
+function addHole(x,y,w,h,rot=0){ const s=new THREE.Path(); const hw=w/2, hh=h/2; s.moveTo(-hw,-hh); s.lineTo(hw,-hh); s.lineTo(hw,hh); s.lineTo(-hw,hh); s.closePath(); // rotate
+  const pts=s.getPoints(); const np=new THREE.Path(); pts.forEach((p,i)=>{
+    const nx = p.x*Math.cos(rot)-p.y*Math.sin(rot)+x; const ny=p.x*Math.sin(rot)+p.y*Math.cos(rot)+y;
+    if(i===0) np.moveTo(nx,ny); else np.lineTo(nx,ny);
+  }); np.closePath(); plateShape.holes.push(np);
+}
+addHole(-1.2,1.1,3.2,1.1,0.12); addHole(0.6,2.0,2.0,1.2,-0.2); addHole(1.8,-0.2,2.6,1.4,0.3); addHole(-0.4,-2.0,3.0,1.2,0.05); addHole(2.4,-1.8,1.1,0.9,0.6);
+const plateGeo = new THREE.ExtrudeGeometry(plateShape,{ depth:0.36, bevelEnabled:true, bevelThickness:0.03, bevelSize:0.03, bevelSegments:2 });
+const plateMesh = new THREE.Mesh(plateGeo, plateMat);
+plateMesh.rotation.x = Math.PI/2; plateMesh.position.y = 0.18; plateMesh.receiveShadow=true; plateMesh.castShadow=true;
+movement.add(plateMesh);
+// Geneva stripes visual: thin lines
+for(let i=0;i<14;i++){ const line=new THREE.Mesh(new THREE.BoxGeometry(9.5,0.01,0.02), new THREE.MeshStandardMaterial({color:0xffffff, metalness:0.9, roughness:0.2, transparent:true, opacity:0.07})); line.position.set(0,0.37, -2.4 + i*0.34); movement.add(line); }
+
+// Bridges (3/4 plate skeleton)
+const bridgeShapes=[
+  {x:-1.6,y:0.6,w:3.0,h:0.9,rot:0.08, name:'上夹板', desc:'日内瓦波纹手工打磨，边缘 45° 倒角镜面抛光。'},
+  {x:1.2,y:1.4,w:2.4,h:0.85,rot:-0.35, name:'轮系夹板', desc:'固定中心轮至四轮，镂空以展现齿轮啮合。'},
+  {x:0.2,y:-1.9,w:3.4,h:0.9,rot:0.02, name:'主夹板', desc:'承载发条盒与上链机构，鱼鳞纹装饰。'},
+];
+const bridges=[];
+bridgeShapes.forEach(b=>{
+  const sh=new THREE.Shape(); sh.moveTo(-b.w/2,-b.h/2); sh.lineTo(b.w/2,-b.h/2); sh.lineTo(b.w/2,b.h/2); sh.lineTo(-b.w/2,b.h/2); sh.closePath();
+  // add two jewel holes
+  const h1=new THREE.Path(); h1.absarc(-b.w*0.22,0,0.18,0,Math.PI*2); sh.holes.push(h1);
+  const h2=new THREE.Path(); h2.absarc(b.w*0.22,0,0.18,0,Math.PI*2); sh.holes.push(h2);
+  const geo=new THREE.ExtrudeGeometry(sh,{depth:0.22, bevelEnabled:true, bevelThickness:0.02, bevelSize:0.02, bevelSegments:2});
+  const m=new THREE.Mesh(geo, bridgeMat); m.rotation.x=Math.PI/2; m.rotation.z=b.rot; m.position.set(b.x,0.68,b.y); m.castShadow=true;
+  m.userData.part={name:b.name, desc:b.desc}; movement.add(m); bridges.push(m);
+  // jewels on bridge
+  const j1=jewel(b.x-0.42,0.80,b.y+0.08); const j2=jewel(b.x+0.42,0.80,b.y-0.08);
+  movement.add(j1,j2);
+  // screws
+  movement.add(screw(b.x-1.15,0.80,b.y+0.28), screw(b.x+1.15,0.80,b.y-0.28));
+});
+
+// BARREL (mainspring box)
+const barrelGroup = new THREE.Group(); barrelGroup.position.set(-1.9, 0.42, 0.9); movement.add(barrelGroup);
+const barrel = new THREE.Mesh(new THREE.CylinderGeometry(1.02,1.02,0.52,48), brassMat); barrel.rotation.x=Math.PI/2; barrel.castShadow=true; barrelGroup.add(barrel);
+const barrelTeeth = createGear(1.18, 72, 0.18, brassMat); barrelTeeth.position.z=0; barrelGroup.add(barrelTeeth);
+barrelTeeth.userData.part={name:'主发条盒', desc:'储存 48 小时动力，发条为 Nivaflex® 合金，手工卷绕。'};
+// visible mainspring spiral inside (through skeleton)
+const springPts=[]; for(let i=0;i<=80;i++){ const t=i/80, a=t*Math.PI*2*4.5, r=0.18 + t*0.72; springPts.push(new THREE.Vector3(Math.cos(a)*r, Math.sin(a)*r, Math.sin(t*Math.PI)*0.02)); }
+const springCurve=new THREE.CatmullRomCurve3(springPts);
+const springMesh=new THREE.Mesh(new THREE.TubeGeometry(springCurve,120,0.022,8,false), new THREE.MeshStandardMaterial({color:0xE8EEF6, metalness:0.85, roughness:0.18}));
+springMesh.position.z=0.18; barrelGroup.add(springMesh);
+// barrel arbor jewel
+barrelGroup.add(jewel(0,0.32,0,0.16));
+
+// GEAR TRAIN
+const gearPositions=[
+  {x:-0.35,y:1.25, r:0.95, teeth:80, name:'中心轮', desc:'每 12 小时一周，驱动分针。镜面抛光齿尖。'},
+  {x:1.05,y:0.55, r:0.78, teeth:60, name:'三轮', desc:'传动至四轮，钢制，倒角处理。'},
+  {x:2.25,y:-0.45, r:0.68, teeth:50, name:'四轮', desc:'每分钟一周，驱动秒针，镂空辐条。'},
+];
+const gears=[];
+gearPositions.forEach((p,i)=>{
+  const g=createGear(p.r, p.teeth, 0.18, i===0? steelPolished: steelDark, true);
+  g.position.set(p.x, 0.42, p.y); // y->z mapped
+  g.rotation.z = Math.random()*Math.PI;
+  g.userData.part={name:p.name, desc:p.desc}; g.userData.basePos=g.position.clone();
+  movement.add(g); gears.push(g);
+  // jewel below
+  movement.add(jewel(p.x,0.18,p.y,0.15));
+});
+
+// escape wheel
+const escape = createEscapeWheel(); escape.position.set(1.75, 0.46, -1.25); escape.rotation.x=Math.PI/2; escape.castShadow=true; escape.userData.part={name:'擒纵轮', desc:'15 齿特殊擒纵齿形，瑞士杠杆式擒纵核心，擒纵动作每秒 8 次。'}; movement.add(escape);
+movement.add(jewel(1.75,0.18,-1.25,0.14));
+
+// pallet fork
+const palletGroup = new THREE.Group(); palletGroup.position.set(0.55,0.52,-1.05); movement.add(palletGroup);
+const forkShape=new THREE.Shape(); forkShape.moveTo(-0.55,0); forkShape.lineTo(0.2,-0.28); forkShape.lineTo(0.45,-0.18); forkShape.lineTo(0.45,0.18); forkShape.lineTo(0.2,0.28); forkShape.closePath();
+const forkGeo=new THREE.ExtrudeGeometry(forkShape,{depth:0.14, bevelEnabled:true, bevelThickness:0.01, bevelSize:0.01, bevelSegments:2});
+const forkMesh=new THREE.Mesh(forkGeo, steelPolished); forkMesh.rotation.x=Math.PI/2; forkMesh.position.z=0; forkMesh.castShadow=true; palletGroup.add(forkMesh);
+// pallets (ruby)
+const palletRuby1=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.08,0.22), rubyMat); palletRuby1.position.set(0.38,0,-0.16); palletGroup.add(palletRuby1);
+const palletRuby2=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.08,0.22), rubyMat); palletRuby2.position.set(0.38,0,0.16); palletGroup.add(palletRuby2);
+palletGroup.userData.part={name:'擒纵叉', desc:'红宝石叉瓦与擒纵轮啮合，将摆轮振动转化为步进能量。'};
+
+// BALANCE assembly at bottom right
+const balanceGroup=new THREE.Group(); balanceGroup.position.set(2.05, 0.55, -2.35); movement.add(balanceGroup);
+const balanceWheel = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.08, 16, 48), new THREE.MeshStandardMaterial({color:0xC9A86A, metalness:0.9, roughness:0.2, envMapIntensity:1.1}));
+balanceWheel.rotation.x=Math.PI/2; balanceWheel.castShadow=true; balanceGroup.add(balanceWheel);
+// balance spokes (3)
+for(let i=0;i<3;i++){ const a=i/3*Math.PI*2; const sp=new THREE.Mesh(new THREE.BoxGeometry(0.84,0.06,0.04), goldMat); sp.position.set(Math.cos(a)*0.42,0,Math.sin(a)*0.42); sp.rotation.y=-a; balanceGroup.add(sp); }
+// balance screws (timing)
+for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; const sc=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.14,12), steelPolished); sc.rotation.x=Math.PI/2; sc.position.set(Math.cos(a)*0.92,0.04,Math.sin(a)*0.92); balanceGroup.add(sc); }
+// hairspring
+const hairspring = createHairspring(); hairspring.position.y=0.18; balanceGroup.add(hairspring);
+// balance cock (bridge over balance)
+const cockShape=new THREE.Shape(); cockShape.moveTo(-0.2,-0.5); cockShape.bezierCurveTo(0.6,-0.6,1.1,-0.2,1.0,0.4); cockShape.lineTo(0.1,0.55); cockShape.lineTo(-0.3,0.1); cockShape.closePath();
+const cockGeo=new THREE.ExtrudeGeometry(cockShape,{depth:0.18, bevelEnabled:true, bevelThickness:0.02, bevelSize:0.02, bevelSegments:2});
+const cock=new THREE.Mesh(cockGeo, bridgeMat); cock.rotation.x=Math.PI/2; cock.position.set(-0.35,0.78,0.15); cock.castShadow=true; balanceGroup.add(cock);
+balanceGroup.add(jewel(0,0.95,0,0.20));
+balanceGroup.add(screw(-0.55,0.92,0.28), screw(0.55,0.92,-0.12));
+balanceGroup.userData.part={name:'摆轮 · 游丝', desc:'Glucydur® 摆轮配硅游丝，4Hz 高振频，抗磁抗温差，振幅 280°。'};
+
+// additional decoration screws on plate
+movement.add(screw(-2.9,0.34,1.9), screw(-3.0,0.34,0.1), screw(3.1,0.34,-0.8), screw(0.9,0.34,2.2));
+
+// HANDS
+const handsGroup=new THREE.Group(); handsGroup.position.set(0,0.92,0); watchGroup.add(handsGroup);
+// hour hand
+const hourHand = new THREE.Group();
+const hShape=new THREE.Shape(); hShape.moveTo(-0.14,0); hShape.lineTo(0.14,0); hShape.lineTo(0.08,2.1); hShape.lineTo(0,2.35); hShape.lineTo(-0.08,2.1); hShape.closePath();
+const hGeo=new THREE.ExtrudeGeometry(hShape,{depth:0.14, bevelEnabled:true, bevelThickness:0.02, bevelSize:0.02, bevelSegments:2});
+const hMesh=new THREE.Mesh(hGeo, new THREE.MeshStandardMaterial({color:0xffffff, metalness:0.2, roughness:0.5})); hMesh.rotation.x=Math.PI/2; hMesh.position.z=-0.07; hourHand.add(hMesh);
+const hLume=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.02,1.15), lumeMat); hLume.position.set(0,0.08,1.05); hLume.rotation.x=Math.PI/2; hourHand.add(hLume);
+const hCap=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.1,16), steelPolished); hCap.rotation.x=Math.PI/2; hourHand.add(hCap);
+handsGroup.add(hourHand);
+// minute hand
+const minuteHand=new THREE.Group();
+const mShape=new THREE.Shape(); mShape.moveTo(-0.11,0); mShape.lineTo(0.11,0); mShape.lineTo(0.06,3.35); mShape.lineTo(0,3.6); mShape.lineTo(-0.06,3.35); mShape.closePath();
+const mGeo=new THREE.ExtrudeGeometry(mShape,{depth:0.12, bevelEnabled:true, bevelThickness:0.015, bevelSize:0.015, bevelSegments:2});
+const mMesh=new THREE.Mesh(mGeo, new THREE.MeshStandardMaterial({color:0xffffff, metalness:0.15, roughness:0.5})); mMesh.rotation.x=Math.PI/2; mMesh.position.z=-0.04; minuteHand.add(mMesh);
+const mLume=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.02,1.9), lumeMat); mLume.position.set(0,0.07,1.85); mLume.rotation.x=Math.PI/2; minuteHand.add(mLume);
+handsGroup.add(minuteHand);
+// seconds hand (slim + counterweight)
+const secHand=new THREE.Group();
+const sStem=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.02,3.9), new THREE.MeshStandardMaterial({color:0xC9A86A, metalness:0.7, roughness:0.25})); sStem.position.set(0,0.04,0.55); sStem.rotation.x=Math.PI/2; secHand.add(sStem);
+const sTip=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.11,0.04,16), lumeMat); sTip.rotation.x=Math.PI/2; sTip.position.set(0,0.05,3.55); secHand.add(sTip);
+const sCounter=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.02,16), steelPolished); sCounter.rotation.x=Math.PI/2; sCounter.position.set(0,0.03,-0.65); secHand.add(sCounter);
+handsGroup.add(secHand);
+const centerPin=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.18,20), goldMat); centerPin.rotation.x=Math.PI/2; centerPin.position.y=0.14; handsGroup.add(centerPin);
+
+// collect interactive meshes
+const interactive = [];
+function collectParts(root){
+  root.traverse(o=>{
+    if(o.isMesh && o.userData.part) interactive.push(o);
+    if(o.userData && o.userData.part && o.children.length===0) interactive.push(o);
+  });
+}
+// manually push groups
+[barrelTeeth, ...gears, escape, palletGroup, balanceGroup, ...bridges].forEach(g=> interactive.push(g));
+markerGroup.children.forEach(m=>{ if(m.userData.isLume!==undefined) interactive.push(m); });
+
+// exploded offsets
+const explodedTargets = new Map();
+function setExplodedOffset(obj, vec){ explodedTargets.set(obj, { base: obj.position.clone(), offset: vec.clone(), baseRot: obj.rotation.clone() }); }
+setExplodedOffset(barrelGroup, new THREE.Vector3(0, 2.2, 0));
+gears.forEach((g,i)=> setExplodedOffset(g, new THREE.Vector3(0, 1.2 + i*0.35, 0)));
+setExplodedOffset(escape, new THREE.Vector3(0, 1.0, 0));
+setExplodedOffset(palletGroup, new THREE.Vector3(0, 0.9, 0));
+setExplodedOffset(balanceGroup, new THREE.Vector3(0, 1.8, 0));
+bridges.forEach((b,i)=> setExplodedOffset(b, new THREE.Vector3(0, 1.6 + i*0.2, 0)));
+setExplodedOffset(handsGroup, new THREE.Vector3(0, 2.8, 0));
+setExplodedOffset(crystal, new THREE.Vector3(0, 3.6, 0));
+setExplodedOffset(chapterRing, new THREE.Vector3(0, 2.0, 0));
+
+// raycaster
+const raycaster=new THREE.Raycaster();
+const mouse=new THREE.Vector2();
+let hovered=null, locked=null;
+const partsListEl=document.getElementById('partsList');
+const partDefs=[
+  {name:'主发条盒', sub:'Barrel · 48h', color:'#C9A86A', obj:barrelGroup},
+  {name:'中心轮', sub:'Center Wheel · 80T', color:'#E8EAEF', obj:gears[0]},
+  {name:'三轮', sub:'Third Wheel · 60T', color:'#D0D4DA', obj:gears[1]},
+  {name:'四轮', sub:'Fourth Wheel · 50T', color:'#B8BDC6', obj:gears[2]},
+  {name:'擒纵轮', sub:'Escape Wheel · 15T', color:'#E8C87A', obj:escape},
+  {name:'擒纵叉', sub:'Pallet Fork · Ruby', color:'#E11D2A', obj:palletGroup},
+  {name:'摆轮 · 游丝', sub:'Balance · 4Hz', color:'#6A8DFF', obj:balanceGroup},
+  {name:'夹板', sub:'Bridges · Geneva', color:'#E6E8EE', obj:bridges[0]},
+];
+partDefs.forEach(d=>{
+  const el=document.createElement('div'); el.className='part-item';
+  el.innerHTML=`<span class="part-dot" style="background:${d.color};color:${d.color}"></span><span style="flex:1"><div class="part-name">${d.name}</div><div class="part-sub">${d.sub}</div></span><span style="font-size:10px;color:rgba(255,255,255,0.3)">↗</span>`;
+  el.addEventListener('mouseenter',()=> highlight(d.obj, true));
+  el.addEventListener('mouseleave',()=> highlight(null, false));
+  el.addEventListener('click',()=>{ locked = locked===d.obj? null : d.obj; updateLocked(); focusOn(d.obj); });
+  d.el=el; partsListEl.appendChild(el);
+});
+function highlight(obj, isHover){
+  if(hovered && hovered!==locked){
+    hovered.traverse?.(o=>{ if(o.isMesh && o.material && o.userData.origEmissive!==undefined){ o.material.emissiveIntensity=o.userData.origEmissive; o.material.emissive?.copy(o.userData.origColor||new THREE.Color(0,0,0)); }});
+    hovered=null;
+  }
+  partDefs.forEach(p=> p.el.classList.remove('hover'));
+  if(obj){
+    hovered=obj;
+    const def=partDefs.find(p=>p.obj===obj); if(def) def.el.classList.add('hover');
+    obj.traverse(o=>{
+      if(o.isMesh && o.material && o.material.emissive!==undefined){
+        if(o.userData.origEmissive===undefined){ o.userData.origEmissive=o.material.emissiveIntensity||0; o.userData.origColor=o.material.emissive.clone(); }
+        o.material.emissive.setHex(0xC9A86A); o.material.emissiveIntensity=0.35;
+      }
+    });
+    // tooltip for list hover (no mouse position)
+    if(isHover){ tipOver.textContent='零件导览'; tipTitle.textContent=obj.userData.part?.name||def?.name||'零件'; tipDesc.textContent=obj.userData.part?.desc||'高端制表工艺'; tooltip.classList.add('show'); tooltip.style.left='50%'; tooltip.style.top='46%'; tooltip.style.transform='translate(-50%,-50%)'; }
+  } else {
+    if(!locked) tooltip.classList.remove('show');
+  }
+}
+function updateLocked(){
+  partDefs.forEach(p=> p.el.style.borderColor = (locked===p.obj? 'rgba(201,168,106,0.55)':''));
+  if(!locked && !hovered) tooltip.classList.remove('show');
+}
+function focusOn(obj){
+  const target = obj.position.clone(); target.y=0;
+  // gentle camera focus via controls target lerp handled in animate
+  controls.target.lerp(target, 0.5);
+}
+
+// mouse move raycast
+renderer.domElement.addEventListener('mousemove', e=>{
+  mouse.x = (e.clientX / W)*2-1; mouse.y = -(e.clientY / H)*2+1;
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(interactive, true);
+  let found=null;
+  if(intersects.length){
+    let o=intersects[0].object;
+    while(o && !o.userData.part) o=o.parent;
+    found = o || intersects[0].object.parent || intersects[0].object;
+    // map mesh to group
+    const def=partDefs.find(d=> d.obj===found || found.parent===d.obj || found===d.obj);
+    if(def) found=def.obj;
+  }
+  if(found!==hovered && found!==locked) highlight(found, false);
+  if(found){
+    const part = found.userData.part || partDefs.find(d=>d.obj===found)?.obj.userData.part;
+    const title = part?.name || found.userData.part?.name || '精密零件';
+    const desc = part?.desc || '日内瓦工艺 · 手工倒角抛光';
+    tipOver.textContent = '悬停查看';
+    tipTitle.textContent = title;
+    tipDesc.textContent = desc;
+    tooltip.style.left = (e.clientX+16)+'px';
+    tooltip.style.top = (e.clientY-12)+'px';
+    tooltip.style.transform='translate(0, -100%)';
+    tooltip.classList.add('show');
+  } else if(!locked){
+    tooltip.classList.remove('show');
+  }
+});
+renderer.domElement.addEventListener('click', e=>{
+  mouse.x=(e.clientX/W)*2-1; mouse.y=-(e.clientY/H)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  const hits=raycaster.intersectObjects(interactive,true);
+  if(hits.length){
+    let o=hits[0].object; while(o && !o.userData.part) o=o.parent;
+    let grp=o;
+    const def=partDefs.find(d=> d.obj===grp || grp?.parent===d.obj);
+    if(def) grp=def.obj;
+    locked = locked===grp? null : grp;
+    updateLocked();
+    if(locked){ tipOver.textContent='已锁定'; tipTitle.textContent=locked.userData.part?.name||'零件'; tipDesc.textContent=locked.userData.part?.desc||''; }
+  } else {
+    locked=null; updateLocked(); tooltip.classList.remove('show'); highlight(null,false);
+  }
+});
+renderer.domElement.addEventListener('mouseleave',()=>{ if(!locked) tooltip.classList.remove('show'); highlight(null,false); });
+
+// controls
+let exploded=false, lumeOn=false, speed=1, tickVisual=true;
+const btnExploded=document.getElementById('btnExploded');
+const btnLume=document.getElementById('btnLume');
+const btnAuto=document.getElementById('btnAuto');
+const btnReset=document.getElementById('btnReset');
+const chkShadow=document.getElementById('chkShadow');
+const chkTick=document.getElementById('chkTick');
+const speedSlider=document.getElementById('speed');
+const speedVal=document.getElementById('speedVal');
+
+btnExploded.addEventListener('click',()=>{
+  exploded=!exploded; btnExploded.classList.toggle('active', exploded);
+  btnExploded.textContent = exploded? '◈ 收起视图' : '◈ 爆炸视图';
+});
+let autoRotateOn=false;
+btnAuto.addEventListener('click',()=>{
+  autoRotateOn=!autoRotateOn; btnAuto.classList.toggle('active', autoRotateOn); controls.autoRotate=autoRotateOn;
+});
+btnReset.addEventListener('click',()=>{
+  exploded=false; btnExploded.classList.remove('active'); btnExploded.textContent='◈ 爆炸视图';
+  controls.target.set(0,0,0); camera.position.set(0,9.5,38); controls.update();
+});
+chkShadow.addEventListener('change', e=>{ renderer.shadowMap.enabled=e.target.checked; });
+chkTick.addEventListener('change', e=> tickVisual=e.target.checked);
+speedSlider.addEventListener('input', e=>{ speed=parseFloat(e.target.value); speedVal.textContent=speed.toFixed(1)+'×'; bloom.strength = 0.35 + speed*0.12; });
+
+btnLume.addEventListener('click',()=>{
+  lumeOn=!lumeOn; btnLume.classList.toggle('active', lumeOn);
+  const intensity = lumeOn? 2.2 : 0.9;
+  markerGroup.children.forEach(m=>{ if(m.userData.lumeMesh){ m.userData.lumeMesh.material.emissiveIntensity=intensity; m.userData.lumeMesh.material.emissive.setHex(lumeOn?0x7CFF9B:0x3DD67A); }});
+  if(handsGroup){
+    hourHand.children.forEach(c=>{ if(c.material && c.material.emissive!==undefined){ c.material.emissiveIntensity=lumeOn?1.8:0.9; }});
+    minuteHand.children.forEach(c=>{ if(c.material && c.material.emissive!==undefined){ c.material.emissiveIntensity=lumeOn?1.8:0.9; }});
+  }
+  scene.background = new THREE.Color(lumeOn?0x040508:0x07080A);
+  bloom.strength = lumeOn? 0.85 : 0.55;
+  renderer.toneMappingExposure = lumeOn? 1.15 : 1.35;
+});
+
+// animate
+const clock=new THREE.Clock();
+let tickPhase=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=clock.getDelta();
+  const t=clock.getElapsedTime();
+  const s = speed;
+
+  // exploded lerp
+  explodedTargets.forEach((v, obj)=>{
+    const targetY = exploded? v.base.y + v.offset.y : v.base.y;
+    obj.position.y = THREE.MathUtils.lerp(obj.position.y, targetY, 0.08);
+    // subtle separate on Z as well
+    const targetZ = exploded? v.base.z + v.offset.z*0.15 : v.base.z;
+    if(exploded) obj.position.z = THREE.MathUtils.lerp(obj.position.z, targetZ, 0.08);
+  });
+
+  // gear rotations (ratio based on teeth, visually pleasing)
+  // barrel drives center: barrel slow clockwise
+  barrelTeeth.rotation.z -= dt * 0.22 * s;
+  springMesh.rotation.z = barrelTeeth.rotation.z * 0.8;
+  // gear train: center -> third -> fourth -> escape
+  if(gears[0]) gears[0].rotation.z += dt * 0.55 * s;
+  if(gears[1]) gears[1].rotation.z -= dt * 0.88 * s;
+  if(gears[2]) gears[2].rotation.z += dt * 1.35 * s;
+
+  // escape stepwise ticking 8 beats per sec (4Hz)
+  const beatsPerSec = 8 * s;
+  const stepAngle = (Math.PI*2/15);
+  // quantize rotation with slight elastic
+  const beat = Math.floor(t*beatsPerSec);
+  const frac = (t*beatsPerSec) % 1;
+  const elastic = frac < 0.15 ? Math.sin(frac/0.15*Math.PI)*0.06 : 0;
+  escape.rotation.z = -beat * stepAngle*0.5 - elastic;
+  // pallet fork oscillation driven by balance
+  palletGroup.rotation.z = Math.sin(t* 2*Math.PI*4 * s) * 0.18;
+  // balance oscillation 4Hz
+  balanceGroup.rotation.z = Math.sin(t*2*Math.PI*4*s) * 0.72;
+  hairspring.scale.set(1+Math.sin(t*2*Math.PI*4*s)*0.04, 1+Math.sin(t*2*Math.PI*4*s)*0.04, 1);
+  hairspring.rotation.z = balanceGroup.rotation.z * 0.35;
+
+  // hands: real time with speed multiplier
+  const now = Date.now()*0.001 * s;
+  const sec = now % 60;
+  const min = (now/60) % 60;
+  const hr = (now/3600) % 12;
+  secHand.rotation.y = -sec * (Math.PI*2/60);
+  minuteHand.rotation.y = -min * (Math.PI*2/60) - sec*(Math.PI*2/3600);
+  hourHand.rotation.y = -hr * (Math.PI*2/12) - min*(Math.PI*2/720);
+
+  // sparkle follows escape
+  sparkle.position.set(1.75 + Math.cos(t*1.2)*0.4, 0.9 + Math.sin(t*0.9)*0.2, -1.25 + Math.sin(t*1.4)*0.4);
+  sparkle.intensity = 5 + Math.sin(t*8*s)*2 * (tickVisual?1:0.2);
+
+  // subtle watch breathing
+  watchGroup.position.y = Math.sin(t*0.5)*0.04;
+  watchGroup.rotation.y = Math.sin(t*0.18)*0.06;
+
+  // tick visual flash on plate
+  if(tickVisual && Math.floor(t*beatsPerSec) !== tickPhase){
+    tickPhase = Math.floor(t*beatsPerSec);
+    // brief point light flash
+    pointGold.intensity = 26;
+    setTimeout(()=> pointGold.intensity=22, 60);
+  }
+
+  controls.update();
+  composer.render();
+}
+animate();
+
+// resize
+window.addEventListener('resize',()=>{
+  W=innerWidth; H=innerHeight;
+  camera.aspect=W/H; camera.updateProjectionMatrix();
+  renderer.setSize(W,H); composer.setSize(W,H);
+});
+
+// loader out
+window.addEventListener('load',()=> setTimeout(()=>{
+  document.getElementById('loader').classList.add('out');
+}, 800));
+setTimeout(()=> document.getElementById('loader').classList.add('out'), 2200);
+
+// keyboard
+window.addEventListener('keydown', e=>{
+  if(e.code==='Space'){ exploded=!exploded; btnExploded.classList.toggle('active', exploded); btnExploded.textContent=exploded?'◈ 收起视图':'◈ 爆炸视图'; }
+  if(e.key==='l' || e.key==='L') btnLume.click();
+  if(e.key==='r' || e.key==='R') btnReset.click();
+});
+</script>
+</body>
+</html>

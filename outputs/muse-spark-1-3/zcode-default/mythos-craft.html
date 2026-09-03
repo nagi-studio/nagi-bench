@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方块神话 MythCraft · 单文件 Minecraft 克隆</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#0b1020; font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif; }
+  #game { position:fixed; inset:0; }
+  canvas.gamecanvas { display:block; }
+  #crosshair { position:fixed; left:50%; top:50%; width:22px; height:22px; transform:translate(-50%,-50%); pointer-events:none; z-index:20; mix-blend-mode:difference; }
+  #crosshair::before,#crosshair::after { content:""; position:absolute; background:#fff; }
+  #crosshair::before { left:10px; top:3px; width:2px; height:16px; }
+  #crosshair::after { left:3px; top:10px; width:16px; height:2px; }
+  #hud-top { position:fixed; top:10px; left:12px; z-index:30; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,.7); font-size:13px; line-height:1.7; background:rgba(0,0,0,.38); padding:8px 12px; border-radius:10px; backdrop-filter:blur(6px); border:1px solid rgba(255,255,255,.15); }
+  #hud-top b { color:#ffe27a; }
+  #title-card { position:fixed; top:10px; right:12px; z-index:30; text-align:right; color:#fff; background:rgba(0,0,0,.38); border:1px solid rgba(255,255,255,.15); padding:8px 12px; border-radius:10px; backdrop-filter:blur(6px); }
+  #title-card h1 { font-size:16px; letter-spacing:2px; }
+  #title-card p { font-size:12px; opacity:.85; }
+  #hotbar { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:30; background:rgba(0,0,0,.45); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,.2); }
+  .slot { width:58px; height:64px; border-radius:8px; background:rgba(255,255,255,.08); border:2px solid transparent; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:.15s; user-select:none; }
+  .slot canvas { width:34px; height:34px; image-rendering:pixelated; border-radius:4px; }
+  .slot span { font-size:11px; color:#fff; margin-top:2px; text-shadow:0 1px 3px #000; }
+  .slot small { font-size:10px; color:#ffe27a; }
+  .slot.active { border-color:#ffe27a; background:rgba(255,226,122,.18); transform:translateY(-4px); }
+  #help { position:fixed; left:12px; bottom:12px; z-index:30; width:300px; background:rgba(8,12,24,.72); border:1px solid rgba(255,255,255,.16); color:#e8ecff; border-radius:12px; padding:12px 14px; font-size:12.5px; line-height:1.8; backdrop-filter:blur(8px); }
+  #help h2 { font-size:14px; color:#ffe27a; margin-bottom:4px; letter-spacing:1px; }
+  #help kbd { background:#222a44; border:1px solid #4a5578; border-bottom-width:3px; border-radius:5px; padding:0 6px; font-family:inherit; font-size:12px; }
+  #wonders { position:fixed; right:12px; bottom:12px; z-index:30; width:264px; background:rgba(8,12,24,.72); border:1px solid rgba(255,255,255,.16); border-radius:12px; padding:10px 12px; color:#fff; backdrop-filter:blur(8px); max-height:46vh; overflow:auto; }
+  #wonders h2 { font-size:13px; color:#9fe8ff; letter-spacing:1px; margin-bottom:6px; }
+  #wonders button { display:block; width:100%; text-align:left; margin:4px 0; padding:7px 9px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.07); color:#fff; cursor:pointer; font-size:12.5px; transition:.15s; }
+  #wonders button:hover { background:rgba(255,226,122,.22); border-color:#ffe27a; }
+  #wonders button small { display:block; opacity:.7; font-size:11px; }
+  #start-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:radial-gradient(ellipse at 30% 20%, #2b3a6b 0%, #10162e 55%, #05070f 100%); }
+  #start-card { width:min(680px,92vw); background:rgba(10,14,28,.88); border:1px solid rgba(255,226,122,.35); border-radius:18px; padding:28px 30px; color:#fff; box-shadow:0 30px 80px rgba(0,0,0,.6); backdrop-filter:blur(10px); }
+  #start-card h1 { font-size:30px; letter-spacing:3px; }
+  #start-card h1 em { color:#ffe27a; font-style:normal; }
+  #start-card .sub { color:#9fe8ff; margin:6px 0 12px; font-size:14px; }
+  #start-card p { font-size:13.5px; line-height:1.9; opacity:.92; }
+  #start-card ul { margin:10px 0; font-size:13px; line-height:1.9; padding-left:18px; }
+  #start-btn { margin-top:14px; width:100%; padding:14px; font-size:18px; letter-spacing:4px; border:none; border-radius:12px; cursor:pointer; background:linear-gradient(135deg,#6abe30,#2f9e44 60%,#1a7a2e); color:#fff; font-weight:800; text-shadow:0 2px 4px rgba(0,0,0,.4); box-shadow:0 8px 24px rgba(106,190,48,.4); }
+  #start-btn:hover { filter:brightness(1.1); }
+  #toast { position:fixed; top:76px; left:50%; transform:translateX(-50%); z-index:40; background:rgba(0,0,0,.7); color:#ffe27a; padding:8px 18px; border-radius:20px; font-size:13px; border:1px solid rgba(255,226,122,.4); opacity:0; transition:.3s; pointer-events:none; }
+  #loading { position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.7); color:#fff; font-size:15px; letter-spacing:2px; }
+  @media (max-width:900px){ #help{display:none;} #wonders{width:200px;} }
+</style>
+<script type="importmap"> { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } } </script>
+</head>
+<body>
+<div id="game"></div>
+<div id="crosshair"></div>
+<div id="hud-top">⛏️ <b>MythCraft</b> · FPS <span id="fps">--</span> · XYZ <span id="pos">--</span><br>种子 <span id="seed">--</span> · 区块 <span id="chunks">--</span> · <span id="mode">步行</span> · 方块 <span id="blockcount">--</span></div>
+<div id="title-card"><h1>⛰️ 方块神话</h1><p>单文件 · Three.js 体素引擎</p></div>
+<div id="hotbar"></div>
+<div id="help">
+  <h2>📖 操作手册</h2>
+  <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动 · 鼠标 环视 · <kbd>空格</kbd> 跳 / 上浮 / 飞行上升</div>
+  <div><kbd>Shift</kbd> 疾跑 / 飞行下降 · <kbd>F</kbd> 飞行开关 · <kbd>1</kbd>~<kbd>9</kbd> / 滚轮 切方块</div>
+  <div>🖱️ <b>左键</b> 挖掘 · <b>右键</b> 放置 · <kbd>N</kbd> 白天/夜晚 · <kbd>R</kbd> 回出生点</div>
+  <div>点击画面锁定鼠标，按 <kbd>Esc</kbd> 释放。进度自动存档。</div>
+</div>
+<div id="wonders"><h2>✨ 神话巡礼 · 点击传送</h2><div id="wonder-list"></div></div>
+<div id="toast"></div>
+<div id="loading">正在生成神话大陆…</div>
+<div id="start-overlay">
+  <div id="start-card">
+    <h1>⛏️ 方块<em>神话</em> MYTHCRAFT</h1>
+    <div class="sub">单 HTML5 文件 · Three.js · 柏林噪声无限地形 · 第一人称挖掘建造</div>
+    <p>这是一座由程序生成的神话大陆：世界树尤克特拉希尔在北方撑起天空圣殿，矮人余烬王城在西方燃着符文之光，太阳金字塔在东方沙漠守望，法师塔与龙祭坛、巨石传送门散落在荒野。全部使用体素逐块搭建，可挖掘、可改造。</p>
+    <ul>
+      <li>🌍 <b>无限地形</b>：改良柏林噪声 fBm，大陆 / 山脉 / 海洋 / 沙滩 / 森林，出生点周围已预生成神话建筑群，远走则无限延伸。</li>
+      <li>🧱 <b>9 种方块</b>：草地 / 泥土 / 石头 /橡木 / 树叶 / 木板 / 沙子 / 玻璃 / 石砖 / 发光符文 / 水 / 黑曜石 / 汉白玉，左键挖右键放。</li>
+      <li>🕹️ <b>第一人称物理</b>：跳跃 / 重力 / 碰撞 / 游泳 / 飞行(F)，完整昼夜切换(N)。</li>
+    </ul>
+    <button id="start-btn">▶ 点击进入神话大陆</button>
+    <p style="font-size:12px;opacity:.7;margin-top:8px">需要联网加载 Three.js CDN。进入后点击画面锁定鼠标；若浏览器阻止指针锁定，多点一次即可。</p>
+  </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+
+/* ================= 0. 基础配置 ================= */
+const SEED = 20260903;
+const CHUNK = 16, WORLD_H = 96, SEA = 28, VIEW_DIST = 4;
+const BLOCK = { AIR:0, GRASS:1, DIRT:2, STONE:3, LOG:4, LEAF:5, PLANK:6, SAND:7, GLASS:8, BRICK:9, GLOW:10, WATER:11, OBSID:12, WHITE:13, BEDROCK:14 };
+const BLOCK_INFO = {
+  1:{name:'草地', key:'1'}, 2:{name:'泥土', key:'2'}, 3:{name:'石头', key:'3'},
+  4:{name:'橡木', key:'4'}, 5:{name:'树叶', key:'5'}, 6:{name:'木板', key:'6'},
+  7:{name:'沙子', key:'7'}, 8:{name:'玻璃', key:'8'}, 9:{name:'石砖', key:'9'},
+};
+const PLACEABLE = [1,2,3,4,5,6,7,8,9,10,12,13];
+const HOTBAR = [1,2,3,4,5,6,7,8,9];
+let selectedIdx = 0;
+const toastEl = document.getElementById('toast');
+function toast(msg, ms=2200){ toastEl.textContent = msg; toastEl.style.opacity = 1; clearTimeout(toastEl._t); toastEl._t = setTimeout(()=>toastEl.style.opacity=0, ms); }
+
+/* ================= 1. 柏林噪声 ================= */
+function makePermutation(seed){
+  const p = new Uint8Array(256); for(let i=0;i<256;i++) p[i]=i;
+  let s = seed>>>0 || 1;
+  const rnd = ()=> (s = (s*1664525+1013904223)>>>0) / 4294967296;
+  for(let i=255;i>0;i--){ const j=(rnd()*(i+1))|0; const t=p[i]; p[i]=p[j]; p[j]=t; }
+  const perm = new Uint8Array(512); for(let i=0;i<512;i++) perm[i]=p[i&255];
+  return perm;
+}
+const PERM = makePermutation(SEED);
+function fade(t){ return t*t*t*(t*(t*6-15)+10); }
+function lerp(a,b,t){ return a+t*(b-a); }
+function grad(h,x,y){
+  switch(h&3){ case 0: return x+y; case 1: return -x+y; case 2: return x-y; default: return -x-y; }
+}
+function perlin2(x,y){
+  const X=Math.floor(x)&255, Y=Math.floor(y)&255;
+  x-=Math.floor(x); y-=Math.floor(y);
+  const u=fade(x), v=fade(y);
+  const aa=PERM[PERM[X]+Y], ab=PERM[PERM[X]+Y+1], ba=PERM[PERM[X+1]+Y], bb=PERM[PERM[X+1]+Y+1];
+  return lerp(lerp(grad(aa,x,y),grad(ba,x-1,y),u), lerp(grad(ab,x,y-1),grad(bb,x-1,y-1),u), v);
+}
+function fbm(x,y,oct=4,lac=2,gain=0.5){
+  let a=0.5, f=1, sum=0, norm=0;
+  for(let i=0;i<oct;i++){ sum+=a*perlin2(x*f,y*f); norm+=a; a*=gain; f*=lac; }
+  return sum/norm; // -1..1
+}
+function hash2(x,z){ let h = (x*374761393 + z*668265263 + SEED*1442695041)|0; h=(h^(h>>13))*1274126177; return ((h^(h>>16))>>>0)/4294967296; }
+
+function terrainHeight(wx,wz){
+  const continent = fbm(wx*0.012, wz*0.012, 4);          // 大陆起伏
+  const hills     = fbm(wx*0.045+500, wz*0.045-500, 3);  // 丘陵
+  const mountain  = Math.max(0, fbm(wx*0.02+1000, wz*0.02-1000, 3)); // 山脉(只取正)
+  let h = 32 + continent*11 + hills*3.5 + mountain*mountain*34;
+  return Math.max(4, Math.min(70, Math.floor(h)));
+}
+
+/* ================= 2. 程序化像素材质(16x16,致敬MC) ================= */
+const TILE = 16, ATLAS_COLS = 8, ATLAS_ROWS = 2;
+const TILE_NAMES = ['grass_top','grass_side','dirt','stone','log_side','log_top','leaf','plank','sand','glass','brick','glow','obsid','water','white','bedrock'];
+const tileCanvases = {};
+function px(ctx,x,y,c){ ctx.fillStyle=c; ctx.fillRect(x,y,1,1); }
+function speckle(ctx, colors, n, rnd){
+  for(let i=0;i<n;i++){ const x=(rnd()*16)|0, y=(rnd()*16)|0; px(ctx,x,y,colors[(rnd()*colors.length)|0]); }
+}
+function mulberry(seed){ let s=seed>>>0; return ()=>{ s=(s+0x6D2B79F5)|0; let t=Math.imul(s^(s>>>15),1|s); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+function makeTile(name){
+  const c = document.createElement('canvas'); c.width=c.height=16;
+  const g = c.getContext('2d'); const rnd = mulberry(SEED + name.length*777 + name.charCodeAt(0)*131);
+  const R = (a)=> (rnd()*a)|0;
+  if(name==='grass_top'){ g.fillStyle='#6abe30'; g.fillRect(0,0,16,16);
+    speckle(g,['#5aa82a','#79cf3f','#4c9a24','#8be04e'],110,rnd);
+  } else if(name==='dirt'){ g.fillStyle='#8a5f3c'; g.fillRect(0,0,16,16);
+    speckle(g,['#79532f','#9b6b45','#6b472a','#a5794f'],120,rnd);
+    for(let i=0;i<8;i++){ g.fillStyle='#5d3d24'; g.fillRect(R(16),R(16),2,1); }
+  } else if(name==='grass_side'){ g.fillStyle='#8a5f3c'; g.fillRect(0,0,16,16);
+    speckle(g,['#79532f','#9b6b45','#6b472a'],80,rnd);
+    g.fillStyle='#6abe30'; g.fillRect(0,0,16,4);
+    for(let x=0;x<16;x++){ const d=4+((rnd()*3)|0); g.fillStyle= rnd()<.5?'#6abe30':'#5aa82a'; g.fillRect(x,0,1,d); }
+    speckle(g,['#79cf3f','#4c9a24'],30,rnd);
+  } else if(name==='stone'){ g.fillStyle='#7e7e7e'; g.fillRect(0,0,16,16);
+    speckle(g,['#6f6f6f','#8d8d8d','#656565','#999999'],130,rnd);
+    g.fillStyle='#5f5f5f'; for(let i=0;i<4;i++){ g.fillRect(R(12),R(16),4,1); }
+  } else if(name==='log_side'){ g.fillStyle='#6b5330'; g.fillRect(0,0,16,16);
+    for(let x=0;x<16;x+=2){ g.fillStyle = (x%4===0)?'#5a4326':'#77603a'; g.fillRect(x,0,1+(x%3===0?1:0),16); }
+    speckle(g,['#4c3820','#836a42'],60,rnd);
+  } else if(name==='log_top'){ g.fillStyle='#b08d57'; g.fillRect(0,0,16,16);
+    g.strokeStyle='#6b4f2a'; for(let r=7;r>0;r-=2){ g.strokeRect(8-r,8-r,r*2,r*2); }
+    g.fillStyle='#5a4326'; g.fillRect(0,0,16,1); g.fillRect(0,15,16,1); g.fillRect(0,0,1,16); g.fillRect(15,0,1,16);
+  } else if(name==='leaf'){ g.clearRect(0,0,16,16); g.fillStyle='#2f8f2e'; g.fillRect(0,0,16,16);
+    speckle(g,['#267a26','#3aa83a','#1e6420','#55c74f'],120,rnd);
+    for(let i=0;i<26;i++){ g.clearRect(R(16),R(16),1,1); }
+  } else if(name==='plank'){ g.fillStyle='#a8824a'; g.fillRect(0,0,16,16);
+    for(let y=3;y<16;y+=4){ g.fillStyle='#7a5c30'; g.fillRect(0,y,16,1); }
+    for(let x=0;x<16;x+=5){ g.fillStyle='#7a5c30'; g.fillRect((x+(y=>0)(0)+((x*7)%5)),0,1,16); }
+    speckle(g,['#b8925a','#96713d'],50,rnd);
+  } else if(name==='sand'){ g.fillStyle='#ddd3a0'; g.fillRect(0,0,16,16);
+    speckle(g,['#cfc491','#e8dfb5','#c2b784'],120,rnd);
+  } else if(name==='glass'){ g.clearRect(0,0,16,16);
+    g.fillStyle='rgba(210,235,245,0.35)'; g.fillRect(0,0,16,16);
+    g.fillStyle='#eaf6fb'; g.fillRect(0,0,16,1); g.fillRect(0,15,16,1); g.fillRect(0,0,1,16); g.fillRect(15,0,1,16);
+    g.fillStyle='rgba(255,255,255,0.85)'; for(let i=0;i<6;i++){ g.fillRect(3+i,10-i,1,1); } g.fillRect(9,5,3,1);
+  } else if(name==='brick'){ g.fillStyle='#9a4a3c'; g.fillRect(0,0,16,16);
+    g.fillStyle='#b5b0a8'; for(let y=3;y<16;y+=4) g.fillRect(0,y,16,1);
+    for(let y=0;y<16;y+=4){ for(let x=((y/4)%2)*4;x<16;x+=8) g.fillRect(x,y,1,4); }
+    speckle(g,['#8a4034','#a85748'],50,rnd);
+  } else if(name==='glow'){ g.fillStyle='#f5a623'; g.fillRect(0,0,16,16);
+    speckle(g,['#ffdf7a','#e08a1a','#fff3b0'],90,rnd);
+    g.fillStyle='#fff7cc'; g.fillRect(4,4,8,8); g.fillStyle='#ff9d00'; g.fillRect(6,6,4,4);
+    g.fillStyle='#7a4a00'; g.fillRect(0,0,16,1); g.fillRect(0,15,16,1); g.fillRect(0,0,1,16); g.fillRect(15,0,1,16);
+  } else if(name==='obsid'){ g.fillStyle='#14101f'; g.fillRect(0,0,16,16);
+    speckle(g,['#241b3d','#3b2a6b','#0c0a14','#5a3fa0'],70,rnd);
+  } else if(name==='water'){ g.fillStyle='#3b6fe0'; g.fillRect(0,0,16,16);
+    g.fillStyle='#4d84f5'; for(let y=1;y<16;y+=4){ for(let x=0;x<16;x++) if((x+y)%4<2) g.fillRect(x,y,1,1); }
+    speckle(g,['#2f5cc4','#6ea0ff'],40,rnd);
+  } else if(name==='white'){ g.fillStyle='#e9e7dd'; g.fillRect(0,0,16,16);
+    speckle(g,['#d9d6c9','#f4f2ea','#c9c6b8'],60,rnd);
+    g.fillStyle='#c9c6b8'; g.fillRect(0,7,16,1); g.fillRect(7,0,1,16);
+  } else { g.fillStyle='#3a3a3a'; g.fillRect(0,0,16,16);
+    speckle(g,['#222','#555','#111','#666'],110,rnd);
+  }
+  tileCanvases[name]=c; return c;
+}
+TILE_NAMES.forEach(makeTile);
+// 图集
+const atlasCanvas = document.createElement('canvas');
+atlasCanvas.width = ATLAS_COLS*TILE; atlasCanvas.height = ATLAS_ROWS*TILE;
+{
+  const g = atlasCanvas.getContext('2d'); g.imageSmoothingEnabled=false;
+  TILE_NAMES.forEach((n,i)=>{ const x=(i%ATLAS_COLS)*TILE, y=((i/ATLAS_COLS)|0)*TILE; g.drawImage(tileCanvases[n],x,y); });
+}
+const atlasTex = new THREE.CanvasTexture(atlasCanvas);
+atlasTex.magFilter = THREE.NearestFilter; atlasTex.minFilter = THREE.NearestFilter;
+atlasTex.generateMipmaps = false; atlasTex.colorSpace = THREE.SRGBColorSpace;
+function tileUV(idx){
+  const cx = idx%ATLAS_COLS, cy = ((idx/ATLAS_COLS)|0);
+  const W = atlasCanvas.width, H = atlasCanvas.height, pad = 0.6;
+  const x0=(cx*TILE+pad)/W, x1=((cx+1)*TILE-pad)/W;
+  const y1=1-(cy*TILE+pad)/H, y0=1-(((cy+1)*TILE-pad)/H);
+  return [x0,y0,x1,y1];
+}
+const TILE_INDEX = {}; TILE_NAMES.forEach((n,i)=>TILE_INDEX[n]=i);
+// 方块 -> 面材质 (face: 0:+x 1:-x 2:+y 3:-y 4:+z 5:-z)
+function tileFor(block, face){
+  switch(block){
+    case BLOCK.GRASS: return face===2?TILE_INDEX.grass_top : face===3?TILE_INDEX.dirt : TILE_INDEX.grass_side;
+    case BLOCK.DIRT: return TILE_INDEX.dirt;
+    case BLOCK.STONE: return TILE_INDEX.stone;
+    case BLOCK.LOG: return (face===2||face===3)?TILE_INDEX.log_top:TILE_INDEX.log_side;
+    case BLOCK.LEAF: return TILE_INDEX.leaf;
+    case BLOCK.PLANK: return TILE_INDEX.plank;
+    case BLOCK.SAND: return TILE_INDEX.sand;
+    case BLOCK.GLASS: return TILE_INDEX.glass;
+    case BLOCK.BRICK: return TILE_INDEX.brick;
+    case BLOCK.GLOW: return TILE_INDEX.glow;
+    case BLOCK.WATER: return TILE_INDEX.water;
+    case BLOCK.OBSID: return TILE_INDEX.obsid;
+    case BLOCK.WHITE: return TILE_INDEX.white;
+    case BLOCK.BEDROCK: return TILE_INDEX.bedrock;
+    default: return TILE_INDEX.stone;
+  }
+}
+
+/* ================= 3. 体素世界(分块无限) ================= */
+const chunks = new Map();      // "cx,cz" -> Uint8Array
+const chunkMeshes = new Map(); // "cx,cz" -> {opaque, trans}
+const dirtyChunks = new Set();
+const edits = new Map();       // "x,y,z" -> id (玩家修改 + 神话建筑, 持久化)
+const SAVE_KEY = 'mythcraft-save-v1';
+try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)||'{}'); for(const k in s) edits.set(k, s[k]); }catch(e){}
+let saveTimer = 0;
+function saveEdits(){ try{ const o={}; edits.forEach((v,k)=>o[k]=v); localStorage.setItem(SAVE_KEY, JSON.stringify(o)); }catch(e){} }
+const key3 = (x,y,z)=> x+','+y+','+z;
+const ckey = (cx,cz)=> cx+','+cz;
+
+function getChunk(cx,cz){
+  const k = ckey(cx,cz);
+  let d = chunks.get(k);
+  if(!d){ d = genChunkData(cx,cz); chunks.set(k,d); }
+  return d;
+}
+function getBlock(x,y,z){
+  if(y<0) return BLOCK.BEDROCK;
+  if(y>=WORLD_H) return BLOCK.AIR;
+  const k = key3(x,y,z);
+  if(edits.has(k)) return edits.get(k);
+  const cx = Math.floor(x/CHUNK), cz = Math.floor(z/CHUNK);
+  const d = getChunk(cx,cz);
+  const lx = x-cx*CHUNK, lz = z-cz*CHUNK;
+  return d[(y*CHUNK+lz)*CHUNK+lx];
+}
+function setBlock(x,y,z,id,record=true){
+  if(y<0||y>=WORLD_H) return;
+  if(record) { if(id===rawBlock(x,y,z)) edits.delete(key3(x,y,z)); else edits.set(key3(x,y,z),id); }
+  else { edits.set(key3(x,y,z),id); }
+  const cx=Math.floor(x/CHUNK), cz=Math.floor(z/CHUNK);
+  dirtyChunks.add(ckey(cx,cz));
+  const lx=x-cx*CHUNK, lz=z-cz*CHUNK;
+  if(lx===0) dirtyChunks.add(ckey(cx-1,cz));
+  if(lx===15) dirtyChunks.add(ckey(cx+1,cz));
+  if(lz===0) dirtyChunks.add(ckey(cx,cz-1));
+  if(lz===15) dirtyChunks.add(ckey(cx,cz+1));
+}
+function rawBlock(x,y,z){
+  if(y<0) return BLOCK.BEDROCK; if(y>=WORLD_H) return BLOCK.AIR;
+  const cx=Math.floor(x/CHUNK), cz=Math.floor(z/CHUNK);
+  const d=getChunk(cx,cz); const lx=x-cx*CHUNK, lz=z-cz*CHUNK;
+  return d[(y*CHUNK+lz)*CHUNK+lx];
+}
+function genChunkData(cx,cz){
+  const d = new Uint8Array(CHUNK*WORLD_H*CHUNK);
+  for(let lx=0;lx<CHUNK;lx++) for(let lz=0;lz<CHUNK;lz++){
+    const wx=cx*CHUNK+lx, wz=cz*CHUNK+lz;
+    const h = terrainHeight(wx,wz);
+    const beach = h<=SEA+1;
+    for(let y=0;y<=h;y++){
+      let id;
+      if(y===0) id=BLOCK.BEDROCK;
+      else if(y===h) id = h<SEA-1?BLOCK.SAND : beach?BLOCK.SAND : (h>52?BLOCK.STONE:BLOCK.GRASS);
+      else if(y>h-4) id = beach?BLOCK.SAND : (h>52?BLOCK.STONE:BLOCK.DIRT);
+      else id=BLOCK.STONE;
+      d[(y*CHUNK+lz)*CHUNK+lx]=id;
+    }
+    for(let y=h+1;y<=SEA;y++) d[(y*CHUNK+lz)*CHUNK+lx]=BLOCK.WATER;
+    // 树(确定性随机,避开神话建筑用地稍后由建筑覆盖)
+    if(!beach && h>SEA && h<50){
+      const r = hash2(wx,wz);
+      if(r<0.018){
+        const th = 4+((hash2(wx*3+1,wz*7+2)*3)|0);
+        for(let i=1;i<=th;i++){ const y=h+i; if(y<WORLD_H) d[(y*CHUNK+lz)*CHUNK+lx]=BLOCK.LOG; }
+        for(let dy=th-2;dy<=th+1;dy++) for(let dx=-2;dx<=2;dx++) for(let dz=-2;dz<=2;dz++){
+          if(Math.abs(dx)===2&&Math.abs(dz)===2&&dy>th-1) continue;
+          const xx=lx+dx, zz=lz+dz, yy=h+dy;
+          if(xx<0||xx>=16||zz<0||zz>=16||yy>=WORLD_H) continue;
+          const idx=(yy*CHUNK+zz)*CHUNK+xx;
+          if(d[idx]===BLOCK.AIR) d[idx]=BLOCK.LEAF;
+        }
+        const ty=h+th+1; if(ty<WORLD_H) d[(ty*CHUNK+lz)*CHUNK+lx]=BLOCK.LEAF;
+      }
+    }
+  }
+  return d;
+}
+
+/* ================= 4. 渲染:分块网格化 ================= */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.Fog(0x87ceeb, 30, 140);
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias:false });
+renderer.setSize(innerWidth, innerHeight);
+renderer.domElement.className='gamecanvas';
+document.getElementById('game').appendChild(renderer.domElement);
+
+const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x6b5a43, 0.9); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.1); sun.position.set(60,100,30); scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+const matOpaque = new THREE.MeshLambertMaterial({ map:atlasTex, alphaTest:0.5, vertexColors:true });
+const matTrans  = new THREE.MeshLambertMaterial({ map:atlasTex, transparent:true, opacity:0.75, vertexColors:true, depthWrite:false, side:THREE.DoubleSide });
+
+const FACES = [
+  { dir:[1,0,0],  shade:0.8,  corners:[[1,0,0, 1,1],[1,1,0, 1,1],[1,1,1, 0,1],[1,0,1, 0,0]] },
+  { dir:[-1,0,0], shade:0.8,  corners:[[0,0,1, 1,0],[0,1,1, 1,1],[0,1,0, 0,1],[0,0,0, 0,0]] },
+  { dir:[0,1,0],  shade:1.0,  corners:[[0,1,1, 0,0],[1,1,1, 1,0],[1,1,0, 1,1],[0,1,0, 0,1]] },
+  { dir:[0,-1,0], shade:0.5,  corners:[[0,0,0, 0,0],[1,0,0, 1,0],[1,0,1, 1,1],[0,0,1, 0,1]] },
+  { dir:[0,0,1],  shade:0.65, corners:[[0,0,1, 0,0],[1,0,1, 1,0],[1,1,1, 1,1],[0,1,1, 0,1]] },
+  { dir:[0,0,-1], shade:0.65, corners:[[1,0,0, 0,0],[0,0,0, 1,0],[0,1,0, 1,1],[1,1,0, 0,1]] },
+];
+function isOpaque(id){ return id!==BLOCK.AIR && id!==BLOCK.WATER && id!==BLOCK.GLASS; }
+function isSolidForPhysics(id){ return id!==BLOCK.AIR && id!==BLOCK.WATER; }
+
+function buildChunkMesh(cx,cz){
+  const k = ckey(cx,cz);
+  const old = chunkMeshes.get(k);
+  if(old){ if(old.opaque){scene.remove(old.opaque); old.opaque.geometry.dispose();} if(old.trans){scene.remove(old.trans); old.trans.geometry.dispose();} }
+  const posO=[],nrmO=[],uvO=[],colO=[],idxO=[];
+  const posT=[],nrmT=[],uvT=[],colT=[],idxT=[];
+  for(let y=0;y<WORLD_H;y++) for(let lz=0;lz<CHUNK;lz++) for(let lx=0;lx<CHUNK;lx++){
+    const wx=cx*CHUNK+lx, wz=cz*CHUNK+lz;
+    const id=getBlock(wx,y,wz);
+    if(id===BLOCK.AIR) continue;
+    const transparent = (id===BLOCK.WATER||id===BLOCK.GLASS);
+    for(let f=0;f<6;f++){
+      const F=FACES[f];
+      const nx=wx+F.dir[0], ny=y+F.dir[1], nz=wz+F.dir[2];
+      const nb=getBlock(nx,ny,nz);
+      let show=false;
+      if(id===BLOCK.WATER){ show = (nb!==BLOCK.WATER && nb!==BLOCK.GLASS && (f===2 ? true : !isOpaque(nb))); if(nb===BLOCK.WATER) show=false; }
+      else if(id===BLOCK.GLASS){ show = (nb!==BLOCK.GLASS && !isOpaque(nb)); }
+      else if(id===BLOCK.LEAF){ show = (nb===BLOCK.AIR||nb===BLOCK.WATER||nb===BLOCK.GLASS); }
+      else { show = !isOpaque(nb); }
+      if(f===3 && y===0) show=false;
+      if(!show) continue;
+      const P = transparent?posT:posO, N=transparent?nrmT:nrmO, U=transparent?uvT:uvO, C=transparent?colT:colO, I=transparent?idxT:idxO;
+      const base=P.length/3;
+      const [u0,v0,u1,v1]=tileUV(tileFor(id,f));
+      const shade=F.shade * (id===BLOCK.GLOW?1.15:1);
+      F.corners.forEach(([ox,oy,oz,uu,vv])=>{
+        P.push(wx+ox, y+oy, wz+oz); N.push(F.dir[0],F.dir[1],F.dir[2]);
+        U.push(uu?u1:u0, vv?v1:v0);
+        C.push(Math.min(1,shade),Math.min(1,shade),Math.min(1,shade));
+      });
+      I.push(base,base+1,base+2, base,base+2,base+3);
+    }
+  }
+  function toMesh(pos,nrm,uv,col,idx,mat){
+    if(!idx.length) return null;
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm,3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv,2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+    g.setIndex(idx);
+    const m=new THREE.Mesh(g,mat); m.matrixAutoUpdate=false; scene.add(m); return m;
+  }
+  chunkMeshes.set(k,{ opaque:toMesh(posO,nrmO,uvO,colO,idxO,matOpaque), trans:toMesh(posT,nrmT,uvT,colT,idxT,matTrans) });
+}
+
+// 云
+const clouds=[];
+{
+  const cg=new THREE.PlaneGeometry(14,14);
+  const cm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.55,depthWrite:false});
+  for(let i=0;i<24;i++){ const m=new THREE.Mesh(cg,cm); m.rotation.x=-Math.PI/2; m.position.set((Math.random()-0.5)*300, 72+Math.random()*6,(Math.random()-0.5)*300); scene.add(m); clouds.push(m); }
+}
+
+/* ================= 5. 神话建筑群(策划+逐块搭建) ================= */
+const WONDERS=[];
+function flatArea(cx,cz,r,baseY){
+  for(let x=cx-r;x<=cx+r;x++) for(let z=cz-r;z<=cz+r;z++){
+    const h=terrainHeight(x,z);
+    for(let y=h+1;y<=baseY+1;y++) setBlock(x,y,z, y<=baseY?BLOCK.DIRT:BLOCK.AIR, true);
+    setBlock(x,baseY+1,z,BLOCK.GRASS,true);
+    for(let y=baseY-6;y<=baseY;y++){ const cur=rawBlock(x,y,z); if(cur===BLOCK.WATER) setBlock(x,y,z,BLOCK.DIRT,true); }
+  }
+}
+function fillBox(x0,y0,z0,x1,y1,z1,id){
+  for(let x=Math.min(x0,x1);x<=Math.max(x0,x1);x++) for(let y=Math.min(y0,y1);y<=Math.max(y0,y1);y++) for(let z=Math.min(z0,z1);z<=Math.max(z0,z1);z++) setBlock(x,y,z,id,true);
+}
+function hollowBox(x0,y0,z0,x1,y1,z1,wall,id){
+  for(let x=Math.min(x0,x1);x<=Math.max(x0,x1);x++) for(let y=Math.min(y0,y1);y<=Math.max(y0,y1);y++) for(let z=Math.min(z0,z1);z<=Math.max(z0,z1);z++){
+    const edge = x===Math.min(x0,x1)||x===Math.max(x0,x1)||z===Math.min(z0,z1)||z===Math.max(z0,z1)||y===Math.min(y0,y1)||y===Math.max(y0,y1);
+    if(edge) setBlock(x,y,z,id,true);
+  }
+  void wall;
+}
+function groundY(x,z){ let y=WORLD_H-1; while(y>0 && (getBlock(x,y,z)===BLOCK.AIR||getBlock(x,y,z)===BLOCK.WATER)) y--; return y; }
+
+function buildSpawnPlaza(){
+  const cx=8, cz=8, gy=terrainHeight(cx,cz);
+  for(let dx=-6;dx<=6;dx++) for(let dz=-6;dz<=6;dz++){
+    if(dx*dx+dz*dz>36) continue;
+    const x=cx+dx, z=cz+dz;
+    fillBox(x,gy-2,z,x,gy,z,BLOCK.STONE);
+    setBlock(x,gy+1,z, ((dx+dz)%2===0)?BLOCK.WHITE:BLOCK.BRICK, true);
+  }
+  // 中央符文祭坛
+  fillBox(cx-1,gy+2,cz-1,cx+1,gy+2,cz+1,BLOCK.BRICK);
+  setBlock(cx,gy+3,cz,BLOCK.GLOW,true);
+  for(const [dx,dz] of [[-2,0],[2,0],[0,-2],[0,2]]) setBlock(cx+dx,gy+2,cz+dz,BLOCK.GLOW,true);
+  WONDERS.push({name:'🏠 出生广场 · 世界之心', desc:'重生点 / 新手营地', x:cx+0.5, y:gy+3, z:cz+5});
+}
+function buildWorldTree(){
+  const cx=42, cz=-34; const gy=terrainHeight(cx,cz); flatArea(cx,cz,12,gy);
+  // 巨型树干 5x5 高 24
+  for(let y=gy+1;y<=gy+24;y++) for(let dx=-2;dx<=2;dx++) for(let dz=-2;dz<=2;dz++){
+    if(Math.abs(dx)===2&&Math.abs(dz)===2&&((y-gy)%3===0)) continue;
+    setBlock(cx+dx,y,cz+dz,BLOCK.LOG,true);
+  }
+  // 树根
+  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; for(let s=1;s<=6;s++){ const x=Math.round(cx+Math.cos(a)*s), z=Math.round(cz+Math.sin(a)*s); setBlock(x,gy+2-(s>4?1:0),z,BLOCK.LOG,true); setBlock(x,gy+3-(s>4?1:0),z,BLOCK.LOG,true);} }
+  // 巨大树冠(椭球)
+  for(let dx=-11;dx<=11;dx++) for(let dy=-4;dy<=7;dy++) for(let dz=-11;dz<=11;dz++){
+    const d=(dx*dx)/110+(dy*dy)/28+(dz*dz)/110;
+    if(d<1 && hash2(cx+dx*3,cz+dz*5+dy)>0.15) setBlock(cx+dx,gy+25+dy,cz+dz,BLOCK.LEAF,true);
+  }
+  // 树洞小屋门 + 符文灯
+  fillBox(cx-1,gy+2,cz+3,cx+1,gy+4,cz+3,BLOCK.AIR);
+  fillBox(cx-1,gy+2,cz+2,cx+1,gy+5,cz+2,BLOCK.PLANK);
+  fillBox(cx-1,gy+2,cz+3,cx+1,gy+4,cz+3,BLOCK.AIR);
+  setBlock(cx,gy+5,cz+3,BLOCK.GLOW,true);
+  // 环绕藤蔓灯串
+  for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; const x=Math.round(cx+Math.cos(a)*9), z=Math.round(cz+Math.sin(a)*9); for(let y=gy+22;y>=gy+12;y-=3) setBlock(x,y,z,BLOCK.GLOW,true); }
+  // 精灵木屋(树下两间)
+  for(const [hx,hz] of [[cx-9,cz+7],[cx+9,cz+6]]){
+    fillBox(hx-2,gy+2,hz-2,hx+2,gy+4,hz+2,BLOCK.PLANK);
+    fillBox(hx-1,gy+2,hz-1,hx+1,gy+4,hz+1,BLOCK.AIR);
+    fillBox(hx-3,gy+5,hz-3,hx+3,gy+5,hz+3,BLOCK.LEAF);
+    fillBox(hx-2,gy+6,hz-2,hx+2,gy+6,hz+2,BLOCK.LEAF);
+    setBlock(hx,gy+3,hz,BLOCK.GLOW,true);
+  }
+  WONDERS.push({name:'🌳 世界树尤克特拉希尔', desc:'精灵圣地 · 树冠观景台', x:cx+0.5, y:gy+30, z:cz+0.5});
+}
+function buildSkySanctuary(){
+  const cx=-44, cz=-64, topY=62;
+  // 浮岛倒锥
+  for(let dy=0;dy<=10;dy++){ const r=Math.max(1,7-dy); for(let dx=-r;dx<=r;dx++) for(let dz=-r;dz<=r;dz++){ if(dx*dx+dz*dz>r*r+2) continue; const id = dy===0?BLOCK.GRASS : dy<3?BLOCK.DIRT : BLOCK.STONE; setBlock(cx+dx,topY-dy,cz+dz,id,true);} }
+  // 希腊神殿: 汉白玉柱 + 台阶 + 金顶
+  fillBox(cx-5,topY+1,cz-5,cx+5,topY+1,cz+5,BLOCK.WHITE);
+  fillBox(cx-4,topY+2,cz-4,cx+4,topY+2,cz+4,BLOCK.WHITE);
+  for(const [px,pz] of [[-4,-4],[0,-4],[4,-4],[-4,0],[4,0],[-4,4],[0,4],[4,4]]){ for(let y=topY+3;y<=topY+7;y++) setBlock(cx+px,y,cz+pz,BLOCK.WHITE,true); }
+  fillBox(cx-5,topY+8,cz-5,cx+5,topY+8,cz+5,BLOCK.WHITE);
+  fillBox(cx-3,topY+9,cz-3,cx+3,topY+9,cz+3,BLOCK.GLOW);
+  setBlock(cx,topY+10,cz,BLOCK.GLOW,true);
+  setBlock(cx,topY+3,cz,BLOCK.GLOW,true); // 圣火
+  // 瀑布: 从浮岛边缘垂落到海面
+  const gy=terrainHeight(cx+8,cz+2);
+  for(let y=topY;y>Math.max(gy,SEA);y--) setBlock(cx+7,y,cz+2,BLOCK.WATER,true);
+  // 彩虹桥(通向虚空观景台)
+  for(let i=1;i<=10;i++){ const cols=[BLOCK.WHITE,BLOCK.GLOW,BLOCK.BRICK,BLOCK.LEAF,BLOCK.GLASS]; setBlock(cx-8-i,topY,cz+i%2,cols[i%cols.length],true); setBlock(cx-8-i,topY-1,cz+i%2,BLOCK.STONE,true); }
+  WONDERS.push({name:'☁️ 天空圣殿浮岛', desc:'瀑布 / 神殿 / 彩虹桥 (高空慎落)', x:cx+0.5, y:topY+3, z:cz+7.5});
+}
+function buildEmberKeep(){
+  const cx=-72, cz=42; const gy=terrainHeight(cx,cz); flatArea(cx,cz,16,gy);
+  const W=13;
+  // 城墙
+  for(let dx=-W;dx<=W;dx++) for(let dz=-W;dz<=W;dz++){
+    const edge = Math.abs(dx)===W||Math.abs(dz)===W;
+    if(!edge) continue;
+    if(Math.abs(dx)<3&&dz===W) continue; // 城门
+    for(let y=gy+2;y<=gy+6;y++) setBlock(cx+dx,y,cz+dz,BLOCK.BRICK,true);
+    setBlock(cx+dx,gy+7,cz+dz,BLOCK.BRICK,true);
+  }
+  // 四角塔楼
+  for(const [tx,tz] of [[-W,-W],[W,-W],[-W,W],[W,W]]){
+    fillBox(cx+tx-1,gy+2,cz+tz-1,cx+tx+1,gy+11,cz+tz+1,BLOCK.BRICK);
+    fillBox(cx+tx-1,gy+12,cz+tz-1,cx+tx+1,gy+12,cz+tz+1,BLOCK.GLOW);
+    setBlock(cx+tx,gy+13,cz+tz,BLOCK.GLOW,true);
+  }
+  // 主堡
+  fillBox(cx-4,gy+2,cz-8,cx+4,gy+12,cz-2,BLOCK.BRICK);
+  fillBox(cx-3,gy+3,cz-7,cx+3,gy+11,cz-3,BLOCK.AIR);
+  fillBox(cx-4,gy+13,cz-8,cx+4,gy+13,cz-2,BLOCK.BRICK);
+  for(let y=gy+13;y<=gy+16;y++) setBlock(cx,y,cz-5,BLOCK.BRICK,true);
+  setBlock(cx,gy+17,cz-5,BLOCK.GLOW,true);
+  // 熔炉大厅: 地面符文 + 黑曜石柱
+  for(let dx=-6;dx<=6;dx++) for(let dz=-4;dz<=6;dz++) setBlock(cx+dx,gy+1,cz+dz,((dx+dz)%3===0)?BLOCK.OBSID:BLOCK.STONE,true);
+  for(const [px,pz] of [[-5,5],[5,5],[-5,-1],[5,-1]]){ for(let y=gy+2;y<=gy+6;y++) setBlock(cx+px,y,cz+pz,BLOCK.OBSID,true); setBlock(cx+px,gy+7,cz+pz,BLOCK.GLOW,true); }
+  // 城门火把
+  setBlock(cx-3,gy+4,cz+W,BLOCK.GLOW,true); setBlock(cx+3,gy+4,cz+W,BLOCK.GLOW,true);
+  WONDERS.push({name:'🔥 矮人余烬王城', desc:'城墙 / 主堡 / 熔炉大厅', x:cx+0.5, y:gy+3, z:cz+W+2});
+}
+function buildSunPyramid(){
+  const cx=82, cz=62; const gy=terrainHeight(cx,cz);
+  // 沙漠整平
+  for(let dx=-20;dx<=20;dx++) for(let dz=-14;dz<=14;dz++){ const x=cx+dx,z=cz+dz; const h=terrainHeight(x,z); fillBox(x,Math.min(h,gy)-1,z,x,gy,z,BLOCK.SAND); setBlock(x,gy+1,z,BLOCK.SAND,true); }
+  // 阶梯金字塔 7 层
+  for(let lvl=0;lvl<7;lvl++){ const r=10-lvl*1.4, y0=gy+2+lvl*2; for(let dx=-r;dx<=r;dx++) for(let dz=-r;dz<=r;dz++){ if(Math.max(Math.abs(dx),Math.abs(dz))>r) continue; fillBox(Math.round(cx+dx),y0,Math.round(cz+dz),Math.round(cx+dx),y0+1,Math.round(cz+dz), lvl%2?BLOCK.BRICK:BLOCK.SAND); } }
+  setBlock(cx,gy+17,cz,BLOCK.GLOW,true); // 太阳之眼
+  // 入口 + 内部墓室
+  fillBox(cx-1,gy+2,cz+10,cx+1,gy+5,cz+12,BLOCK.AIR);
+  fillBox(cx-3,gy+2,cz-2,cx+3,gy+4,cz+2,BLOCK.AIR);
+  fillBox(cx-3,gy+2,cz-2,cx+3,gy+2,cz+2,BLOCK.BRICK);
+  setBlock(cx,gy+3,cz,BLOCK.GLOW,true);
+  // 狮身人面像(方块风): 身体 + 头 + 王冠
+  const sx=cx-16, sz=cz+2;
+  fillBox(sx-4,gy+2,sz-1,sx+2,gy+4,sz+1,BLOCK.SAND);
+  fillBox(sx+3,gy+2,sz-1,sx+5,gy+7,sz+1,BLOCK.SAND);
+  setBlock(sx+4,gy+9,sz,BLOCK.BRICK,true);
+  setBlock(sx+4,gy+5,sz-1,BLOCK.OBSID,true); setBlock(sx+4,gy+5,sz+1,BLOCK.OBSID,true);
+  // 绿洲
+  const ox=cx+14, oz=cz-10;
+  for(let dx=-4;dx<=4;dx++) for(let dz=-3;dz<=3;dz++){ if(dx*dx+dz*dz>14) continue; setBlock(ox+dx,gy+1,oz+dz,BLOCK.WATER,true); }
+  for(let i=0;i<4;i++){ const tx=ox+[-5,5,-3,4][i], tz=oz+[-2,3,-4,4][i]; for(let y=gy+2;y<=gy+5;y++) setBlock(tx,y,tz,BLOCK.LOG,true); setBlock(tx,gy+6,tz,BLOCK.LEAF,true); setBlock(tx+1,gy+6,tz,BLOCK.LEAF,true); setBlock(tx,gy+6,tz+1,BLOCK.LEAF,true); }
+  WONDERS.push({name:'🏜️ 太阳金字塔与狮身像', desc:'墓室 / 太阳之眼 / 绿洲', x:cx+0.5, y:gy+3, z:cz+14});
+}
+function buildArcaneTower(){
+  const cx=-30, cz=84; const gy=terrainHeight(cx,cz); flatArea(cx,cz,10,gy);
+  // 塔身(空心 7x7, 高 18)
+  hollowBox(cx-3,gy+2,cz-3,cx+3,gy+19,cz+3,0,BLOCK.BRICK);
+  for(let y=gy+2;y<=gy+19;y+=3){ // 玻璃窗带
+    setBlock(cx-3,y,cz,BLOCK.GLASS,true); setBlock(cx+3,y,cz,BLOCK.GLASS,true);
+    setBlock(cx,y,cz-3,BLOCK.GLASS,true); setBlock(cx,y,cz+3,BLOCK.GLASS,true);
+  }
+  // 螺旋楼梯(内部)
+  for(let y=0;y<16;y++){ const a=y*0.8; const x=Math.round(cx+Math.cos(a)*1.5), z=Math.round(cz+Math.sin(a)*1.5); setBlock(x,gy+3+y,z,BLOCK.PLANK,true); }
+  // 顶层观星台 + 悬浮水晶
+  fillBox(cx-4,gy+20,cz-4,cx+4,gy+20,cz+4,BLOCK.BRICK);
+  for(const [px,pz] of [[-4,-4],[4,-4],[-4,4],[4,4]]){ setBlock(cx+px,gy+21,cz+pz,BLOCK.GLASS,true); setBlock(cx+px,gy+22,cz+pz,BLOCK.GLOW,true); }
+  setBlock(cx,gy+21,cz,BLOCK.GLOW,true);
+  setBlock(cx+6,gy+22,cz,BLOCK.GLOW,true); setBlock(cx-6,gy+23,cz+2,BLOCK.GLOW,true); setBlock(cx,gy+24,cz-6,BLOCK.GLOW,true);
+  // 附魔小屋
+  fillBox(cx+7,gy+2,cz+3,cx+11,gy+4,cz+7,BLOCK.PLANK);
+  fillBox(cx+8,gy+2,cz+4,cx+10,gy+4,cz+6,BLOCK.AIR);
+  fillBox(cx+7,gy+5,cz+3,cx+11,gy+5,cz+7,BLOCK.LEAF);
+  WONDERS.push({name:'🔮 奥术法师塔', desc:'螺旋梯 / 观星台 / 悬浮水晶', x:cx+0.5, y:gy+3, z:cz+9});
+}
+function buildStonehengeAndPortal(){
+  const cx=32, cz=-72; const gy=terrainHeight(cx,cz); flatArea(cx,cz,12,gy);
+  // 巨石阵圆环
+  for(let i=0;i<10;i++){ const a=i/10*Math.PI*2; const x=Math.round(cx+Math.cos(a)*7), z=Math.round(cz+Math.sin(a)*7); for(let y=gy+2;y<=gy+6;y++) setBlock(x,y,z,BLOCK.WHITE,true); }
+  for(let i=0;i<5;i++){ const a=(i/5)*Math.PI*2+0.3; const x1=Math.round(cx+Math.cos(a)*7), z1=Math.round(cz+Math.sin(a)*7); const x2=Math.round(cx+Math.cos(a+0.628)*7), z2=Math.round(cz+Math.sin(a+0.628)*7); setBlock((x1+x2)>>1,gy+7,(z1+z2)>>1,BLOCK.WHITE,true); }
+  setBlock(cx,gy+2,cz,BLOCK.GLOW,true);
+  // 下界传送门(黑曜石框 + 符文火)
+  const px=cx+14, pz=cz;
+  for(let y=gy+2;y<=gy+6;y++){ setBlock(px-2,y,pz,BLOCK.OBSID,true); setBlock(px+2,y,pz,BLOCK.OBSID,true); }
+  for(let x=-2;x<=2;x++){ setBlock(px+x,gy+2,pz,BLOCK.OBSID,true); setBlock(px+x,gy+6,pz,BLOCK.OBSID,true); }
+  for(let y=gy+3;y<=gy+5;y++) for(let x=-1;x<=1;x++) setBlock(px+x,y,pz,BLOCK.GLOW,true);
+  WONDERS.push({name:'🌀 巨石阵与下界门', desc:'德鲁伊石环 / 传送门', x:cx+0.5, y:gy+3, z:cz+10});
+}
+function buildDragonAltar(){
+  const cx=2, cz=-102; const gy=terrainHeight(cx,cz); flatArea(cx,cz,11,gy);
+  // 黑曜石祭坛圆盘
+  for(let dx=-5;dx<=5;dx++) for(let dz=-5;dz<=5;dz++){ if(dx*dx+dz*dz>26) continue; setBlock(cx+dx,gy+1,cz+dz,BLOCK.OBSID,true); }
+  // 六根龙骨柱(白+光)
+  for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; const x=Math.round(cx+Math.cos(a)*6), z=Math.round(cz+Math.sin(a)*6); const h=4+(i%3); for(let y=gy+2;y<=gy+1+h;y++) setBlock(x,y,z,BLOCK.WHITE,true); setBlock(x,gy+2+h,z,BLOCK.GLOW,true); }
+  // 龙蛋(黑曜石座 + 符文)
+  setBlock(cx,gy+2,cz,BLOCK.OBSID,true); setBlock(cx,gy+3,cz,BLOCK.GLOW,true);
+  // 岩浆符文沟(发光)
+  for(let dx=-5;dx<=5;dx++){ setBlock(cx+dx,gy+1,cz+5,BLOCK.GLOW,true); setBlock(cx+dx,gy+1,cz-5,BLOCK.GLOW,true); }
+  WONDERS.push({name:'🐉 远古龙祭坛', desc:'龙蛋 / 龙骨柱林', x:cx+0.5, y:gy+3, z:cz+9});
+}
+let structuresBuilt=false;
+function buildAllMythology(){
+  if(structuresBuilt) return; structuresBuilt=true;
+  // 先确保中心区块已生成
+  for(let cx=-7;cx<=7;cx++) for(let cz=-7;cz<=7;cz++) getChunk(cx,cz);
+  buildSpawnPlaza(); buildWorldTree(); buildSkySanctuary(); buildEmberKeep();
+  buildSunPyramid(); buildArcaneTower(); buildStonehengeAndPortal(); buildDragonAltar();
+}
+
+/* ================= 6. 玩家物理与控制 ================= */
+const player = { pos:new THREE.Vector3(8.5, 50, 14.5), vel:new THREE.Vector3(), yaw:Math.PI, pitch:-0.05, onGround:false, fly:false, inWater:false };
+const keys={};
+let locked=false;
+const EYE=1.62, PW=0.32, PH=1.8;
+
+function collide(pos){
+  const minX=pos.x-PW, maxX=pos.x+PW, minY=pos.y, maxY=pos.y+PH, minZ=pos.z-PW, maxZ=pos.z+PW;
+  for(let x=Math.floor(minX);x<=Math.floor(maxX);x++) for(let y=Math.floor(minY);y<=Math.floor(maxY);y++) for(let z=Math.floor(minZ);z<=Math.floor(maxZ);z++){
+    if(isSolidForPhysics(getBlock(x,y,z))) return true;
+  }
+  return false;
+}
+function moveAxis(axis, amount){
+  const p=player.pos;
+  if(axis==='x'){ p.x+=amount; if(collide(p)) p.x-=amount; }
+  if(axis==='z'){ p.z+=amount; if(collide(p)) p.z-=amount; }
+  if(axis==='y'){ p.y+=amount; if(collide(p)){ p.y-=amount; if(amount<0) player.onGround=true; player.vel.y=0; } }
+}
+function feetInWater(){ const b=getBlock(Math.floor(player.pos.x),Math.floor(player.pos.y+0.3),Math.floor(player.pos.z)); const b2=getBlock(Math.floor(player.pos.x),Math.floor(player.pos.y+1.2),Math.floor(player.pos.z)); return b===BLOCK.WATER||b2===BLOCK.WATER; }
+
+function updatePlayer(dt){
+  const speed = player.fly?12:(keys['shift']?7.2:4.6);
+  const sin=Math.sin(player.yaw), cos=Math.cos(player.yaw);
+  let mx=0,mz=0;
+  if(keys['w']){ mx-=sin; mz-=cos; } if(keys['s']){ mx+=sin; mz+=cos; }
+  if(keys['a']){ mx-=cos; mz+=sin; } if(keys['d']){ mx+=cos; mz-=sin; }
+  const len=Math.hypot(mx,mz)||1; mx=mx/len*speed*dt; mz=mz/len*speed*dt;
+  if(mx||mz){ moveAxis('x',mx); moveAxis('z',mz); }
+  player.inWater=feetInWater();
+  if(player.fly){
+    let vy=0; if(keys[' '])vy+=10*dt; if(keys['shift'])vy-=10*dt;
+    player.pos.y+=vy; if(collide(player.pos)) player.pos.y-=vy;
+    player.vel.y=0; player.onGround=false;
+  } else if(player.inWater){
+    player.vel.y-=8*dt; player.vel.y*=0.92;
+    if(keys[' ']) player.vel.y=Math.min(4,player.vel.y+30*dt);
+    player.vel.y=Math.max(-4,Math.min(4,player.vel.y));
+    player.onGround=false;
+    moveAxis('y',player.vel.y*dt);
+  } else {
+    player.vel.y-=26*dt; player.vel.y=Math.max(-30,player.vel.y);
+    if(keys[' ']&&player.onGround){ player.vel.y=8.8; player.onGround=false; }
+    player.onGround=false;
+    moveAxis('y',player.vel.y*dt);
+  }
+  if(player.pos.y<-10){ // 掉出世界则回出生点
+    const s=WONDERS[0];
+    if(s){ player.pos.set(s.x,s.y+1,s.z); player.vel.set(0,0,0); }
+    else { player.pos.set(8.5,50,14.5); player.vel.set(0,0,0); }
+  }
+  camera.position.set(player.pos.x, player.pos.y+EYE, player.pos.z);
+  camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
+}
+
+/* 体素射线(DDA) */
+function raycastVoxel(maxDist=8){
+  const o=camera.position, d=new THREE.Vector3(); camera.getWorldDirection(d);
+  let x=Math.floor(o.x), y=Math.floor(o.y), z=Math.floor(o.z);
+  const stepX=Math.sign(d.x), stepY=Math.sign(d.y), stepZ=Math.sign(d.z);
+  const tDeltaX=Math.abs(1/(d.x||1e-9)), tDeltaY=Math.abs(1/(d.y||1e-9)), tDeltaZ=Math.abs(1/(d.z||1e-9));
+  let tMaxX=stepX>0?(x+1-o.x)*tDeltaX:(o.x-x)*tDeltaX;
+  let tMaxY=stepY>0?(y+1-o.y)*tDeltaY:(o.y-y)*tDeltaY;
+  let tMaxZ=stepZ>0?(z+1-o.z)*tDeltaZ:(o.z-z)*tDeltaZ;
+  let nx=0,ny=0,nz=0,t=0;
+  for(let i=0;i<128;i++){
+    const id=getBlock(x,y,z);
+    if(id!==BLOCK.AIR&&id!==BLOCK.WATER&&!(i===0)) return {x,y,z,nx,ny,nz,id};
+    if(i===0&&(id!==BLOCK.AIR&&id!==BLOCK.WATER)){ /* 起点在方块内极少见,继续 */ }
+    if(tMaxX<tMaxY&&tMaxX<tMaxZ){ x+=stepX; t=tMaxX; tMaxX+=tDeltaX; nx=-stepX;ny=0;nz=0; }
+    else if(tMaxY<tMaxZ){ y+=stepY; t=tMaxY; tMaxY+=tDeltaY; nx=0;ny=-stepY;nz=0; }
+    else { z+=stepZ; t=tMaxZ; tMaxZ+=tDeltaZ; nx=0;ny=0;nz=-stepZ; }
+    if(t>maxDist) return null;
+  }
+  return null;
+}
+const highlight = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002,1.002,1.002)), new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:0.7}));
+highlight.visible=false; scene.add(highlight);
+
+// 音效(无素材,WebAudio合成)
+let AC=null;
+function blip(freq=220,dur=0.07,type='square',vol=0.12){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type=type; o.frequency.value=freq; g.gain.value=vol;
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+dur);
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+dur);
+  }catch(e){}
+}
+function doBreak(){
+  const hit=raycastVoxel();
+  if(!hit) return;
+  if(hit.y===0){ toast('基岩不可挖掘'); return; }
+  setBlock(hit.x,hit.y,hit.z,BLOCK.AIR,true);
+  blip(160+Math.random()*80,0.08,'square',0.14);
+}
+function doPlace(){
+  const hit=raycastVoxel();
+  if(!hit) return;
+  const id=HOTBAR[selectedIdx];
+  const px=hit.x+hit.nx, py=hit.y+hit.ny, pz=hit.z+hit.nz;
+  const cur=getBlock(px,py,pz);
+  if(cur!==BLOCK.AIR&&cur!==BLOCK.WATER) return;
+  // 不能与玩家重叠
+  const p=player.pos;
+  if(id!==BLOCK.WATER && px+1>p.x-PW&&px<p.x+PW&&pz+1>p.z-PW&&pz<p.z+PW&&py+1>p.y&&py<p.y+PH) { toast('这里放不下,会卡住自己'); return; }
+  setBlock(px,py,pz,id,true);
+  blip(320+Math.random()*60,0.07,'triangle',0.14);
+}
+
+/* 输入 */
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k===' ') keys[' ']=true;
+  else keys[k]=true;
+  if(k>='1'&&k<='9'){ selectSlot(+k-1); }
+  if(k==='f'){ player.fly=!player.fly; player.vel.y=0; document.getElementById('mode').textContent=player.fly?'飞行':'步行'; toast(player.fly?'🕊️ 飞行模式开 (空格上升 / Shift下降)':'🚶 步行模式'); }
+  if(k==='n'){ toggleNight(); }
+  if(k==='r'){ const s=WONDERS[0]; if(s){ player.pos.set(s.x,s.y+1,s.z); player.vel.set(0,0,0); toast('已回到出生广场'); } }
+  if([' ','arrowup','arrowdown'].includes(k)) e.preventDefault();
+});
+addEventListener('keyup',e=>{ const k=e.key.toLowerCase(); if(k===' ')keys[' ']=false; else keys[k]=false; });
+document.addEventListener('mousemove',e=>{
+  if(!locked) return;
+  player.yaw-=e.movementX*0.0026; player.pitch-=e.movementY*0.0026;
+  player.pitch=Math.max(-1.55,Math.min(1.55,player.pitch));
+});
+renderer.domElement.addEventListener('click',()=>{ if(!locked) renderer.domElement.requestPointerLock(); });
+document.addEventListener('pointerlockchange',()=>{ locked=document.pointerLockElement===renderer.domElement; });
+renderer.domElement.addEventListener('mousedown',e=>{
+  if(!locked){ renderer.domElement.requestPointerLock(); return; }
+  if(e.button===0) doBreak();
+  if(e.button===2) doPlace();
+});
+addEventListener('contextmenu',e=>e.preventDefault());
+addEventListener('wheel',e=>{ selectSlot((selectedIdx+(e.deltaY>0?1:HOTBAR.length-1))%HOTBAR.length); },{passive:true});
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+/* 白天/黑夜 */
+let night=false;
+function toggleNight(){
+  night=!night;
+  if(night){ scene.background.set(0x0b1026); scene.fog.color.set(0x0b1026); hemi.intensity=0.35; sun.intensity=0.25; sun.color.set(0x8fa8ff); }
+  else { scene.background.set(0x87ceeb); scene.fog.color.set(0x87ceeb); hemi.intensity=0.9; sun.intensity=1.1; sun.color.set(0xfff2d8); }
+  toast(night?'🌙 夜晚 — 符文与灯火最美的时候':'☀️ 白天');
+}
+
+/* ================= 7. UI: 快捷栏 + 传送 ================= */
+const hotbarEl=document.getElementById('hotbar');
+const NAMES={1:'草地',2:'泥土',3:'石头',4:'橡木',5:'树叶',6:'木板',7:'沙子',8:'玻璃',9:'石砖'};
+function iconURL(tileName){
+  const c=tileCanvases[tileName]; const big=document.createElement('canvas'); big.width=big.height=34;
+  const g=big.getContext('2d'); g.imageSmoothingEnabled=false; g.drawImage(c,0,0,34,34); return big;
+}
+const FACE_ICON={1:'grass_side',2:'dirt',3:'stone',4:'log_side',5:'leaf',6:'plank',7:'sand',8:'glass',9:'brick'};
+function buildHotbar(){
+  hotbarEl.innerHTML='';
+  HOTBAR.forEach((id,i)=>{
+    const d=document.createElement('div'); d.className='slot'+(i===selectedIdx?' active':'');
+    d.appendChild(iconURL(FACE_ICON[id]));
+    const s=document.createElement('span'); s.textContent=NAMES[id]; d.appendChild(s);
+    const k=document.createElement('small'); k.textContent=i+1; d.appendChild(k);
+    d.onclick=()=>selectSlot(i);
+    hotbarEl.appendChild(d);
+  });
+}
+function selectSlot(i){ selectedIdx=i; buildHotbar(); }
+function buildWonderList(){
+  const list=document.getElementById('wonder-list'); list.innerHTML='';
+  WONDERS.forEach((w,i)=>{
+    const b=document.createElement('button');
+    b.innerHTML=`${w.name}<small>${w.desc} · (${Math.round(w.x)},${Math.round(w.z)})</small>`;
+    b.onclick=()=>{ player.pos.set(w.x,w.y+1.5,w.z); player.vel.set(0,0,0); toast('✨ 已传送: '+w.name); };
+    list.appendChild(b);
+  });
+  const extra=document.createElement('button');
+  extra.innerHTML=`🌙 / ☀️ 切换昼夜<small>快捷键 N · 夜晚看符文最美</small>`;
+  extra.onclick=toggleNight; list.appendChild(extra);
+  const fly=document.createElement('button');
+  fly.innerHTML=`🕊️ 切换飞行<small>快捷键 F · 适合参观浮岛</small>`;
+  fly.onclick=()=>{ player.fly=!player.fly; document.getElementById('mode').textContent=player.fly?'飞行':'步行'; toast(player.fly?'飞行模式开':'步行模式'); };
+  list.appendChild(fly);
+}
+
+/* ================= 8. 主循环: 流式区块 ================= */
+const posEl=document.getElementById('pos'), fpsEl=document.getElementById('fps'), chunkEl=document.getElementById('chunks'), seedEl=document.getElementById('seed'), blockEl=document.getElementById('blockcount');
+seedEl.textContent=SEED;
+let last=performance.now(), fpsAcc=0, fpsN=0, fpsT=0;
+function ensureChunks(){
+  const pcx=Math.floor(player.pos.x/CHUNK), pcz=Math.floor(player.pos.z/CHUNK);
+  // 生成
+  for(let dx=-VIEW_DIST;dx<=VIEW_DIST;dx++) for(let dz=-VIEW_DIST;dz<=VIEW_DIST;dz++){
+    const cx=pcx+dx, cz=pcz+dz, k=ckey(cx,cz);
+    if(!chunks.has(k)){ getChunk(cx,cz); dirtyChunks.add(k); }
+    else if(!chunkMeshes.has(k)) dirtyChunks.add(k);
+  }
+  // 卸载过远
+  for(const k of [...chunkMeshes.keys()]){
+    const [cx,cz]=k.split(',').map(Number);
+    if(Math.max(Math.abs(cx-pcx),Math.abs(cz-pcz))>VIEW_DIST+1){
+      const m=chunkMeshes.get(k); if(m.opaque){scene.remove(m.opaque);m.opaque.geometry.dispose();} if(m.trans){scene.remove(m.trans);m.trans.geometry.dispose();}
+      chunkMeshes.delete(k); chunks.delete(k);
+    }
+  }
+  // 限量重建(每帧最多 2 个,防卡顿)
+  let budget=2;
+  for(const k of [...dirtyChunks]){ if(budget<=0) break; dirtyChunks.delete(k);
+    const [cx,cz]=k.split(',').map(Number);
+    if(Math.max(Math.abs(cx-pcx),Math.abs(cz-pcz))>VIEW_DIST+1) continue;
+    if(!chunks.has(k)) continue;
+    buildChunkMesh(cx,cz); budget--;
+  }
+}
+function tick(){
+  requestAnimationFrame(tick);
+  const now=performance.now(); let dt=(now-last)/1000; last=now;
+  dt=Math.min(0.05,dt);
+  fpsAcc+=1/Math.max(dt,1e-4); fpsN++; fpsT+=dt;
+  if(fpsT>0.5){ fpsEl.textContent=Math.round(fpsAcc/fpsN); fpsAcc=0;fpsN=0;fpsT=0;
+    posEl.textContent=`${player.pos.x.toFixed(1)} / ${player.pos.y.toFixed(1)} / ${player.pos.z.toFixed(1)}`;
+    chunkEl.textContent=`${chunkMeshes.size}`;
+    let n=0; chunks.forEach(c=>{ for(let i=0;i<c.length;i++) if(c[i]) n++; }); blockEl.textContent=n>10000?(n/10000).toFixed(1)+'万':n;
+  }
+  updatePlayer(dt);
+  ensureChunks();
+  // 准星高亮
+  const hit=raycastVoxel();
+  if(hit&&locked){ highlight.visible=true; highlight.position.set(hit.x+0.5,hit.y+0.5,hit.z+0.5); }
+  else highlight.visible=false;
+  // 云漂移
+  for(const c of clouds){ c.position.x+=dt*1.2; if(c.position.x>160) c.position.x=-160; }
+  // 自动存档
+  saveTimer+=dt; if(saveTimer>6){ saveTimer=0; saveEdits(); }
+  renderer.render(scene,camera);
+}
+
+/* ================= 9. 启动 ================= */
+buildHotbar();
+document.getElementById('loading').style.display='flex';
+setTimeout(()=>{
+  try{
+    buildAllMythology();
+    // 出生点
+    const s0x=8, s0z=8; const gy=terrainHeight(s0x,s0z);
+    player.pos.set(s0x+0.5, gy+3, s0z+6.5);
+    player.yaw=Math.PI; // 面向广场
+    buildWonderList();
+    ensureChunks();
+    // 预烘焙出生点周围
+    for(const k of [...dirtyChunks]){ const [cx,cz]=k.split(',').map(Number); buildChunkMesh(cx,cz); }
+    dirtyChunks.clear();
+    document.getElementById('loading').style.display='none';
+  }catch(err){ console.error(err); toast('生成失败,请刷新重试:'+err.message); }
+},60);
+document.getElementById('start-btn').onclick=()=>{
+  document.getElementById('start-overlay').style.display='none';
+  renderer.domElement.requestPointerLock?.();
+  toast('⛏️ 欢迎来到神话大陆! 右侧可传送八大奇观,按 F 飞行参观浮岛');
+  try{ renderer.domElement.requestPointerLock(); }catch(e){}
+};
+tick();
+</script>
+</body>
+</html>
