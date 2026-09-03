@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calibre S-01 — 镂空机械腕表</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #edf3ef;
+      --muted: #8d9994;
+      --gold: #c9a86a;
+      --gold-hi: #f1d7a0;
+      --panel: rgba(9, 13, 14, .62);
+      --line: rgba(226, 236, 229, .13);
+      --lume: #baffd4;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background:
+        radial-gradient(circle at 52% 38%, #17201f 0, #0a0e0f 39%, #050708 74%),
+        #050708;
+      color: var(--ink);
+      font-family: Inter, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+      letter-spacing: .02em;
+    }
+
+    #app, #viewport { position: fixed; inset: 0; }
+    #viewport { cursor: grab; }
+    #viewport:active { cursor: grabbing; }
+    canvas { display: block; width: 100%; height: 100%; outline: none; }
+
+    .grain {
+      position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: .045;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E");
+    }
+    .vignette {
+      position: fixed; inset: 0; z-index: 2; pointer-events: none;
+      box-shadow: inset 0 0 180px rgba(0,0,0,.78);
+    }
+
+    header {
+      position: fixed; z-index: 10; top: 0; left: 0; right: 0;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      padding: 34px 40px 0; pointer-events: none;
+    }
+    .brand { pointer-events: auto; }
+    .eyebrow {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+      color: var(--gold-hi); font-size: 9px; font-weight: 700; letter-spacing: .34em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 28px; height: 1px; background: var(--gold); }
+    h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(25px, 2.7vw, 42px); font-weight: 400; letter-spacing: .04em; }
+    h1 small { color: var(--muted); font-family: inherit; font-size: .42em; font-style: italic; letter-spacing: .08em; }
+    .edition { margin-top: 9px; color: #68726e; font-size: 9px; letter-spacing: .25em; text-transform: uppercase; }
+
+    .top-actions { display: flex; gap: 8px; pointer-events: auto; }
+    button {
+      appearance: none; border: 1px solid var(--line); border-radius: 999px;
+      background: rgba(12, 17, 17, .62); color: #c8cfcc; backdrop-filter: blur(14px);
+      padding: 10px 15px; font: 600 9px/1 Inter, sans-serif; letter-spacing: .17em;
+      text-transform: uppercase; cursor: pointer; transition: .25s ease;
+    }
+    button:hover { border-color: rgba(219,190,133,.48); color: #fff; background: rgba(35,36,31,.75); }
+    button.active { color: #151513; border-color: var(--gold-hi); background: var(--gold-hi); box-shadow: 0 0 22px rgba(211,177,110,.18); }
+    button .dot { display: inline-block; width: 5px; height: 5px; margin-right: 7px; border-radius: 50%; background: #79dba0; box-shadow: 0 0 7px #79dba0; vertical-align: 1px; }
+
+    .side-panel {
+      position: fixed; z-index: 10; top: 50%; right: 34px; width: 282px;
+      transform: translateY(-50%); padding: 20px 20px 18px;
+      border: 1px solid var(--line); border-radius: 2px;
+      background: linear-gradient(145deg, rgba(18,23,22,.79), rgba(6,9,10,.55));
+      box-shadow: 0 22px 60px rgba(0,0,0,.28); backdrop-filter: blur(22px);
+    }
+    .panel-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 17px; }
+    .panel-kicker { color: var(--gold); font-size: 8px; font-weight: 700; letter-spacing: .27em; text-transform: uppercase; }
+    .panel-index { color: #59625f; font: italic 12px Georgia, serif; }
+    .part-name { min-height: 27px; margin: 0 0 9px; font: 400 23px/1.15 Georgia, serif; letter-spacing: .01em; }
+    .part-desc { min-height: 55px; margin: 0; color: #9ca5a1; font-size: 11px; line-height: 1.7; letter-spacing: .04em; }
+    .spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 18px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    .spec { padding: 12px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .spec b { display: block; margin-bottom: 5px; color: #e4e8e6; font: 500 12px Georgia, serif; }
+    .spec span { color: #66706c; font-size: 7px; letter-spacing: .17em; text-transform: uppercase; }
+    .panel-hint { display: flex; align-items: center; gap: 8px; margin-top: 15px; color: #59635f; font-size: 8px; letter-spacing: .1em; }
+    .mouse-icon { position: relative; width: 13px; height: 18px; border: 1px solid #59635f; border-radius: 7px; }
+    .mouse-icon::after { content: ""; position: absolute; left: 5px; top: 3px; width: 1px; height: 4px; background: #a1aca7; }
+
+    .bottom-bar {
+      position: fixed; z-index: 10; left: 40px; bottom: 29px; right: 40px;
+      display: flex; align-items: flex-end; justify-content: space-between; pointer-events: none;
+    }
+    .calibre { color: #68716d; font-size: 8px; line-height: 1.65; letter-spacing: .16em; text-transform: uppercase; }
+    .calibre strong { display: block; color: #bfc6c2; font: 400 15px Georgia, serif; letter-spacing: .08em; text-transform: none; }
+    .status { display: flex; align-items: center; gap: 18px; color: #65706b; font-size: 8px; letter-spacing: .16em; text-transform: uppercase; }
+    .status span::before { content: ""; display: inline-block; width: 3px; height: 3px; margin-right: 8px; border-radius: 50%; background: var(--gold); vertical-align: 2px; }
+
+    #tooltip {
+      position: fixed; z-index: 20; min-width: 124px; pointer-events: none;
+      opacity: 0; transform: translate(14px, 12px); transition: opacity .14s ease;
+      padding: 10px 12px; border: 1px solid rgba(230,212,175,.24); border-radius: 2px;
+      background: rgba(8,12,12,.88); box-shadow: 0 10px 30px rgba(0,0,0,.28); backdrop-filter: blur(10px);
+    }
+    #tooltip.visible { opacity: 1; }
+    #tooltip b { display: block; color: #f2e4c8; font: 400 12px Georgia, serif; }
+    #tooltip span { display: block; margin-top: 4px; color: #76807b; font-size: 7px; letter-spacing: .14em; text-transform: uppercase; }
+
+    .loader { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: #060909; transition: opacity .7s ease, visibility .7s; }
+    .loader.done { opacity: 0; visibility: hidden; }
+    .loader-inner { text-align: center; }
+    .loader-mark { width: 44px; height: 44px; margin: 0 auto 17px; border: 1px solid rgba(213,181,119,.22); border-top-color: #d8b97e; border-radius: 50%; animation: spin 1.3s linear infinite; }
+    .loader-text { color: #7c8581; font-size: 8px; letter-spacing: .35em; text-transform: uppercase; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 800px) {
+      header { padding: 22px 20px 0; }
+      .top-actions { flex-direction: column; align-items: flex-end; }
+      .top-actions button { padding: 9px 11px; font-size: 8px; }
+      .side-panel { top: auto; right: 14px; bottom: 19px; left: 14px; width: auto; transform: none; padding: 14px 16px; }
+      .panel-top, .spec-grid, .panel-hint { display: none; }
+      .part-name { display: inline; margin-right: 10px; font-size: 17px; }
+      .part-desc { display: inline; min-height: 0; font-size: 9px; line-height: 1.4; }
+      .bottom-bar { display: none; }
+      h1 { font-size: 25px; }
+      h1 small, .edition { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="viewport" aria-label="交互式三维机械腕表"></div>
+    <div class="grain"></div><div class="vignette"></div>
+
+    <header>
+      <div class="brand">
+        <div class="eyebrow">Maison Serein · Genève</div>
+        <h1>Calibre S—01 <small>Squelette</small></h1>
+        <div class="edition">Pièce unique · No. 01 / 25</div>
+      </div>
+      <div class="top-actions">
+        <button id="explodeBtn" type="button">Exploded view</button>
+        <button id="motionBtn" class="active" type="button"><span class="dot"></span>Movement</button>
+      </div>
+    </header>
+
+    <aside class="side-panel">
+      <div class="panel-top"><span class="panel-kicker">Movement architecture</span><span id="partIndex" class="panel-index">01 / 08</span></div>
+      <h2 id="partName" class="part-name">S-01 手动上链机芯</h2>
+      <p id="partDesc" class="part-desc">悬浮式镂空结构，以多层夹板呈现机械能从发条盒至擒纵系统的完整路径。悬停探索，点击锁定部件。</p>
+      <div class="spec-grid">
+        <div class="spec"><b>72 h</b><span>动力储存</span></div>
+        <div class="spec"><b>21,600</b><span>振频 vph</span></div>
+        <div class="spec"><b>29</b><span>红宝石轴承</span></div>
+        <div class="spec"><b>4.8 mm</b><span>机芯厚度</span></div>
+      </div>
+      <div class="panel-hint"><i class="mouse-icon"></i><span>拖曳旋转 · 滚轮缩放 · 点击锁定</span></div>
+    </aside>
+
+    <div class="bottom-bar">
+      <div class="calibre"><strong>In-house calibre S-01</strong>Hand-wound · 41 mm · Grade 5 titanium</div>
+      <div class="status"><span>Real-time simulation</span><span>60 fps target</span></div>
+    </div>
+    <div id="tooltip"><b></b><span></span></div>
+    <div id="loader" class="loader"><div class="loader-inner"><div class="loader-mark"></div><div class="loader-text">Assembling calibre</div></div></div>
+  </div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+    const mount = document.querySelector('#viewport');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x070a0b, 0.026);
+
+    const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, .1, 100);
+    camera.position.set(0, 1.35, 25.6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    mount.appendChild(renderer.domElement);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture;
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = .055;
+    controls.minDistance = 14;
+    controls.maxDistance = 31;
+    controls.enablePan = false;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = .42;
+    controls.target.set(-.8, 0, 0);
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .32, .65, .82);
+    composer.addPass(bloom);
+
+    const aniso = renderer.capabilities.getMaxAnisotropy();
+    function brushedTexture(base = '#8b806b', bright = '#bcb095') {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 64;
+      const x = c.getContext('2d');
+      const g = x.createLinearGradient(0,0,512,0); g.addColorStop(0, base); g.addColorStop(.5, bright); g.addColorStop(1, base);
+      x.fillStyle = g; x.fillRect(0,0,512,64);
+      for (let i=0;i<900;i++) { const a = Math.random()*.075; x.fillStyle = `rgba(255,255,255,${a})`; x.fillRect(Math.random()*512, Math.random()*64, Math.random()*46+4, .35); }
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2,2); t.anisotropy = aniso; return t;
+    }
+    function radialTexture() {
+      const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
+      x.fillStyle='#5e5546'; x.fillRect(0,0,256,256); x.translate(128,128);
+      for(let i=0;i<500;i++){ x.rotate(.031); x.strokeStyle=`rgba(245,224,183,${Math.random()*.055})`; x.beginPath(); x.moveTo(8,0); x.lineTo(124,0); x.stroke(); }
+      const t=new THREE.CanvasTexture(c); t.anisotropy=aniso; return t;
+    }
+
+    const MAT = {
+      titanium: new THREE.MeshPhysicalMaterial({ color:0x818987, metalness:1, roughness:.21, clearcoat:.25, clearcoatRoughness:.12, map:brushedTexture('#5c6261','#9da3a0') }),
+      darkMetal: new THREE.MeshStandardMaterial({ color:0x171c1c, metalness:.95, roughness:.24 }),
+      black: new THREE.MeshStandardMaterial({ color:0x080b0b, metalness:.78, roughness:.34 }),
+      gold: new THREE.MeshPhysicalMaterial({ color:0xc6a15d, metalness:1, roughness:.2, clearcoat:.24, map:brushedTexture('#7c6035','#d4b778') }),
+      rose: new THREE.MeshPhysicalMaterial({ color:0xb87355, metalness:1, roughness:.23, clearcoat:.25 }),
+      steel: new THREE.MeshPhysicalMaterial({ color:0xcbd0cd, metalness:1, roughness:.15, clearcoat:.35 }),
+      plate: new THREE.MeshPhysicalMaterial({ color:0x70695c, metalness:1, roughness:.28, clearcoat:.22, map:radialTexture(), side:THREE.DoubleSide }),
+      ruby: new THREE.MeshPhysicalMaterial({ color:0x8f001b, emissive:0x3c0008, emissiveIntensity:.85, metalness:.08, roughness:.16, transmission:.18, thickness:.4, clearcoat:1 }),
+      sapphire: new THREE.MeshPhysicalMaterial({ color:0xa6d7db, transparent:true, opacity:.11, transmission:.92, thickness:.35, roughness:.04, metalness:0, clearcoat:1, clearcoatRoughness:.02, side:THREE.DoubleSide, depthWrite:false }),
+      lume: new THREE.MeshStandardMaterial({ color:0xcaffd7, emissive:0x6affaa, emissiveIntensity:2.7, metalness:0, roughness:.25 }),
+      screw: new THREE.MeshPhysicalMaterial({ color:0x547da1, emissive:0x071727, metalness:1, roughness:.14, clearcoat:.5 }),
+      spring: new THREE.MeshPhysicalMaterial({ color:0x5e91bd, metalness:1, roughness:.17, clearcoat:.4 }),
+      shadow: new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:.24, depthWrite:false })
+    };
+
+    const root = new THREE.Group();
+    root.rotation.set(-.12, .03, -.04);
+    root.position.x = innerWidth > 800 ? -1.1 : 0;
+    scene.add(root);
+    const selectable = [], animGears = [], rubyMats = [];
+    const explodedParts = [];
+    const partDefs = [
+      { id:'movement', name:'S-01 手动上链机芯', sub:'CALIBRE ARCHITECTURE', desc:'悬浮式镂空结构，以多层夹板呈现机械能从发条盒至擒纵系统的完整路径。悬停探索，点击锁定部件。' },
+      { id:'barrel', name:'双层主发条盒', sub:'TWIN MAINSPRING BARREL', desc:'两枚串联发条储存 72 小时动力，开放式发条盒可直接观察扭矩释放过程。' },
+      { id:'train', name:'传动齿轮系', sub:'GOING TRAIN', desc:'经过精密倒角与环形打磨的轮系，将发条能量稳定传递至擒纵轮。' },
+      { id:'balance', name:'可变惯量摆轮', sub:'FREE-SPRUNG BALANCE', desc:'大型六臂摆轮以 3 Hz 往复振荡，蓝钢宝玑游丝维持恒定等时性。' },
+      { id:'escapement', name:'瑞士杠杆擒纵', sub:'LEVER ESCAPEMENT', desc:'擒纵轮、擒纵叉与两枚红宝石叉瓦，将连续能量切分为精准节拍。' },
+      { id:'bridges', name:'镂空夹板', sub:'SKELETON BRIDGES', desc:'手工拉丝夹板采用长弧倒角与镜面抛光边缘，在刚度与通透感间取得平衡。' },
+      { id:'jewels', name:'合成红宝石轴承', sub:'RUBY JEWELS', desc:'29 枚红宝石以金质套筒固定，降低关键轴榫摩擦并延长机芯寿命。' },
+      { id:'hands', name:'夜光镂空指针', sub:'LUMINOUS HANDSET', desc:'手工抛光指针嵌入 Super-LumiNova 夜光涂层，在暗光环境保持清晰读时。' }
+    ];
+
+    function setPart(object, id, explodeZ=0, explodeXY=null) {
+      const def = partDefs.find(p=>p.id===id);
+      object.userData.part = def;
+      object.traverse(o => { if (o.isMesh) { o.userData.part = def; selectable.push(o); o.castShadow = true; o.receiveShadow = true; } });
+      object.userData.home = object.position.clone();
+      object.userData.explode = object.position.clone().add(new THREE.Vector3(explodeXY?.[0]||0, explodeXY?.[1]||0, explodeZ));
+      explodedParts.push(object);
+      return object;
+    }
+    function cylinder(r, h, mat, segments=64) { const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,segments),mat); m.rotation.x=Math.PI/2; return m; }
+    function ring(outer, tube, mat, z=0) { const m=new THREE.Mesh(new THREE.TorusGeometry(outer,tube,12,96),mat); m.position.z=z; return m; }
+    function bolt(x,y,z=.42,scale=1) {
+      const g=new THREE.Group(), head=cylinder(.115*scale,.07*scale,MAT.screw,24); head.position.set(x,y,z); g.add(head);
+      const slot=new THREE.Mesh(new THREE.BoxGeometry(.135*scale,.025*scale,.076*scale),MAT.darkMetal); slot.position.set(x,y,z+.042*scale); g.add(slot); return g;
+    }
+    function jewel(x,y,z=.34,s=.115) {
+      const g=new THREE.Group(); g.position.set(x,y,z);
+      const setting=ring(s*1.35,s*.23,MAT.gold,.005); g.add(setting);
+      const j=new THREE.Mesh(new THREE.CylinderGeometry(s,s*.78,.09,32),MAT.ruby); j.rotation.x=Math.PI/2; j.position.z=.03; g.add(j); rubyMats.push(j.material); return g;
+    }
+    function roundedRectShape(w,h,r) {
+      const s=new THREE.Shape(); s.moveTo(-w/2+r,-h/2); s.lineTo(w/2-r,-h/2); s.quadraticCurveTo(w/2,-h/2,w/2,-h/2+r); s.lineTo(w/2,h/2-r); s.quadraticCurveTo(w/2,h/2,w/2-r,h/2); s.lineTo(-w/2+r,h/2); s.quadraticCurveTo(-w/2,h/2,-w/2,h/2-r); s.lineTo(-w/2,-h/2+r); s.quadraticCurveTo(-w/2,-h/2,-w/2+r,-h/2); return s;
+    }
+
+    // Case, bezel, sapphire crystal and characteristic lugs
+    const caseGroup=new THREE.Group();
+    caseGroup.add(ring(6.02,.34,MAT.titanium,0), ring(5.65,.075,MAT.gold,.28), ring(5.93,.09,MAT.steel,.34));
+    const caseSide=ring(5.95,.32,MAT.darkMetal,-.34); caseGroup.add(caseSide);
+    const crystal=cylinder(5.62,.055,MAT.sapphire,96); crystal.position.z=.82; caseGroup.add(crystal);
+    const caseBack=cylinder(5.56,.045,MAT.sapphire,96); caseBack.position.z=-.78; caseGroup.add(caseBack);
+    for(const sy of [-1,1]) for(const sx of [-1,1]) {
+      const lug=new THREE.Mesh(new THREE.BoxGeometry(1.02,2.0,.68),MAT.titanium); lug.position.set(sx*4.72,sy*5.33,-.08); lug.rotation.z=-sx*sy*.19; lug.geometry.translate(0,sy*.18,0); caseGroup.add(lug);
+      const lugCut=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,1.2,24),MAT.darkMetal); lugCut.rotation.z=Math.PI/2; lugCut.position.set(sx*4.72,sy*6.05,-.08); caseGroup.add(lugCut);
+    }
+    // Crown and stem
+    const crown=new THREE.Group(); crown.position.set(6.52,0,-.02); crown.rotation.y=Math.PI/2;
+    crown.add(cylinder(.64,.48,MAT.titanium,32));
+    for(let i=0;i<22;i++){ const rib=new THREE.Mesh(new THREE.BoxGeometry(.055,.18,.62),MAT.steel); const a=i/22*Math.PI*2; rib.position.set(Math.cos(a)*.57,0,Math.sin(a)*.57); rib.rotation.y=-a; crown.add(rib); }
+    caseGroup.add(crown);
+    root.add(caseGroup);
+
+    // Open-work base plate and peripheral minute track
+    const base=new THREE.Group();
+    base.add(ring(5.20,.105,MAT.plate,-.27));
+    for(let i=0;i<12;i++){
+      const a=i/12*Math.PI*2; const major=i%3===0;
+      const mark=new THREE.Mesh(new THREE.BoxGeometry(major?.17:.095,major?.72:.47,.11),MAT.lume);
+      mark.position.set(Math.sin(a)*4.83,Math.cos(a)*4.83,.56); mark.rotation.z=-a; base.add(mark);
+      for(let k=1;k<5;k++){ const ma=a+k/60*Math.PI*2; const minor=new THREE.Mesh(new THREE.BoxGeometry(.035,.20,.04),MAT.steel); minor.position.set(Math.sin(ma)*5.04,Math.cos(ma)*5.04,.46); minor.rotation.z=-ma; base.add(minor); }
+    }
+    root.add(base);
+
+    // Open skeleton bridges made from extruded curved bars
+    const bridges=new THREE.Group();
+    const bridgeData=[
+      [-2.6,2.55,4.4,.56,-.28], [1.75,2.78,3.3,.46,.32], [2.85,-.5,3.75,.52,1.12],
+      [-2.8,-2.65,3.35,.56,.35], [.15,-3.92,3.8,.46,-.12]
+    ];
+    bridgeData.forEach(([x,y,w,h,r],i)=>{
+      const shape=roundedRectShape(w,h,.23); const geo=new THREE.ExtrudeGeometry(shape,{depth:.18,bevelEnabled:true,bevelThickness:.055,bevelSize:.065,bevelSegments:3}); geo.center();
+      const b=new THREE.Mesh(geo,MAT.plate); b.position.set(x,y,.18+i*.012); b.rotation.z=r; bridges.add(b);
+      const edge=new THREE.LineSegments(new THREE.EdgesGeometry(geo,28),new THREE.LineBasicMaterial({color:0xd6c59d,transparent:true,opacity:.38})); edge.position.copy(b.position); edge.rotation.copy(b.rotation); bridges.add(edge);
+    });
+    [[-4.35,1.85],[-3.55,-3.75],[.8,3.98],[4.12,1.65],[3.2,-3.55]].forEach(p=>bridges.add(bolt(p[0],p[1],.36,.9)));
+    root.add(setPart(bridges,'bridges',1.8,[0,.35]));
+
+    function createGear(radius, teeth, mat, spokeCount=5, thickness=.18, hub=.25) {
+      const g=new THREE.Group();
+      const rim=ring(radius*.78,radius*.085,mat,0); g.add(rim);
+      for(let i=0;i<teeth;i++){
+        const a=i/teeth*Math.PI*2; const tooth=new THREE.Mesh(new THREE.BoxGeometry(radius*.115,radius*.23,thickness),mat);
+        tooth.position.set(Math.sin(a)*radius*.93,Math.cos(a)*radius*.93,0); tooth.rotation.z=-a; g.add(tooth);
+      }
+      for(let i=0;i<spokeCount;i++){
+        const a=i/spokeCount*Math.PI*2; const spoke=new THREE.Mesh(new THREE.BoxGeometry(radius*.12,radius*1.25,thickness*.72),mat);
+        spoke.position.set(Math.sin(a)*radius*.31,Math.cos(a)*radius*.31,0); spoke.rotation.z=-a; g.add(spoke);
+      }
+      g.add(cylinder(hub,thickness*1.2,mat,32));
+      const pivot=cylinder(hub*.35,thickness*1.8,MAT.steel,20); pivot.position.z=.02; g.add(pivot);
+      return g;
+    }
+
+    // Mainspring barrel with a visible coiled spring
+    const barrel=new THREE.Group(); barrel.position.set(-2.15,1.55,.04);
+    const barrelWheel=createGear(1.73,72,MAT.gold,6,.22,.32); barrel.add(barrelWheel);
+    barrel.add(ring(1.37,.08,MAT.darkMetal,.09), ring(.43,.08,MAT.gold,.12));
+    const springPts=[]; for(let i=0;i<210;i++){const a=i*.16, r=.20+i/210*1.04; springPts.push(new THREE.Vector3(Math.cos(a)*r,Math.sin(a)*r,.14));}
+    const springCurve=new THREE.CatmullRomCurve3(springPts); const spring=new THREE.Mesh(new THREE.TubeGeometry(springCurve,280,.024,5,false),MAT.spring); barrel.add(spring);
+    barrel.add(jewel(0,0,.20,.15));
+    root.add(setPart(barrel,'barrel',1.05,[-.8,.65])); animGears.push({o:barrelWheel,s:.045});
+
+    // Gear train, pinions and jewels
+    const train=new THREE.Group();
+    const gearSpecs=[
+      [.25,.65,1.16,48,MAT.rose,5,.12], [2.06,1.62,.88,38,MAT.gold,5,-.22],
+      [2.95,.12,.75,34,MAT.rose,5,.15], [1.93,-1.38,.88,40,MAT.gold,6,-.18],
+      [.36,-1.70,.67,30,MAT.rose,5,.24], [-.82,-.72,.57,26,MAT.gold,5,-.30]
+    ];
+    gearSpecs.forEach((s,i)=>{const g=createGear(s[2],s[3],s[4],s[5],.14,.19); g.position.set(s[0],s[1],.25+i*.018); train.add(g); train.add(jewel(s[0],s[1],.40+i*.018,.105)); animGears.push({o:g,s:s[6]});});
+    root.add(setPart(train,'train',.8,[.55,.1]));
+
+    // Balance wheel and free-sprung spiral
+    const balance=new THREE.Group(); balance.position.set(-2.18,-2.43,.43);
+    const balanceWheel=new THREE.Group(); balanceWheel.add(ring(1.42,.105,MAT.gold,0));
+    for(let i=0;i<6;i++){const a=i/6*Math.PI*2; const spoke=new THREE.Mesh(new THREE.BoxGeometry(.12,1.23,.13),MAT.gold); spoke.position.set(Math.sin(a)*.60,Math.cos(a)*.60,0); spoke.rotation.z=-a; balanceWheel.add(spoke); const weight=cylinder(.14,.14,MAT.rose,20); weight.position.set(Math.sin(a)*1.26,Math.cos(a)*1.26,.02); balanceWheel.add(weight);}
+    balanceWheel.add(cylinder(.24,.20,MAT.steel,28)); balance.add(balanceWheel);
+    const spiralPts=[]; for(let i=0;i<260;i++){const a=i*.17,r=.12+i/260*1.18;spiralPts.push(new THREE.Vector3(Math.cos(a)*r,Math.sin(a)*r,.20));}
+    const hairspring=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(spiralPts),360,.018,5,false),MAT.spring); balance.add(hairspring);
+    balance.add(jewel(0,0,.28,.16));
+    root.add(setPart(balance,'balance',2.45,[-.7,-.5]));
+
+    // Swiss lever escapement and escape wheel
+    const escapement=new THREE.Group(); escapement.position.set(.18,-3.02,.40);
+    const escapeWheel=createGear(.67,15,MAT.gold,5,.11,.13); escapement.add(escapeWheel); animGears.push({o:escapeWheel,s:.38});
+    const forkShape=new THREE.Shape(); forkShape.moveTo(-.14,-.18); forkShape.lineTo(-.52,.55); forkShape.lineTo(-.30,.70); forkShape.lineTo(0,.25); forkShape.lineTo(.30,.70); forkShape.lineTo(.52,.55); forkShape.lineTo(.14,-.18); forkShape.closePath();
+    const fork=new THREE.Mesh(new THREE.ExtrudeGeometry(forkShape,{depth:.10,bevelEnabled:true,bevelSize:.025,bevelThickness:.025}),MAT.steel); fork.position.set(.05,.93,.08); escapement.add(fork);
+    for(const x of [-.39,.39]){const pallet=new THREE.Mesh(new THREE.BoxGeometry(.19,.10,.14),MAT.ruby); pallet.position.set(x,.60,.17); pallet.rotation.z=x*.8; escapement.add(pallet);}
+    escapement.add(jewel(0,1.04,.19,.11));
+    root.add(setPart(escapement,'escapement',2.0,[.35,-.8]));
+
+    // Jewel settings across the movement
+    const jewels=new THREE.Group();
+    [[-3.78,.45],[-3.58,3.15],[-.72,3.28],[3.65,2.35],[3.82,-1.18],[2.48,-3.44],[-1.08,-4.04]].forEach(([x,y],i)=>jewels.add(jewel(x,y,.34+(i%2)*.025,.11)));
+    root.add(setPart(jewels,'jewels',1.45,[.2,0]));
+
+    // Central cannon pinion, skeleton hands and luminous inserts
+    const hands=new THREE.Group(); hands.position.z=.66;
+    function makeHand(length,width,colorMat,angle,z) {
+      const g=new THREE.Group(); g.rotation.z=angle; g.position.z=z;
+      const outline=new THREE.Mesh(new THREE.BoxGeometry(width,length,.085),MAT.steel); outline.position.y=length*.33; g.add(outline);
+      const lume=new THREE.Mesh(new THREE.BoxGeometry(width*.42,length*.64,.10),colorMat); lume.position.y=length*.38; g.add(lume);
+      const tail=new THREE.Mesh(new THREE.BoxGeometry(width*.72,length*.18,.08),MAT.steel); tail.position.y=-length*.12; g.add(tail); return g;
+    }
+    const hourHand=makeHand(2.75,.26,MAT.lume,-.88,.04), minuteHand=makeHand(3.72,.19,MAT.lume,.43,.12);
+    const secondHand=new THREE.Group(); secondHand.rotation.z=2.18; secondHand.position.z=.22; const sec=new THREE.Mesh(new THREE.BoxGeometry(.035,4.24,.045),MAT.rose); sec.position.y=1.64; secondHand.add(sec); secondHand.add(ring(.28,.025,MAT.rose,.015));
+    hands.add(hourHand,minuteHand,secondHand,cylinder(.23,.25,MAT.gold,32));
+    root.add(setPart(hands,'hands',3.3,[0,0]));
+
+    // Micro engraved signature and reference markings via canvas textures
+    function labelSprite(text, size=44, color='#c9ac72') {
+      const c=document.createElement('canvas'); c.width=640; c.height=100; const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height); x.fillStyle=color; x.textAlign='center'; x.textBaseline='middle'; x.font=`500 ${size}px Georgia`; x.fillText(text,320,50);
+      const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; const m=new THREE.SpriteMaterial({map:t,transparent:true,opacity:.74,depthTest:true}); const s=new THREE.Sprite(m); s.scale.set(3.6,.56,1); return s;
+    }
+    const signature=labelSprite('MAISON SEREIN  •  GENÈVE',31); signature.position.set(1.25,3.72,.44); root.add(signature);
+    const ref=labelSprite('CAL. S—01   ·   29 JEWELS',24,'#9c917a'); ref.position.set(1.55,-4.14,.42); ref.scale.set(2.9,.45,1); root.add(ref);
+
+    // Studio lighting and reflective ground
+    const key=new THREE.SpotLight(0xffe3b0,62,45,.44,.55,1.3); key.position.set(-8,11,14); key.target.position.set(0,0,0); key.castShadow=true; key.shadow.mapSize.set(1024,1024); key.shadow.bias=-.0003; scene.add(key,key.target);
+    const rimLight=new THREE.SpotLight(0x8fc7d5,48,40,.54,.75,1.4); rimLight.position.set(10,2,9); rimLight.target.position.set(0,0,0); scene.add(rimLight,rimLight.target);
+    const fill=new THREE.PointLight(0xc29d68,20,25,1.7); fill.position.set(-5,-8,7); scene.add(fill);
+    const topLight=new THREE.PointLight(0xf2f5f1,14,24,1.4); topLight.position.set(0,8,5); scene.add(topLight);
+    const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,40),new THREE.MeshPhysicalMaterial({color:0x080b0c,metalness:.6,roughness:.31,transparent:true,opacity:.72})); floor.position.set(0,-9,-6); floor.rotation.x=-1.36; floor.receiveShadow=true; scene.add(floor);
+    const halo=new THREE.Mesh(new THREE.RingGeometry(6.4,10,96),new THREE.MeshBasicMaterial({color:0x8b6c3b,transparent:true,opacity:.025,side:THREE.DoubleSide})); halo.position.z=-1.5; scene.add(halo);
+
+    // Interaction and component information
+    const raycaster=new THREE.Raycaster(), pointer=new THREE.Vector2(9,9);
+    const tooltip=document.querySelector('#tooltip'), ttName=tooltip.querySelector('b'), ttSub=tooltip.querySelector('span');
+    const partName=document.querySelector('#partName'), partDesc=document.querySelector('#partDesc'), partIndex=document.querySelector('#partIndex');
+    let hovered=null, selected=null, exploded=false, motion=true, explodeMix=0, pointerMoved=false;
+    const originalMaterials=new WeakMap();
+    const highlightMat=new THREE.MeshPhysicalMaterial({color:0xe4c47f,emissive:0x65420d,emissiveIntensity:.48,metalness:.9,roughness:.18,clearcoat:.5});
+    function revealPart(def){const i=partDefs.indexOf(def);partName.textContent=def.name;partDesc.textContent=def.desc;partIndex.textContent=String(i+1).padStart(2,'0')+' / '+String(partDefs.length).padStart(2,'0');}
+    function restore(o){if(o&&originalMaterials.has(o)){o.material=originalMaterials.get(o);originalMaterials.delete(o);}}
+    function highlight(o){
+      if(!o||o===selected){hovered=o;return;}
+      if(hovered&&hovered!==selected)restore(hovered);
+      if(o.material&&o.material!==MAT.sapphire&&!originalMaterials.has(o)){originalMaterials.set(o,o.material);o.material=highlightMat;}
+      hovered=o;
+    }
+    renderer.domElement.addEventListener('pointermove',e=>{
+      pointer.x=e.clientX/innerWidth*2-1; pointer.y=-(e.clientY/innerHeight)*2+1; pointerMoved=true;
+      tooltip.style.left=e.clientX+'px'; tooltip.style.top=e.clientY+'px';
+    });
+    renderer.domElement.addEventListener('pointerleave',()=>{pointer.set(9,9);tooltip.classList.remove('visible');if(hovered!==selected)restore(hovered);hovered=selected;});
+    renderer.domElement.addEventListener('click',()=>{
+      if(!hovered){restore(selected);selected=null;revealPart(partDefs[0]);return;}
+      const picked=hovered;
+      if(selected&&selected!==picked)restore(selected);
+      selected=picked;
+      if(selected.material!==MAT.sapphire&&!originalMaterials.has(selected)){originalMaterials.set(selected,selected.material);selected.material=highlightMat;}
+      revealPart(selected.userData.part);
+    });
+    renderer.domElement.addEventListener('dblclick',()=>{camera.position.set(0,1.35,25.6);controls.target.set(-.8,0,0);});
+
+    const explodeBtn=document.querySelector('#explodeBtn'), motionBtn=document.querySelector('#motionBtn');
+    explodeBtn.addEventListener('click',()=>{exploded=!exploded;explodeBtn.classList.toggle('active',exploded);explodeBtn.textContent=exploded?'Assemble':'Exploded view';});
+    motionBtn.addEventListener('click',()=>{motion=!motion;motionBtn.classList.toggle('active',motion);motionBtn.innerHTML=`<span class="dot"></span>${motion?'Movement':'Paused'}`;});
+
+    const clock=new THREE.Clock(); let elapsed=0;
+    function animate(){
+      requestAnimationFrame(animate); const dt=Math.min(clock.getDelta(),.04); if(motion) elapsed+=dt;
+      controls.update();
+      const target=exploded?1:0; explodeMix+= (target-explodeMix)*(1-Math.pow(.0004,dt));
+      explodedParts.forEach(o=>o.position.lerpVectors(o.userData.home,o.userData.explode,explodeMix));
+      if(motion){
+        animGears.forEach(g=>g.o.rotation.z+=dt*g.s);
+        const beat=Math.sin(elapsed*Math.PI*6); balance.rotation.z=beat*.34;
+        hairspring.scale.setScalar(1+beat*.022);
+        fork.rotation.z=Math.sin(elapsed*Math.PI*6+.8)*.16;
+        secondHand.rotation.z=-elapsed*.105+2.18;
+        hourHand.rotation.z=-.88-elapsed*.00015; minuteHand.rotation.z=.43-elapsed*.0018;
+        spring.rotation.z-=dt*.012;
+      }
+      root.rotation.y += motion && controls.autoRotate ? dt*.05 : 0;
+      if(pointerMoved){
+        raycaster.setFromCamera(pointer,camera); const hits=raycaster.intersectObjects(selectable,false); const hit=hits.find(h=>h.object.material!==MAT.sapphire)?.object || null;
+        if(hit){ highlight(hit); const d=hit.userData.part; ttName.textContent=d.name; ttSub.textContent=d.sub; tooltip.classList.add('visible'); if(!selected)revealPart(d); }
+        else { tooltip.classList.remove('visible'); if(hovered!==selected)restore(hovered); hovered=selected; if(!selected)revealPart(partDefs[0]); }
+      }
+      const pulse=.78+Math.sin(elapsed*2.4)*.16; MAT.lume.emissiveIntensity=2.55+pulse*.25; MAT.ruby.emissiveIntensity=.72+pulse*.17;
+      composer.render();
+    }
+    animate();
+
+    addEventListener('resize',()=>{
+      camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); composer.setSize(innerWidth,innerHeight);
+      root.position.x=innerWidth>800?-1.1:0; camera.position.z=innerWidth<650?28:25.6;
+    });
+    setTimeout(()=>document.querySelector('#loader').classList.add('done'),650);
+  </script>
+</body>
+</html>

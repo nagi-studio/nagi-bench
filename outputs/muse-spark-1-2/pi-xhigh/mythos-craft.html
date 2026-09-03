@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>神话境界 · Mythos Craft</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0e18;font-family:"PingFang SC","Microsoft YaHei",Segoe UI,system-ui,sans-serif}
+#canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#overlay{position:fixed;inset:0;pointer-events:none}
+#crosshair{position:absolute;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%)}
+#crosshair:before,#crosshair:after{content:"";position:absolute;background:rgba(255,255,255,0.95);box-shadow:0 0 4px rgba(0,0,0,0.6)}
+#crosshair:before{left:10px;top:0;width:2px;height:22px}#crosshair:after{left:0;top:10px;width:22px;height:2px}
+#hudTop{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px;gap:12px}
+.panel{background:rgba(14,18,30,0.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.13);border-radius:14px;padding:10px 14px;color:#e8eefc;box-shadow:0 8px 32px rgba(0,0,0,0.45)}
+.panel h1{font-size:15px;letter-spacing:0.12em;font-weight:800}
+.panel p{font-size:12px;opacity:0.82;line-height:1.5;margin-top:4px}
+#hotbar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}
+.slot{width:62px;height:62px;border-radius:12px;background:rgba(16,20,34,0.78);border:2px solid rgba(255,255,255,0.12);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#e6ebf7;cursor:pointer;transition:all .15s}
+.slot.active{border-color:#78e6ff;background:rgba(45,170,210,0.28);box-shadow:0 0 0 3px rgba(120,230,255,0.18),0 8px 24px rgba(0,0,0,0.45);transform:translateY(-3px)}
+.slot b{font-size:11px;letter-spacing:0.06em;margin-top:4px}
+.slot i{width:28px;height:28px;border-radius:6px;display:block;border:1px solid rgba(255,255,255,0.2)}
+#tips{position:absolute;left:16px;bottom:18px;max-width:360px}
+#tips .k{display:inline-block;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.18);font-size:11px;margin:2px 4px 2px 0}
+#centerMsg{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);text-align:center;color:#fff;pointer-events:auto;max-width:640px;width:92%}
+#centerMsg .card{background:rgba(8,12,22,0.84);border:1px solid rgba(120,230,255,0.25);border-radius:20px;padding:26px 22px;box-shadow:0 16px 60px rgba(0,0,0,0.6);backdrop-filter:blur(10px)}
+#centerMsg h2{font-size:28px;letter-spacing:0.14em}
+#centerMsg h3{font-size:13px;opacity:0.78;letter-spacing:0.22em;margin-top:6px;font-weight:600}
+#centerMsg p{font-size:13px;line-height:1.7;opacity:0.88;margin-top:14px;text-align:left}
+#btnEnter{margin-top:16px;padding:12px 22px;border-radius:999px;border:none;background:linear-gradient(135deg,#78e6ff,#6a7Cff 60%,#9b6cff);color:#0b1220;font-weight:800;letter-spacing:0.12em;cursor:pointer;font-size:14px;box-shadow:0 8px 24px rgba(106,124,255,0.45)}
+#btnEnter:hover{filter:brightness(1.07)}
+#stats{position:absolute;right:16px;bottom:18px;text-align:right;font-size:11px;line-height:1.6;opacity:0.9}
+#lockHint{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#dbe6ff;padding:6px 12px;border-radius:999px;font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none}
+#lockHint.show{opacity:1}
+@media(max-width:700px){#hudTop{flex-direction:column}#tips{right:16px;max-width:none}#centerMsg h2{font-size:22px}}
+</style>
+<script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="overlay">
+  <div id="crosshair"></div>
+  <div id="hudTop">
+    <div class="panel" style="min-width:280px">
+      <h1>神话境界 · MYTHOS CRAFT</h1>
+      <p>柏林噪声地形 · 第一人称体素沙盒 · 单文件一次生成<br/>天空神殿 · 世界树 · 龙脊山 · 浮空群岛 · 水晶圣坛 · 远古斗兽场</p>
+    </div>
+    <div class="panel" style="text-align:right">
+      <div style="font-size:12px;opacity:0.9">WASD 移动 · 鼠标环视 · 空格跳跃 · Shift 冲刺</div>
+      <div style="font-size:12px;opacity:0.9">左键破坏 · 右键放置 · 滚轮/数字键 切换方块 · ESC 解锁鼠标</div>
+      <div id="posInfo" style="margin-top:6px;font-size:11px;opacity:0.7;font-variant-numeric:tabular-nums">XYZ 0, 0, 0 · 方块 0</div>
+    </div>
+  </div>
+  <div id="lockHint">点击画面锁定鼠标以环视 · ESC 退出锁定</div>
+  <div id="tips" class="panel">
+    <div style="font-weight:700;font-size:12px;letter-spacing:0.08em;margin-bottom:6px">操作指南</div>
+    <div><span class="k">W</span><span class="k">A</span><span class="k">S</span><span class="k">D</span> 行走 &nbsp; <span class="k">Space</span> 跳跃 &nbsp; <span class="k">Shift</span> 奔跑</div>
+    <div style="margin-top:4px"><span class="k">鼠标</span> 环视 · <span class="k">左键</span> 破坏 · <span class="k">右键</span> 放置</div>
+    <div style="margin-top:4px"><span class="k">1</span>-<span class="k">6</span> / <span class="k">滚轮</span> 选方块 &nbsp; <span class="k">E</span> 飞行切换</div>
+    <div style="margin-top:8px;font-size:11px;opacity:0.78;line-height:1.5">提示：出生点面向天空神殿。越过彩虹桥可登浮空岛；世界树下有地窟入口，沿发光水晶可深入地下祭坛。按 E 开启飞行可俯瞰全境。</div>
+  </div>
+  <div id="stats" class="panel" style="padding:8px 12px">
+    <div id="biomeInfo">群系：云海平原</div>
+    <div id="blockInfo">目标：- · 可放置</div>
+  </div>
+  <div id="hotbar"></div>
+  <div id="centerMsg">
+    <div class="card">
+      <h2>步入神话</h2>
+      <h3>MYTHIC VOXEL REALM · ONE-SHOT WORLD</h3>
+      <p>
+        这是一座由噪声编织的大陆：中央是悬于云海之上的<b style="color:#8fe8ff">天空神殿</b>，四方各有传说——
+        北境<b style="color:#a8ffbf">世界树尤格</b>根系缠绕古城废墟；东方的<b style="color:#ffb86b">龙脊火山</b>仍在低鸣，熔岩顺黑曜石阶流向大地；
+        西侧<b style="color:#ffd66b">浮空群岛</b>以星光锁链相连；南面则是被遗忘的<b style="color:#9fb0ff">水晶斗兽场</b>。
+        每一寸地形都由柏林噪声现场生成，无两局相同的山谷与海岸。
+      </p>
+      <p style="margin-top:10px;opacity:0.82">点击下方进入，第一人称探索。所有建造与破坏均为体素实时运算，6 种手工材质，支持无限建造。建议先登神殿俯瞰，再选一条神话小径深入。</p>
+      <button id="btnEnter">点击进入 · CLICK TO ENTER</button>
+      <div style="margin-top:10px;font-size:11px;opacity:0.6">若无反应请再次点击画面任意处以锁定鼠标</div>
+    </div>
+  </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+
+// ---------- textures ----------
+function texCanvas(draw){
+  const c=document.createElement('canvas'); c.width=64; c.height=64;
+  const g=c.getContext('2d'); draw(g,64);
+  const t=new THREE.CanvasTexture(c); t.magFilter=THREE.NearestFilter; t.minFilter=THREE.NearestFilter; t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const T = {
+  grassTop: texCanvas((g,s)=>{
+    g.fillStyle='#3a8a2a'; g.fillRect(0,0,s,s);
+    g.fillStyle='#4eaa34'; for(let i=0;i<220;i++){const x=Math.random()*s,y=Math.random()*s; g.fillRect(x,y,2,2)}
+    g.fillStyle='#2f6e1f'; for(let i=0;i<90;i++) g.fillRect(Math.random()*s,Math.random()*s,1,1)
+    g.fillStyle='#6fbf4a'; for(let i=0;i<40;i++){const x=Math.random()*s,y=Math.random()*s; g.fillRect(x,y,3,1)}
+  }),
+  grassSide: texCanvas((g,s)=>{
+    g.fillStyle='#7a5a2e'; g.fillRect(0,0,s,s);
+    for(let y=0;y<s;y++){const v= (y<14? 0: y<18? 1: 0); if(v){g.fillStyle=y<16?'#4eaa34':'#3a8a2a'; g.fillRect(0,y,s,1)}}
+    g.fillStyle='#6d4e24'; for(let i=0;i<120;i++) g.fillRect(Math.random()*s,Math.random()*s,1,2)
+    g.fillStyle='#8a6a3a'; for(let i=0;i<60;i++) g.fillRect(Math.random()*s,Math.random()*s,1,1)
+  }),
+  dirt: texCanvas((g,s)=>{
+    g.fillStyle='#7a4f2a'; g.fillRect(0,0,s,s);
+    g.fillStyle='#8e5f33'; for(let i=0;i<180;i++) g.fillRect(Math.random()*s,Math.random()*s,2,2)
+    g.fillStyle='#5e3d1f'; for(let i=0;i<140;i++) g.fillRect(Math.random()*s,Math.random()*s,1,1)
+    g.fillStyle='#a67a44'; for(let i=0;i<70;i++) g.fillRect(Math.random()*s,Math.random()*s,1,1)
+  }),
+  stone: texCanvas((g,s)=>{
+    g.fillStyle='#8a8f98'; g.fillRect(0,0,s,s);
+    g.fillStyle='#9aa0aa'; for(let i=0;i<200;i++) g.fillRect(Math.random()*s,Math.random()*s,2,1)
+    g.fillStyle='#6b7078'; for(let i=0;i<160;i++) g.fillRect(Math.random()*s,Math.random()*s,1,2)
+    // cracks
+    g.strokeStyle='rgba(0,0,0,0.18)'; g.lineWidth=1;
+    for(let i=0;i<4;i++){g.beginPath(); g.moveTo(Math.random()*s,0); g.lineTo(Math.random()*s,s); g.stroke();}
+  }),
+  sand: texCanvas((g,s)=>{
+    g.fillStyle='#d9c48a'; g.fillRect(0,0,s,s);
+    g.fillStyle='#e8d6a6'; for(let i=0;i<220;i++) g.fillRect(Math.random()*s,Math.random()*s,1,1)
+    g.fillStyle='#c2a86a'; for(let i=0;i<120;i++) g.fillRect(Math.random()*s,Math.random()*s,1,1)
+  }),
+  wood: texCanvas((g,s)=>{
+    g.fillStyle='#7a4a1f'; g.fillRect(0,0,s,s);
+    g.fillStyle='#8f5a26'; for(let x=0;x<s;x+=4){g.fillRect(x,0,2,s)}
+    g.fillStyle='#5a3515'; for(let x=1;x<s;x+=8){g.fillRect(x,0,1,s)}
+    for(let i=0;i<8;i++){const y=8+i*7; g.fillStyle='rgba(0,0,0,0.18)'; g.fillRect(0,y,s,1)}
+  }),
+  woodTop: texCanvas((g,s)=>{
+    g.fillStyle='#9a6a2e'; g.fillRect(0,0,s,s);
+    g.strokeStyle='#5a3515'; g.lineWidth=2;
+    g.beginPath(); g.arc(s/2,s/2,22,0,Math.PI*2); g.stroke();
+    g.beginPath(); g.arc(s/2,s/2,14,0,Math.PI*2); g.stroke();
+    g.beginPath(); g.arc(s/2,s/2,6,0,Math.PI*2); g.stroke();
+  }),
+  leaves: texCanvas((g,s)=>{
+    g.fillStyle='#2d7a1e'; g.fillRect(0,0,s,s);
+    g.fillStyle='#3a9a27'; for(let i=0;i<260;i++) g.fillRect(Math.random()*s,Math.random()*s,3,2)
+    g.fillStyle='#1f5a14'; for(let i=0;i<160;i++) g.fillRect(Math.random()*s,Math.random()*s,2,1)
+    g.fillStyle='#6fcf3a'; for(let i=0;i<60;i++) g.fillRect(Math.random()*s,Math.random()*s,1,1)
+  }),
+  brick: texCanvas((g,s)=>{
+    g.fillStyle='#c9cbd2'; g.fillRect(0,0,s,s);
+    g.fillStyle='#dde0e8'; for(let y=0;y<s;y+=8){for(let x=(y/8%2?0:8);x<s;x+=16){g.fillRect(x+1,y+1,14,6)}}
+    g.fillStyle='rgba(20,30,60,0.18)'; for(let y=0;y<s;y+=8) g.fillRect(0,y,s,1); for(let x=0;x<s;x+=8) g.fillRect(x,0,1,s)
+  }),
+  mythBrick: texCanvas((g,s)=>{
+    g.fillStyle='#e8e4d8'; g.fillRect(0,0,s,s);
+    g.strokeStyle='rgba(180,160,110,0.9)'; g.lineWidth=1;
+    for(let y=0;y<=s;y+=16){g.beginPath();g.moveTo(0,y);g.lineTo(s,y);g.stroke();}
+    for(let x=0;x<=s;x+=16){g.beginPath();g.moveTo(x,0);g.lineTo(x,s);g.stroke();}
+    // rune
+    g.fillStyle='rgba(90,180,255,0.18)'; g.fillRect(6,6,52,4); g.fillRect(6,54,52,4);
+    g.fillStyle='rgba(255,210,80,0.22)'; g.beginPath(); g.arc(s/2,s/2,7,0,Math.PI*2); g.fill();
+  }),
+  crystal: texCanvas((g,s)=>{
+    g.fillStyle='#7bd0ff'; g.fillRect(0,0,s,s);
+    const grd=g.createLinearGradient(0,0,s,s); grd.addColorStop(0,'#aef0ff'); grd.addColorStop(0.5,'#57b7ff'); grd.addColorStop(1,'#1a3a7a');
+    g.fillStyle=grd; g.fillRect(0,0,s,s);
+    g.fillStyle='rgba(255,255,255,0.65)'; for(let i=0;i<30;i++){const x=Math.random()*s, y=Math.random()*s; g.fillRect(x,y,10,1)}
+  }),
+  obsidian: texCanvas((g,s)=>{
+    g.fillStyle='#0f0f14'; g.fillRect(0,0,s,s);
+    g.fillStyle='#1a1a24'; for(let i=0;i<180;i++) g.fillRect(Math.random()*s,Math.random()*s,2,1)
+    g.fillStyle='#5a2a8a'; for(let i=0;i<40;i++){const x=Math.random()*s,y=Math.random()*s; g.fillRect(x,y,1,6)}
+  }),
+};
+
+const BLOCKS = [
+  {id:'grass', name:'草地', mats: [new THREE.MeshLambertMaterial({map:T.grassSide}),new THREE.MeshLambertMaterial({map:T.grassSide}),new THREE.MeshLambertMaterial({map:T.grassTop}),new THREE.MeshLambertMaterial({map:T.dirt}),new THREE.MeshLambertMaterial({map:T.grassSide}),new THREE.MeshLambertMaterial({map:T.grassSide})]},
+  {id:'dirt', name:'泥土', mat:new THREE.MeshLambertMaterial({map:T.dirt})},
+  {id:'stone', name:'石头', mat:new THREE.MeshLambertMaterial({map:T.stone})},
+  {id:'sand', name:'沙砾', mat:new THREE.MeshLambertMaterial({map:T.sand})},
+  {id:'wood', name:'古木', mats: [new THREE.MeshLambertMaterial({map:T.wood}),new THREE.MeshLambertMaterial({map:T.wood}),new THREE.MeshLambertMaterial({map:T.woodTop}),new THREE.MeshLambertMaterial({map:T.woodTop}),new THREE.MeshLambertMaterial({map:T.wood}),new THREE.MeshLambertMaterial({map:T.wood})]},
+  {id:'myth', name:'神殿石', mat:new THREE.MeshLambertMaterial({map:T.mythBrick})},
+  {id:'brick', name:'白石砖', mat:new THREE.MeshLambertMaterial({map:T.brick})},
+  {id:'leaves', name:'树叶', mat:new THREE.MeshLambertMaterial({map:T.leaves})},
+  {id:'crystal', name:'星晶', mat:new THREE.MeshLambertMaterial({map:T.crystal, emissive:0x1a5a8a, emissiveIntensity:0.22})},
+  {id:'obsidian', name:'黑曜', mat:new THREE.MeshLambertMaterial({map:T.obsidian})},
+];
+const BLOCK_MAP = Object.fromEntries(BLOCKS.map(b=>[b.id,b]));
+
+function getMat(block){
+  if(block.mats) return block.mats;
+  return block.mat;
+}
+
+// ---------- scene ----------
+const canvas=document.getElementById('canvas');
+const renderer=new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x9ab6e8, 0.012);
+scene.background=new THREE.Color(0x87b9f0);
+
+const camera=new THREE.PerspectiveCamera(74, innerWidth/innerHeight, 0.1, 800);
+camera.position.set(2,18,28);
+
+const ambient=new THREE.HemisphereLight(0xddeeff, 0x2a1a0a, 1.1); scene.add(ambient);
+const sun=new THREE.DirectionalLight(0xfff6e0, 1.6); sun.position.set(60,80,30); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048); sun.shadow.camera.near=0.5; sun.shadow.camera.far=240;
+sun.shadow.camera.left=-90; sun.shadow.camera.right=90; sun.shadow.camera.top=90; sun.shadow.camera.bottom=-90;
+sun.shadow.bias=-0.0006; scene.add(sun);
+const fillLight=new THREE.DirectionalLight(0x8ec8ff, 0.45); fillLight.position.set(-40,30,-50); scene.add(fillLight);
+
+// sky dome
+{
+  const geo=new THREE.SphereGeometry(400,32,16);
+  const mat=new THREE.ShaderMaterial({
+    side:THREE.BackSide,
+    uniforms:{top:{value:new THREE.Color(0x6fb0ff)}, bottom:{value:new THREE.Color(0xe6f2ff)}, offset:{value:20}, exponent:{value:0.9}},
+    vertexShader:`varying vec3 vW;void main(){vW=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader:`uniform vec3 top,bottom; uniform float offset,exponent; varying vec3 vW; void main(){float h=normalize(vW+vec3(0.,offset,0.)).y; float f=max(pow(max(h,0.),exponent),0.); gl_FragColor=vec4(mix(bottom,top,f),1.);}`
+  });
+  scene.add(new THREE.Mesh(geo, mat));
+}
+
+// clouds
+{
+  const cg=new THREE.Group();
+  for(let i=0;i<18;i++){
+    const x=(Math.random()-0.5)*220, z=(Math.random()-0.5)*220, y=46+Math.random()*14;
+    const g=new THREE.Group();
+    const cnt=3+Math.floor(Math.random()*3);
+    for(let j=0;j<cnt;j++){
+      const m=new THREE.Mesh(new THREE.BoxGeometry(10+Math.random()*10,3,7+Math.random()*6), new THREE.MeshLambertMaterial({color:0xffffff, transparent:true, opacity:0.92}));
+      m.position.set((Math.random()-0.5)*10, (Math.random()-0.5)*1.2, (Math.random()-0.5)*6); m.castShadow=false; m.receiveShadow=false; g.add(m);
+    }
+    g.position.set(x,y,z); cg.add(g);
+  }
+  scene.add(cg);
+}
+
+// ---------- Perlin ----------
+class Perlin{
+  constructor(seed=1337){
+    this.p=new Uint8Array(512);
+    const perm=new Uint8Array(256); for(let i=0;i<256;i++) perm[i]=i;
+    let s=seed>>>0;
+    const rnd=()=> (s = (s*1664525+1013904223)>>>0)/4294967296;
+    for(let i=255;i>0;i--){const j=Math.floor(rnd()*(i+1)); const t=perm[i]; perm[i]=perm[j]; perm[j]=t;}
+    for(let i=0;i<512;i++) this.p[i]=perm[i&255];
+  }
+  fade(t){return t*t*t*(t*(t*6-15)+10)}
+  lerp(a,b,t){return a+t*(b-a)}
+  grad(h,x,y,z){
+    h&=15; const u=h<8?x:y, v=h<4?y:h===12||h===14?x:z;
+    return ((h&1)===0?u:-u)+((h&2)===0?v:-v);
+  }
+  noise(x,y,z=0){
+    const X=Math.floor(x)&255, Y=Math.floor(y)&255, Z=Math.floor(z)&255;
+    x-=Math.floor(x); y-=Math.floor(y); z-=Math.floor(z);
+    const u=this.fade(x), v=this.fade(y), w=this.fade(z);
+    const A=this.p[X]+Y, AA=this.p[A]+Z, AB=this.p[A+1]+Z;
+    const B=this.p[X+1]+Y, BA=this.p[B]+Z, BB=this.p[B+1]+Z;
+    return this.lerp(
+      this.lerp(this.lerp(this.grad(this.p[AA],x,y,z), this.grad(this.p[BA],x-1,y,z),u),
+                this.lerp(this.grad(this.p[AB],x,y-1,z), this.grad(this.p[BB],x-1,y-1,z),u),v),
+      this.lerp(this.lerp(this.grad(this.p[AA+1],x,y,z-1), this.grad(this.p[BA+1],x-1,y,z-1),u),
+                this.lerp(this.grad(this.p[AB+1],x,y-1,z-1), this.grad(this.p[BB+1],x-1,y-1,z-1),u),v), w);
+  }
+  fbm(x,y,oct=4){let a=1,f=1,s=0,n=0; for(let i=0;i<oct;i++){s+=this.noise(x*f,y*f)*a; n+=a; a*=0.5; f*=2} return s/n}
+}
+const perlin=new Perlin(20250903);
+
+// ---------- world storage ----------
+const boxGeo=new THREE.BoxGeometry(1,1,1);
+const world=new Map(); // key -> mesh
+const collisionSet=new Set(); // key "x,y,z"
+
+function key(x,y,z){return x+','+y+','+z}
+function addBlock(x,y,z, id){
+  const k=key(x,y,z); if(world.has(k)) return world.get(k);
+  const def=BLOCK_MAP[id]||BLOCK_MAP.stone;
+  const mat=getMat(def);
+  const m=new THREE.Mesh(boxGeo, mat);
+  m.position.set(x+0.5, y+0.5, z+0.5);
+  m.castShadow=true; m.receiveShadow=true;
+  m.userData={id, x,y,z};
+  scene.add(m); world.set(k,m); collisionSet.add(k); return m;
+}
+function removeBlock(x,y,z){
+  const k=key(x,y,z); const m=world.get(k); if(!m) return false;
+  scene.remove(m); world.delete(k); collisionSet.delete(k); return true;
+}
+function hasBlock(x,y,z){return collisionSet.has(key(x,y,z))}
+
+// ---------- terrain ----------
+const W=64, D=64, SEA=-2;
+for(let x=-W/2;x<W/2;x++){
+  for(let z=-D/2;z<D/2;z++){
+    const nx=(x+W/2)/W, nz=(z+D/2)/D;
+    const dx=(x)/ (W*0.5), dz=(z)/ (D*0.5); const dist=Math.sqrt(dx*dx+dz*dz);
+    // base height
+    let h = perlin.fbm(x*0.035+100, z*0.035+100, 5)* 9;
+    h += perlin.fbm(x*0.08, z*0.08, 3)*1.6;
+    h += perlin.fbm(x*0.015, z*0.015, 2)*3;
+    // central plateau lift for temple area
+    const centerFall=Math.max(0,1-dist*1.1);
+    h += centerFall*2;
+    // island edge falloff -> water
+    const edge = Math.max(0, dist - 0.82) * 18;
+    h -= edge;
+    let hi=Math.floor(h + 6);
+    if(hi < SEA+1) hi = SEA;
+    // water level at 0
+    const isBeach = hi<=1 && hi>=0;
+    const isHigh = hi>9;
+    for(let y= -4; y<=hi; y++){
+      if(y < hi-3) addBlock(x,y,z,'stone');
+      else if(y < hi-1) addBlock(x,y,z,'dirt');
+      else if(y===hi){
+        if(isBeach) addBlock(x,y,z,'sand');
+        else if(isHigh) addBlock(x,y,z,'stone');
+        else addBlock(x,y,z,'grass');
+      } else {
+        // just in case for hi==-2 etc ; bedrock
+        if(y<=SEA) addBlock(x,y,z,'stone');
+      }
+    }
+    // water plane visual for low areas handled separately
+    // sparse trees / rocks
+    const r = perlin.noise(x*0.2, z*0.2);
+    if(hi>1 && hi<9 && r>0.62 && Math.abs(x)>6 && Math.abs(z)>6 && Math.random()<0.07){
+      // small tree
+      const trunkH= 3+Math.floor(Math.random()*2);
+      for(let ty=1;ty<=trunkH;ty++) addBlock(x,hi+ty,z,'wood');
+      const top=hi+trunkH;
+      for(let dx=-2;dx<=2;dx++) for(let dz=-2;dz<=2;dz++) for(let dy=-1;dy<=1;dy++){
+        if(Math.abs(dx)===2 && Math.abs(dz)===2 && dy===1) continue;
+        const lx=x+dx, ly=top+dy, lz=z+dz;
+        if(dy===-1 && Math.abs(dx)<2 && Math.abs(dz)<2) continue;
+        if(!hasBlock(lx,ly,lz)) addBlock(lx,ly,lz,'leaves');
+      }
+      addBlock(x,top+1,z,'leaves');
+    }
+    if(hi>2 && hi<7 && r<-0.58 && Math.random()<0.04){
+      addBlock(x,hi+1,z,'stone'); if(Math.random()<0.5) addBlock(x,hi+2,z,'stone');
+    }
+  }
+}
+// water plane
+{
+  const waterGeo=new THREE.PlaneGeometry(W+6, D+6, 1,1);
+  const water=new THREE.Mesh(waterGeo, new THREE.MeshLambertMaterial({color:0x4a8fd6, transparent:true, opacity:0.62}));
+  water.rotation.x=-Math.PI/2; water.position.set(0, 0.02, 0); scene.add(water);
+  const water2=water.clone(); water2.material=water.material.clone(); water2.material.opacity=0.22; water2.position.y=-0.6; scene.add(water2);
+}
+
+// ---------- mythic structures ----------
+// helper to place volume
+function fillBox(x0,y0,z0,x1,y1,z1,id, hollow=false){
+  const xa=Math.min(x0,x1), xb=Math.max(x0,x1), ya=Math.min(y0,y1), yb=Math.max(y0,y1), za=Math.min(z0,z1), zb=Math.max(z0,z1);
+  for(let x=xa;x<=xb;x++) for(let y=ya;y<=yb;y++) for(let z=za;z<=zb;z++){
+    if(hollow && x>xa && x<xb && y>ya && y<yb && z>za && z<zb) continue;
+    addBlock(x,y,z,id);
+  }
+}
+function column(x,z,y0,y1,id='myth'){ for(let y=y0;y<=y1;y++) addBlock(x,y,z,id); }
+
+// 1) 天空神殿 Sky Temple at (0, ~9)
+(function skyTemple(){
+  const baseY=9;
+  // clear hilltop
+  for(let x=-7;x<=7;x++) for(let z=-7;z<=7;z++) for(let y=baseY;y<baseY+1;y++) if(hasBlock(x,y,z)) removeBlock(x,y,z);
+  // platform
+  fillBox(-7,baseY,-7, 7,baseY,7, 'myth');
+  fillBox(-6,baseY+1,-6, 6,baseY+1,6, 'brick');
+  // steps east side
+  for(let i=0;i<4;i++){
+    const s=5-i; fillBox(-s, baseY+1+i, 7+i, s, baseY+1+i, 7+i, 'brick');
+  }
+  // columns peristyle
+  const cols=[[-5,-5],[-5,5],[5,-5],[5,5],[-2,-5],[2,-5],[-2,5],[2,5],[-5,-2],[-5,2],[5,-2],[5,2]];
+  cols.forEach(([x,z])=> column(x, z, baseY+2, baseY+7, 'myth'));
+  // architrave
+  fillBox(-6,baseY+8,-6, 6,baseY+9,6, 'myth', true);
+  // inner cella
+  fillBox(-3,baseY+2,-2, 3,baseY+6,2, 'myth', true);
+  // altar
+  fillBox(-1,baseY+2,-1, 1,baseY+3,1, 'crystal');
+  addBlock(0,baseY+4,0,'crystal'); addBlock(0,baseY+5,0,'crystal');
+  // crystal roof ornament
+  column(0,0,baseY+10, baseY+14, 'crystal'); addBlock(0,baseY+15,0,'crystal'); addBlock(1,baseY+14,0,'crystal'); addBlock(-1,baseY+14,0,'crystal'); addBlock(0,baseY+14,1,'crystal'); addBlock(0,baseY+14,-1,'crystal');
+  // rainbow bridge to east floating island
+  for(let i=0;i<18;i++){
+    const x=8+i, y= baseY - Math.floor(Math.sin(i/18*Math.PI)*3), z=0;
+    addBlock(x,y,z,'myth'); addBlock(x,y,z+1,'myth'); addBlock(x,y,z-1,'myth');
+    if(i%3===0){ addBlock(x,y+1,z,'crystal'); }
+  }
+  // braziers
+  [[-4,-4],[-4,4],[4,-4],[4,4]].forEach(([x,z])=>{ addBlock(x,baseY+2,z,'obsidian'); addBlock(x,baseY+3,z,'crystal');});
+})();
+
+// 2) 浮空群岛 Floating islands (east + west)
+(function islands(){
+  const islands=[
+    {x:26,y:16,z: 4, r:6},
+    {x:28,y:14,z:-5, r:4},
+    {x:-24,y:15,z:10, r:5},
+    {x:-18,y:18,z:-14, r:4},
+    {x: 10,y:22,z:-22, r:3},
+  ];
+  islands.forEach(({x,y,z,r})=>{
+    for(let dx=-r;dx<=r;dx++) for(let dz=-r;dz<=r;dz++){
+      if(dx*dx+dz*dz > r*r+1) continue;
+      const h = Math.floor(Math.max(0, r - Math.sqrt(dx*dx+dz*dz))*0.9);
+      for(let dy=-2; dy<=h; dy++) addBlock(x+dx, y+dy, z+dz, dy===h?'grass': dy>=h-2?'dirt':'stone');
+      if(Math.random()<0.18 && h>=0) { // small ruin on island
+        addBlock(x+dx, y+h+1, z+dz,'myth');
+      }
+    }
+    // tiny shrine
+    fillBox(x-1,y+1,z-1, x+1,y+1,z+1,'myth');
+    column(x-1,z-1,y+2,y+4,'myth'); column(x+1,z-1,y+2,y+4,'myth'); column(x-1,z+1,y+2,y+4,'myth'); column(x+1,z+1,y+2,y+4,'myth');
+    addBlock(x,y+5,z,'crystal');
+    // chain below
+    for(let k=1;k<6;k++) addBlock(x,y-k,z,'obsidian');
+  });
+  // western world-tree island base
+})();
+
+// 3) 世界树 Yggdrasil north
+(function worldTree(){
+  const tx=-2, tz=22, baseY=6;
+  // mound
+  for(let x=-5;x<=5;x++) for(let z=-5;z<=5;z++) if(x*x+z*z<28) for(let y=baseY;y<baseY+2;y++) addBlock(tx+x,y,tz+z,'grass');
+  // massive trunk
+  const trunkH=14;
+  for(let y=0;y<trunkH;y++){
+    const rad = y<4? 2 : y<10?1:1;
+    for(let dx=-rad;dx<=rad;dx++) for(let dz=-rad;dz<=rad;dz++) if(Math.abs(dx)+Math.abs(dz)<=rad+1){
+      addBlock(tx+dx, baseY+2+y, tz+dz, 'wood');
+    }
+  }
+  // roots sprawling
+  const roots=[ [3,0],[ -3,1],[1,3],[-1,-3],[2,2]];
+  roots.forEach(([dx,dz])=>{
+    for(let i=0;i<6;i++){
+      const x=tx+dx + Math.floor(dx*i*0.6), z=tz+dz + Math.floor(dz*i*0.6), y=baseY+1 - Math.floor(i*0.35);
+      addBlock(x,y,z,'wood'); addBlock(x,y+1,z,'wood');
+    }
+  });
+  // canopy
+  const canopyY= baseY+2+trunkH;
+  for(let x=-7;x<=7;x++) for(let z=-7;z<=7;z++) for(let y=-3;y<=4;y++){
+    const d=Math.sqrt(x*x*0.6 + z*z*0.6 + y*y*1.2);
+    if(d<7 && Math.random()>0.18) addBlock(tx+x, canopyY+y, tz+z, 'leaves');
+    if(d<3.5 && y<-1) addBlock(tx+x, canopyY+y, tz+z, 'wood');
+  }
+  // hanging crystals
+  for(let i=0;i<10;i++){const x=tx+(Math.random()*10-5)|0, z=tz+(Math.random()*10-5)|0; addBlock(x, canopyY-4, z,'crystal'); if(Math.random()<0.5) addBlock(x,canopyY-5,z,'crystal');}
+  // ruined city around roots - fallen columns
+  for(let i=0;i<5;i++){const x=tx+ (Math.random()*14-7)|0, z=tz+(Math.random()*10-5)|0; const h=2+ (Math.random()*3)|0; for(let y=0;y<h;y++) addBlock(x,baseY+2+y,z,'myth');}
+  // hollow entrance under tree (cave mouth)
+  removeBlock(tx, baseY+2, tz+3); removeBlock(tx, baseY+3, tz+3); removeBlock(tx+1, baseY+2, tz+3); removeBlock(tx+1,baseY+3,tz+3);
+  removeBlock(tx,baseY+2,tz+4); removeBlock(tx,baseY+3,tz+4);
+  // stair down
+  for(let i=0;i<8;i++) { addBlock(tx+4+i, baseY+1 -i, tz+4,'myth'); removeBlock(tx+4+i, baseY+2 -i, tz+4); removeBlock(tx+4+i, baseY+3 -i, tz+4); }
+})();
+
+// 4) 龙脊火山 Dragon Ridge east-south
+(function dragonRidge(){
+  const vx=18, vz=14;
+  // volcano cone
+  for(let x=-10;x<=10;x++) for(let z=-10;z<=10;z++){
+    const d=Math.sqrt(x*x+z*z);
+    if(d>10) continue;
+    const h=Math.floor( (10-d)*1.1 + Math.random()*1.2 );
+    for(let y=0;y<h;y++) addBlock(vx+x, 6+y, vz+z, y>h-2?'obsidian':'stone');
+    if(h>6 && d<2) { // lava crater top
+      removeBlock(vx+x, 6+h, vz+z); removeBlock(vx+x, 6+h-1, vz+z);
+      if(d<1.2) addBlock(vx+x, 6+h-1, vz+z,'crystal'); // glow as lava
+    }
+  }
+  // obsidian dragon skeleton along ridge
+  const spine=[ [0,0],[2,1],[4,2],[6,2],[8,1],[10,0],[12,-1],[14,-2]];
+  spine.forEach(([dx,dz],i)=>{
+    const x=vx-8+dx, z=vz-8+dz, y= 8 + Math.floor(Math.sin(i*0.7)*1.5)+ i%2;
+    addBlock(x,y,z,'obsidian'); addBlock(x,y+1,z,'obsidian');
+    if(i%2===0){ addBlock(x+1,y+1,z,'obsidian'); addBlock(x-1,y+1,z,'obsidian'); } // ribs
+    if(i===3) { // skull
+      fillBox(x-1,y+1,z-1, x+1,y+2,z+1,'obsidian', true);
+      addBlock(x,y+2,z+1,'crystal'); addBlock(x,y+2,z-1,'crystal');
+    }
+  });
+  // lava river
+  for(let i=0;i<16;i++){const x=vx-2 - i, z=vz+2; addBlock(x,7,z,'obsidian'); addBlock(x,8,z,'crystal'); }
+})();
+
+// 5) 水晶斗兽场 Crystal Colosseum south
+(function colosseum(){
+  const cx=4, cz=-18, baseY=4;
+  const R=9, H=6;
+  for(let a=0;a<360;a+=6){
+    const rad=a*Math.PI/180, x=Math.round(cx+Math.cos(rad)*R), z=Math.round(cz+Math.sin(rad)*R);
+    for(let y=0;y<H;y++){
+      if(y===2 || y===3) { if(a%24<12) continue; } // arches
+      addBlock(x, baseY+y, z,'myth');
+      if(y===H-1) addBlock(x, baseY+H, z,'crystal');
+    }
+  }
+  // arena floor
+  for(let x=-5;x<=5;x++) for(let z=-5;z<=5;z++) if(x*x+z*z<26) addBlock(cx+x, baseY-1, cz+z,'sand');
+  // stands
+  for(let x=-7;x<=7;x++) for(let z=-7;z<=7;z++){
+    const d=Math.sqrt((x)*(x)+(z)*(z));
+    if(d>=6 && d<8) addBlock(cx+x, baseY, cz+z,'brick');
+    if(d>=8 && d<9) addBlock(cx+x, baseY+1, cz+z,'brick');
+  }
+  // central altar crystal
+  addBlock(cx, baseY, cz,'crystal'); addBlock(cx, baseY+1, cz,'crystal'); addBlock(cx, baseY+2, cz,'crystal'); addBlock(cx+1,baseY+1,cz,'crystal'); addBlock(cx-1,baseY+1,cz,'crystal');
+})();
+
+// 6) 地下祭坛与发光洞窟 under central
+(function cavern(){
+  const cx= -6, cz= 8;
+  // dig cavern entrance near world tree stair continuation
+  for(let x=-4;x<=4;x++) for(let z=-3;z<=3;z++) for(let y=-2;y<=3;y++){
+    const k=key(cx+x, y, cz+z); if(world.has(k) && y<2) { if(Math.sqrt(x*x+z*z) < 4.2 - Math.abs(y)*0.4) removeBlock(cx+x,y,cz+z); }
+  }
+  // cavern floor crystals
+  for(let x=-3;x<=3;x++) for(let z=-3;z<=3;z++) if(x*x+z*z<10) addBlock(cx+x, -2, cz+z,'myth');
+  for(let i=0;i<14;i++){ const x=cx+(Math.random()*6-3)|0, z=cz+(Math.random()*6-3)|0; column(x,z,-1,1,'crystal'); addBlock(x,2,z,'crystal');}
+  // pillars
+  column(cx-2,cz-2,-1,3,'myth'); column(cx+2,cz-2,-1,3,'myth'); column(cx-2,cz+2,-1,3,'myth'); column(cx+2,cz+2,-1,3,'myth');
+})();
+
+// ---------- player & controls ----------
+let selected=0;
+const hotbar=document.getElementById('hotbar');
+function renderHotbar(){
+  hotbar.innerHTML='';
+  BLOCKS.slice(0,6).forEach((b,i)=>{
+    const el=document.createElement('div'); el.className='slot'+(i===selected?' active':'');
+    const sw=document.createElement('i'); sw.style.background = b.id==='grass'?'linear-gradient(#4eaa34 50%,#7a4f2a 50%)': b.id==='crystal'?'#7bd0ff': b.id==='myth'?'#e8e4d8': b.id==='wood'?'#7a4a1f': b.id==='stone'?'#8a8f98':'#d9c48a';
+    if(b.id==='crystal') sw.style.boxShadow='0 0 8px #7bd0ff';
+    el.appendChild(sw);
+    const label=document.createElement('b'); label.textContent=(i+1)+' · '+b.name; el.appendChild(label);
+    el.onclick=()=>{selected=i; renderHotbar();};
+    hotbar.appendChild(el);
+  });
+}
+renderHotbar();
+
+const keys={};
+let yaw= -0.35, pitch=0.15;
+let vel=new THREE.Vector3(), onGround=false, flying=false, sprint=false;
+camera.rotation.order='YXZ';
+
+let locked=false;
+const lockHint=document.getElementById('lockHint');
+const centerMsg=document.getElementById('centerMsg');
+const btnEnter=document.getElementById('btnEnter');
+
+function lock(){
+  canvas.requestPointerLock?.();
+}
+canvas.addEventListener('click', ()=>{
+  if(!locked) lock();
+});
+btnEnter.addEventListener('click', (e)=>{ e.stopPropagation(); lock(); });
+document.addEventListener('pointerlockchange', ()=>{
+  locked = document.pointerLockElement===canvas;
+  centerMsg.style.display = locked ? 'none' : 'block';
+  lockHint.classList.toggle('show', !locked);
+});
+document.addEventListener('mousemove', (e)=>{
+  if(!locked) return;
+  const sens=0.0022;
+  yaw -= e.movementX * sens;
+  pitch -= e.movementY * sens;
+  pitch=Math.max(-1.45, Math.min(1.45, pitch));
+});
+
+addEventListener('keydown', (e)=>{
+  const k=e.key.toLowerCase();
+  keys[k]=true;
+  if(k>='1' && k<='6'){ selected=parseInt(k)-1; renderHotbar(); }
+  if(k==='e') flying=!flying;
+  if(k==='shift') sprint=true;
+});
+addEventListener('keyup', (e)=>{
+  const k=e.key.toLowerCase(); keys[k]=false; if(k==='shift') sprint=false;
+});
+addEventListener('wheel', (e)=>{
+  selected = (selected + (e.deltaY>0?1:-1) + 6)%6; renderHotbar();
+},{passive:true});
+addEventListener('contextmenu', e=> e.preventDefault());
+
+// raycast highlight
+const ray=new THREE.Raycaster();
+const highlight=new THREE.Mesh(new THREE.BoxGeometry(1.001,1.001,1.001), new THREE.MeshBasicMaterial({color:0xffffff, wireframe:true, transparent:true, opacity:0.9}));
+highlight.visible=false; scene.add(highlight);
+let target=null, targetNormal=null;
+
+function getTarget(){
+  ray.setFromCamera({x:0,y:0}, camera);
+  const meshes=[...world.values()];
+  const hits=ray.intersectObjects(meshes,false);
+  if(hits.length===0){ highlight.visible=false; target=null; return; }
+  // closest within 8 blocks
+  const h=hits[0];
+  if(h.distance>9){ highlight.visible=false; target=null; return; }
+  const m=h.object; highlight.position.copy(m.position); highlight.visible=true;
+  target=m.userData; targetNormal=h.face?.normal || null;
+  // transform normal to world (axis aligned, but we can infer by hit point delta)
+  // approximate by comparing hit point to block center
+  const p=h.point, c=m.position;
+  const dx=p.x-c.x, dy=p.y-c.y, dz=p.z-c.z;
+  const ax=Math.abs(dx), ay=Math.abs(dy), az=Math.abs(dz);
+  if(ax>=ay && ax>=az) targetNormal=new THREE.Vector3(Math.sign(dx),0,0);
+  else if(ay>=ax && ay>=az) targetNormal=new THREE.Vector3(0,Math.sign(dy),0);
+  else targetNormal=new THREE.Vector3(0,0,Math.sign(dz));
+}
+
+// place/break
+canvas.addEventListener('mousedown', (e)=>{
+  if(!locked || !target) return;
+  if(e.button===0){ // break
+    removeBlock(target.x,target.y,target.z);
+    target=null; highlight.visible=false;
+  } else if(e.button===2){
+    if(!targetNormal) return;
+    const nid=BLOCKS[selected]?.id || 'grass';
+    const nx=target.x+targetNormal.x, ny=target.y+targetNormal.y, nz=target.z+targetNormal.z;
+    // prevent placing inside player
+    const px=Math.floor(camera.position.x), py=Math.floor(camera.position.y-1.6), pz=Math.floor(camera.position.z);
+    const py2=Math.floor(camera.position.y-0.6);
+    if((nx===px && nz===pz && (ny===py || ny===py2))) return;
+    addBlock(nx,ny,nz,nid);
+  }
+});
+
+// collision helpers
+function solidAt(x,y,z){ return collisionSet.has(key(Math.floor(x),Math.floor(y),Math.floor(z))); }
+function collide(pos){
+  // AABB 0.6 x 1.8
+  const r=0.3, h=1.75;
+  const xs=[pos.x-r, pos.x+r], ys=[pos.y, pos.y+h], zs=[pos.z-r, pos.z+r];
+  for(let x of xs) for(let y of ys) for(let z of zs){
+    if(solidAt(x,y,z)) return true;
+  }
+  // also head level center
+  for(let y of [pos.y+0.2, pos.y+0.9, pos.y+1.65]){
+    if(solidAt(pos.x,pos.y+0.2,pos.z)) {} // keep above
+    if(solidAt(pos.x,y,pos.z)) return true;
+  }
+  return false;
+}
+
+// movement
+let last=performance.now();
+const posInfo=document.getElementById('posInfo'), biomeInfo=document.getElementById('biomeInfo'), blockInfo=document.getElementById('blockInfo');
+
+function biomeAt(x,z){
+  const d=Math.sqrt(x*x+z*z);
+  if(Math.abs(x)<9 && Math.abs(z)<9) return '云海神殿';
+  if(z>14) return '世界树圣域';
+  if(x>12 && z>6) return '龙脊火山';
+  if(z<-10) return '水晶斗兽场';
+  if(Math.abs(x)>18) return '浮空群岛';
+  if(d>22) return '无尽之海';
+  return '云海平原';
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now(), dt=Math.min(0.033, (now-last)/1000); last=now;
+
+  // look
+  camera.rotation.set(pitch, yaw, 0);
+
+  // input vector
+  const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+  let mv=new THREE.Vector3();
+  if(keys['w']) mv.add(forward);
+  if(keys['s']) mv.sub(forward);
+  if(keys['a']) mv.sub(right);
+  if(keys['b']) {} // placeholder
+  if(keys['d']) mv.add(right);
+  // normalize
+  if(mv.length()>0) mv.normalize();
+
+  const speed = flying ? (sprint? 18: 10) : (sprint? 5.2: 4.0);
+
+  if(flying){
+    let vy=0; if(keys[' ']) vy+=1; if(keys['q']||keys['control']) vy-=1; // space up, ctrl down
+    // also shift? we use sprint already, so use space / ctrl
+    if(keys[' ']) {} // space already handled for jump; for flying space = up
+    const flat=mv.clone().multiplyScalar(speed*dt);
+    camera.position.add(flat);
+    if(keys[' ']|| keys['q'] || keys['control']){
+      camera.position.y += ( (keys[' ']?1:0) - (keys['q']||keys['control']?1:0) ) * speed * dt;
+    }
+    // when flying, keep pitch forward movement also includes y if looking up? simpler keep horizontal only
+  } else {
+    // gravity
+    vel.y -= 18 * dt;
+    // move xz
+    const wish=mv.clone().multiplyScalar(speed);
+    vel.x = wish.x;
+    vel.z = wish.z;
+    if(keys[' '] && onGround) { vel.y = 7.2; onGround=false; }
+
+    // integrate with simple collision stepping
+    let next=camera.position.clone();
+    // X
+    next.x += vel.x * dt;
+    if(collide(next)) { next.x = camera.position.x; vel.x=0; }
+    // Z
+    next.z += vel.z * dt;
+    if(collide(next)) { next.z = camera.position.z; vel.z=0; }
+    // Y
+    next.y += vel.y * dt;
+    // ground check
+    const wasY=camera.position.y;
+    // simple ground collision: if moving down and hits, snap
+    if(vel.y <=0){
+      // check if block below
+      const foot=next.y - 1.6;
+      if(solidAt(next.x, foot-0.02, next.z) || solidAt(next.x, foot-0.5, next.z)){
+        // snap to top of block
+        const snapY=Math.floor(foot)+1+1.6+0.02;
+        if(next.y < snapY) { next.y=snapY; vel.y=0; onGround=true; }
+      } else {
+        onGround=false;
+      }
+    } else {
+      // hitting ceiling
+      if(solidAt(next.x, next.y+0.15, next.z)){ next.y=wasY; vel.y=0; }
+      onGround=false;
+    }
+    // prevent falling through ground when at y low
+    if(next.y < 1) { next.y= 12; vel.y=0; }
+    camera.position.copy(next);
+  }
+
+  getTarget();
+
+  // HUD
+  if(now% 220 < 16){
+    posInfo.textContent=`XYZ ${camera.position.x.toFixed(1)}, ${camera.position.y.toFixed(1)}, ${camera.position.z.toFixed(1)} · 方块 ${world.size} · ${flying?'飞行':'行走'}`;
+    biomeInfo.textContent='群系：'+biomeAt(camera.position.x,camera.position.z);
+    blockInfo.textContent= target? `目标：${target.id} @ ${target.x},${target.y},${target.z} · 放置:${BLOCKS[selected].name}` : `无目标 · 放置:${BLOCKS[selected].name} · 对准方块后可操作`;
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
+
+// resize
+addEventListener('resize', ()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// initial pos looking at temple crystal
+camera.position.set(0, 13.5, 18);
+yaw=-6.283; pitch=-0.12;
+
+// prevent right-click menu already handled
+
+// subtle auto time
+let t=0;
+setInterval(()=>{ t+=0.006; sun.position.x=60*Math.cos(t); sun.position.z=30*Math.sin(t); sun.position.y=78+Math.sin(t*0.7)*6; }, 40);
+</script>
+</body>
+</html>

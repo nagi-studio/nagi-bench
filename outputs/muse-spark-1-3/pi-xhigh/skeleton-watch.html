@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>镂空机械腕表 · 3D 展示</title>
+<style>
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#07090f;font-family:"Microsoft YaHei",sans-serif;}
+#c{display:block;width:100%;height:100%;}
+#title{position:fixed;top:16px;left:20px;color:#e8d9a8;pointer-events:none;}
+#title h1{margin:0;font-size:22px;letter-spacing:4px;font-weight:normal;}
+#title p{margin:4px 0 0;font-size:12px;color:#8a90a8;letter-spacing:2px;}
+#panel{position:fixed;top:16px;right:16px;width:250px;background:rgba(12,16,28,.82);border:1px solid #3a3a52;border-radius:10px;color:#dfe4f5;padding:14px 16px;font-size:13px;line-height:1.7;}
+#panel h2{margin:0 0 6px;font-size:14px;color:#ffd75e;font-weight:normal;}
+#panel .row{display:flex;justify-content:space-between;color:#aab0c8;}
+#panel .row b{color:#fff;font-weight:normal;}
+#ctrl{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;}
+#ctrl button{font-size:14px;padding:9px 22px;border-radius:20px;border:1px solid #55556e;background:rgba(20,26,44,.85);color:#e8ecff;cursor:pointer;}
+#ctrl button.on{background:#ffd75e;color:#3a2c00;border-color:#ffd75e;}
+#tip{position:fixed;pointer-events:none;background:rgba(0,0,0,.8);border:1px solid #ffd75e;color:#ffe9a8;font-size:13px;padding:5px 12px;border-radius:6px;display:none;z-index:5;}
+#hint{position:fixed;bottom:18px;left:20px;color:#7a80a0;font-size:12px;line-height:1.8;pointer-events:none;}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="title"><h1>镂空机械腕表</h1><p>手工机芯 · 蓝宝石水晶 · 红宝石轴承</p></div>
+<div id="panel"><h2 id="pname">整表概览</h2><div id="pdesc">将鼠标悬停在零件上查看说明，点击锁定。拖拽旋转视角，滚轮缩放。</div>
+<div style="margin-top:8px;border-top:1px solid #33334a;padding-top:8px;">
+<div class="row"><span>摆频</span><b>28,800 次/小时</b></div>
+<div class="row"><span>红宝石轴承</span><b>27 颗</b></div>
+<div class="row"><span>动力储存</span><b>72 小时</b></div>
+<div class="row"><span>当前时间</span><b id="clock">--:--:--</b></div>
+</div></div>
+<div id="ctrl"><button id="bExp">爆炸视图</button><button id="bSpin" class="on">自动旋转</button><button id="bGlass" class="on">蓝宝石玻璃</button></div>
+<div id="tip"></div>
+<div id="hint">左键拖拽 旋转 · 滚轮 缩放<br>悬停 高亮零件 · 点击 锁定说明</div>
+<script>
+var canvas=document.getElementById("c");
+var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x07090f);
+scene.fog=new THREE.Fog(0x07090f,26,60);
+var camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,0.1,200);
+camera.position.set(0,3.2,13.5);
+scene.add(new THREE.AmbientLight(0x8890b0,0.5));
+var key=new THREE.DirectionalLight(0xfff0d5,1.15);
+key.position.set(8,12,9);key.castShadow=true;
+key.shadow.mapSize.set(1024,1024);
+scene.add(key);
+var rim=new THREE.DirectionalLight(0x6fa8ff,0.7);rim.position.set(-9,4,-8);scene.add(rim);
+var warm=new THREE.PointLight(0xffc46b,0.8,30);warm.position.set(0,5,4);scene.add(warm);
+// reflective floor
+var floor=new THREE.Mesh(new THREE.CircleGeometry(30,48),
+  new THREE.MeshStandardMaterial({color:0x0b0e18,metalness:0.9,roughness:0.35}));
+floor.rotation.x=-Math.PI/2;floor.position.y=-4.4;floor.receiveShadow=true;scene.add(floor);
+
+var watch=new THREE.Group();scene.add(watch);
+var parts=[]; // {obj,name,desc,baseY,expY}
+function reg(o,name,desc,expY){
+  o.userData.pname=name;o.userData.pdesc=desc;
+  parts.push({obj:o,baseY:o.position.y,expY:expY||0});
+  watch.add(o);return o;
+}
+var steel=new THREE.MeshStandardMaterial({color:0xb8bcc8,metalness:0.95,roughness:0.28});
+var darkSteel=new THREE.MeshStandardMaterial({color:0x55565e,metalness:0.9,roughness:0.4});
+var goldM=new THREE.MeshStandardMaterial({color:0xd9a83f,metalness:1.0,roughness:0.3});
+var brassM=new THREE.MeshStandardMaterial({color:0xc9a24f,metalness:0.95,roughness:0.35});
+var rubyM=new THREE.MeshStandardMaterial({color:0xc01230,metalness:0.4,roughness:0.15,emissive:0x550008});
+var lumeM=new THREE.MeshStandardMaterial({color:0xd8ffe8,emissive:0x3fe88f,emissiveIntensity:0.9});
+var glassM=new THREE.MeshPhysicalMaterial({color:0xbfd8ff,metalness:0,roughness:0.05,transparent:true,opacity:0.14});
+function gearShape(r,teeth,depth){
+  var s=new THREE.Shape();var inner=r*0.82;
+  for(var i=0;i<teeth;i++){
+    var a0=i/teeth*Math.PI*2,a1=(i+0.35)/teeth*Math.PI*2,a2=(i+0.5)/teeth*Math.PI*2,a3=(i+0.85)/teeth*Math.PI*2;
+    if(i===0)s.moveTo(Math.cos(a0)*r,Math.sin(a0)*r);
+    s.lineTo(Math.cos(a0)*r,Math.sin(a0)*r);s.lineTo(Math.cos(a1)*r,Math.sin(a1)*r);
+    s.lineTo(Math.cos(a2)*inner,Math.sin(a2)*inner);s.lineTo(Math.cos(a3)*inner,Math.sin(a3)*inner);
+  }
+  s.closePath();
+  var hole=new THREE.Path();hole.absarc(0,0,r*0.18,0,Math.PI*2,true);s.holes.push(hole);
+  var g=new THREE.ExtrudeGeometry(s,{depth:depth,bevelEnabled:true,bevelThickness:0.015,bevelSize:0.015,bevelSegments:1});
+  g.center();return g;
+}
+function mkGear(r,teeth,mat,name,desc,expY){
+  var grp=new THREE.Group();
+  var wheel=new THREE.Mesh(gearShape(r,teeth,0.09),mat);
+  wheel.castShadow=true;grp.add(wheel);
+  var hub=new THREE.Mesh(new THREE.CylinderGeometry(r*0.16,r*0.16,0.2,16),darkSteel);
+  hub.rotation.x=Math.PI/2;grp.add(hub);
+  for(var i=0;i<4;i++){
+    var sp=new THREE.Mesh(new THREE.BoxGeometry(r*1.5,0.06,0.07),mat);
+    sp.rotation.z=i*Math.PI/4;grp.add(sp);
+  }
+  var jewel=new THREE.Mesh(new THREE.SphereGeometry(0.09,12,12),rubyM);
+  jewel.position.z=0.14;grp.add(jewel);
+  reg(grp,name,desc,expY);return grp;
+}
+// main plate
+var plate=new THREE.Mesh(new THREE.CylinderGeometry(3.6,3.6,0.35,48),darkSteel);
+plate.rotation.x=Math.PI/2;plate.castShadow=true;plate.receiveShadow=true;
+reg(plate,"主夹板","镂空打磨的主夹板，承载全部轮系，日内瓦波纹装饰。",0);
+// barrel (mainspring)
+var barrel=new THREE.Group();
+var bdrum=new THREE.Mesh(new THREE.CylinderGeometry(1.05,1.05,0.42,32),brassM);
+bdrum.rotation.x=Math.PI/2;bdrum.castShadow=true;barrel.add(bdrum);
+var bcap=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.5,24),steel);
+bcap.rotation.x=Math.PI/2;barrel.add(bcap);
+var barTooth=new THREE.Mesh(gearShape(1.22,60,0.12),brassM);barrel.add(barTooth);
+barrel.position.set(-1.55,0.35,0.35);
+reg(barrel,"主发条盒","储存 72 小时动力的发条盒，满弦时输出最稳定的扭矩。",0.6);
+// gear train
+var center=mkGear(0.95,48,steel,"中心轮","每小時旋转一周，直接带动分针，是轮系的基准。",1.2);
+center.position.set(-0.1,0.1,0.42);
+var third=mkGear(0.7,40,steel,"过轮","连接中心轮与擒纵轮的中间传动轮。",1.8);
+third.position.set(1.25,-0.15,0.42);
+var escape=mkGear(0.5,30,goldM,"擒纵轮","与擒纵叉配合，将能量按固定节拍释放给摆轮。",2.4);
+escape.position.set(1.05,1.35,0.42);
+// bridges
+function bridge(w,name,desc,expY){
+  var b=new THREE.Mesh(new THREE.BoxGeometry(w,0.5,0.14),steel);
+  b.castShadow=true;reg(b,name,desc,expY);return b;
+}
+var b1=bridge(3.4,"轮系夹板","抛光倒角的轮系夹板，固定各轮轴心。",3.0);b1.position.set(-0.2,0.1,0.75);
+var b2=bridge(1.8,"擒纵夹板","固定擒纵轮与擒纵叉的独立夹板。",3.4);b2.position.set(1.1,1.2,0.75);
+// balance assembly
+var bal=new THREE.Group();
+var balWheel=new THREE.Mesh(new THREE.TorusGeometry(0.62,0.09,12,40),goldM);
+balWheel.castShadow=true;bal.add(balWheel);
+for(var bi=0;bi<2;bi++){
+  var arm=new THREE.Mesh(new THREE.BoxGeometry(1.16,0.07,0.07),goldM);arm.rotation.z=bi*Math.PI/2;bal.add(arm);
+}
+var staff=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.7,10),steel);
+staff.rotation.x=Math.PI/2;bal.add(staff);
+var springPts=[];
+for(var si=0;si<=120;si++){var sa=si/120*Math.PI*5;var sr=0.12+si/120*0.4;springPts.push(new THREE.Vector3(Math.cos(sa)*sr,Math.sin(sa)*sr,0.3));}
+var spring=new THREE.Line(new THREE.BufferGeometry().setFromPoints(springPts),
+  new THREE.LineBasicMaterial({color:0x6fa8ff}));
+bal.add(spring);
+var balJewel=new THREE.Mesh(new THREE.SphereGeometry(0.08,12,12),rubyM);
+balJewel.position.z=0.35;bal.add(balJewel);
+bal.position.set(1.05,1.35,-0.15);
+reg(bal,"摆轮与游丝","每秒振动 4 赫兹的心脏，游丝呼吸般伸缩，振频决定走时精度。",2.9);
+// pallet fork
+var fork=new THREE.Group();
+var fbody=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.12,0.1),steel);fork.add(fbody);
+var pallet1=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.22,0.1),rubyM);pallet1.position.set(-0.28,-0.1,0);fork.add(pallet1);
+var pallet2=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.22,0.1),rubyM);pallet2.position.set(0.28,-0.1,0);fork.add(pallet2);
+fork.position.set(1.05,0.55,0.42);
+reg(fork,"擒纵叉","两颗红宝石进瓦与出瓦交替锁接擒纵轮，发出滴答声。",2.6);
+// ruby bearings on plate
+[[-1.55,0.35],[ -0.1,0.1],[1.25,-0.15],[1.05,1.35],[-1.2,-1.4],[1.9,-1.2]].forEach(function(p){
+  var j=new THREE.Mesh(new THREE.SphereGeometry(0.11,12,12),rubyM);
+  j.position.set(p[0],p[1],0.62);reg(j,"红宝石轴承","人工红宝石轴眼，硬度极高，减小轮轴摩擦。",3.2);
+});
+// dial ring + markers
+var ring=new THREE.Mesh(new THREE.TorusGeometry(3.35,0.28,16,64),steel);
+ring.castShadow=true;reg(ring,"表圈","抛光精钢表圈，保护蓝宝石水晶玻璃。",3.8);
+for(var mi=0;mi<12;mi++){
+  var ma=mi/12*Math.PI*2;
+  var mk=new THREE.Mesh(new THREE.BoxGeometry(mi%3===0?0.16:0.09,mi%3===0?0.5:0.3,0.06),lumeM);
+  mk.position.set(Math.sin(ma)*2.95,Math.cos(ma)*2.95,0.55);
+  mk.rotation.z=-ma;reg(mk,(mi%3===0?"大":"")+"夜光刻度","荧光涂层刻度，暗处发出柔光。",4.1);
+}
+// hands
+var hourH=new THREE.Group(),minH=new THREE.Group(),secH=new THREE.Group();
+var hh=new THREE.Mesh(new THREE.BoxGeometry(0.14,1.5,0.06),goldM);hh.position.y=0.6;hourH.add(hh);
+var mh=new THREE.Mesh(new THREE.BoxGeometry(0.11,2.3,0.06),goldM);mh.position.y=1.0;minH.add(mh);
+var sh=new THREE.Mesh(new THREE.BoxGeometry(0.05,2.5,0.04),new THREE.MeshStandardMaterial({color:0xc01230,metalness:0.5,roughness:0.4}));sh.position.y=0.9;secH.add(sh);
+var lumeDot=new THREE.Mesh(new THREE.SphereGeometry(0.09,10,10),lumeM);lumeDot.position.y=1.25;hourH.add(lumeDot);
+hourH.position.z=0.6;minH.position.z=0.68;secH.position.z=0.76;
+reg(hourH,"时针","荧光时针。",4.3);reg(minH,"分针","荧光分针。",4.5);reg(secH,"秒针","红色秒针，每秒跳动。",4.7);
+var pin=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.2,12),goldM);
+pin.rotation.x=Math.PI/2;pin.position.z=0.7;reg(pin,"表针轴","固定三针的轴心。",4.4);
+// glass + case back
+var glass=new THREE.Mesh(new THREE.SphereGeometry(3.3,48,24,0,Math.PI*2,0,0.5),glassM);
+glass.rotation.x=Math.PI/2;glass.position.z=0.4;glass.scale.z=0.4;
+reg(glass,"蓝宝石水晶玻璃","双面防眩 crystal，硬度仅次于钻石。",5.2);
+var caseRing=new THREE.Mesh(new THREE.TorusGeometry(3.6,0.35,16,64),darkSteel);
+caseRing.castShadow=true;reg(caseRing,"表壳","精钢表壳，防水深达 50 米。",-0.6);
+var crown=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.4,16),goldM);
+crown.rotation.z=Math.PI/2;crown.position.set(4.0,-0.4,0);
+reg(crown,"表冠","上弦与调时的表冠。",-0.3);
+// strap hints
+[[-1.1],[1.1]].forEach(function(){});
+var lugL=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.4,0.5),darkSteel);lugL.position.set(-1.6,-3.9,0);reg(lugL,"表耳","连接表带的表耳。",-0.9);
+var lugR=lugL.clone();lugR.position.x=1.6;reg(lugR,"表耳","连接表带的表耳。",-0.9);
+// interaction
+var exploded=false,autoSpin=true,drag=false,px=0,py=0,theta=0,phi=0.15,dist=13.5,expK=0;
+var bExp=document.getElementById("bExp"),bSpin=document.getElementById("bSpin"),bGlass=document.getElementById("bGlass");
+bExp.onclick=function(){exploded=!exploded;bExp.className=exploded?"on":"";};
+bSpin.onclick=function(){autoSpin=!autoSpin;bSpin.className=autoSpin?"on":"";};
+bGlass.onclick=function(){glassM.opacity=glassM.opacity>0.2?0.03:0.14;bGlass.className=glassM.opacity>0.2?"on":"";};
+canvas.addEventListener("mousedown",function(e){drag=true;px=e.clientX;py=e.clientY;});
+addEventListener("mouseup",function(){drag=false;});
+addEventListener("mousemove",function(e){
+  if(drag){theta-=(e.clientX-px)*0.006;phi-=(e.clientY-py)*0.004;
+    if(phi>1.2)phi=1.2;if(phi<-0.6)phi=-0.6;px=e.clientX;py=e.clientY;}
+  hover(e);
+});
+addEventListener("wheel",function(e){dist+=e.deltaY*0.01;if(dist<7)dist=7;if(dist>26)dist=26;},{passive:true});
+var ray=new THREE.Raycaster(),mouse=new THREE.Vector2(),tip=document.getElementById("tip");
+var pname=document.getElementById("pname"),pdesc=document.getElementById("pdesc");
+var locked=null,hovered=null,origEmissive={};
+function findPart(o){while(o){if(o.userData&&o.userData.pname)return o;o=o.parent;}return null;}
+function highlight(root,on){
+  root.traverse(function(m){
+    if(!m.isMesh||!m.material||!m.material.emissive)return;
+    if(on){if(origEmissive[m.id]===undefined)origEmissive[m.id]=m.material.emissive.getHex();
+      m.material.emissive.setHex(0x664411);}
+    else if(origEmissive[m.id]!==undefined)m.material.emissive.setHex(origEmissive[m.id]);
+  });
+}
+function hover(e){
+  mouse.x=(e.clientX/innerWidth)*2-1;mouse.y=-(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(mouse,camera);
+  var hits=ray.intersectObjects(watch.children,true);
+  var root=hits.length?findPart(hits[0].object):null;
+  if(hovered&&hovered!==root&&hovered!==locked)highlight(hovered,false);
+  hovered=root;
+  if(hovered&&hovered!==locked)highlight(hovered,true);
+  if(hovered){tip.style.display="block";tip.style.left=(e.clientX+14)+"px";tip.style.top=(e.clientY+10)+"px";
+    tip.textContent=hovered.userData.pname;
+    if(!locked){pname.textContent=hovered.userData.pname;pdesc.textContent=hovered.userData.pdesc;}
+  }else tip.style.display="none";
+}
+canvas.addEventListener("click",function(){
+  if(hovered){if(locked&&locked!==hovered)highlight(locked,false);
+    locked=hovered;pname.textContent=locked.userData.pname;pdesc.textContent=locked.userData.pdesc;}
+  else if(locked){highlight(locked,false);locked=null;pname.textContent="整表概览";pdesc.textContent="将鼠标悬停在零件上查看说明，点击锁定。拖拽旋转视角，滚轮缩放。";}
+});
+var clockEl=document.getElementById("clock");
+var t0=performance.now();
+function animate(){
+  requestAnimationFrame(animate);
+  var t=(performance.now()-t0)/1000;
+  if(autoSpin&&!drag)theta+=0.0018;
+  expK+=((exploded?1:0)-expK)*0.06;
+  parts.forEach(function(p){p.obj.position.y=p.baseY+p.expY*expK;});
+  barrel.rotation.z=t*0.15;
+  center.rotation.z=-t*0.5;
+  third.rotation.z=t*1.1;
+  escape.rotation.z=-t*2.2;
+  fork.rotation.z=Math.sin(t*8)*0.18;
+  bal.rotation.z=Math.sin(t*8)*0.9;
+  spring.scale.set(1+Math.sin(t*8)*0.06,1+Math.sin(t*8)*0.06,1);
+  var now=new Date();
+  secH.rotation.z=-(now.getSeconds()+now.getMilliseconds()/1000)/60*Math.PI*2;
+  minH.rotation.z=-(now.getMinutes()+now.getSeconds()/60)/60*Math.PI*2;
+  hourH.rotation.z=-((now.getHours()%12)+now.getMinutes()/60)/12*Math.PI*2;
+  clockEl.textContent=("0"+now.getHours()).slice(-2)+":"+("0"+now.getMinutes()).slice(-2)+":"+("0"+now.getSeconds()).slice(-2);
+  camera.position.set(Math.sin(theta)*Math.cos(phi)*dist,Math.sin(phi)*dist+0.5,Math.cos(theta)*Math.cos(phi)*dist);
+  camera.lookAt(0,0.6,0);
+  renderer.render(scene,camera);
+}
+animate();
+addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body>
+</html>

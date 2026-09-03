@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神话境界 · 体素世界</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0b1020;font-family:"Microsoft YaHei",sans-serif;}
+  #c{display:block;width:100%;height:100%;}
+  #hud{position:fixed;top:12px;left:12px;color:#fff;background:rgba(0,0,0,.45);padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.7;pointer-events:none;}
+  #cross{position:fixed;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;pointer-events:none;}
+  #cross:before,#cross:after{content:"";position:absolute;background:#fff;}
+  #cross:before{left:6px;top:0;width:2px;height:14px;}
+  #cross:after{top:6px;left:0;width:14px;height:2px;}
+  #bar{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;}
+  .slot{width:52px;height:52px;border:2px solid #888;border-radius:6px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;}
+  .slot.sel{border-color:#ffd75e;}
+  .sw{width:22px;height:22px;border-radius:4px;margin-bottom:2px;}
+  #start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,8,20,.82);z-index:10;}
+  #panel{max-width:560px;background:#141b31;border:1px solid #3a4670;border-radius:12px;padding:28px 32px;color:#e8ecff;}
+  #panel h1{margin:0 0 8px;font-size:26px;color:#ffd75e;}
+  #panel p{font-size:14px;line-height:1.8;}
+  #panel button{margin-top:12px;font-size:17px;padding:10px 34px;border:none;border-radius:8px;background:#ffd75e;color:#3a2c00;cursor:pointer;font-weight:bold;}
+  #msg{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);color:#ffe9a8;font-size:14px;text-shadow:0 1px 3px #000;pointer-events:none;}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">WASD 移动 · 空格 跳跃 · 鼠标 环视<br>左键 破坏 · 右键 放置 · 数字键1-6 切换方块<br><span id="pos"></span></div>
+<div id="cross"></div>
+<div id="bar"></div>
+<div id="msg"></div>
+<div id="start"><div id="panel">
+<h1>神话境界</h1>
+<p>一片由柏林噪声生成的无垠体素大陆，中央矗立着太阳神殿，东方有世界之树，西方是巨石法阵，天空中还漂浮着一座云端岛屿。点击下方按钮进入第一人称视角，自由挖掘与建造。</p>
+<button id="go">进入世界</button>
+</div></div>
+<script>
+// ---- Perlin / value noise ----
+var PERM=new Uint8Array(512);
+(function(){var p=[],i;for(i=0;i<256;i++)p[i]=i;var seed=1337;function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647;}for(i=255;i>0;i--){var j=(rnd()*(i+1))|0;var t=p[i];p[i]=p[j];p[j]=t;}for(i=0;i<512;i++)PERM[i]=p[i&255];})();
+function fade(t){return t*t*(3-2*t);}
+function grad(h,x,y){switch(h&3){case 0:return x+y;case 1:return -x+y;case 2:return x-y;default:return -x-y;}}
+function noise2(x,y){var X=Math.floor(x)&255,Y=Math.floor(y)&255;x-=Math.floor(x);y-=Math.floor(y);var u=fade(x),v=fade(y);var a=PERM[X]+Y,b=PERM[X+1]+Y;return (grad(PERM[a],x,y)*(1-u)+grad(PERM[b],x-1,y)*u)*(1-v)+(grad(PERM[a+1],x,y-1)*(1-u)+grad(PERM[b+1],x-1,y-1)*u)*v;}
+function fbm(x,y){var s=0,a=1,f=1,n=0;for(var i=0;i<4;i++){s+=noise2(x*f,y*f)*a;n+=a;a*=0.5;f*=2;}return s/n;}
+
+// ---- world data ----
+var SIZE=96, SEA=5;
+var T={GRASS:1,DIRT:2,STONE:3,WOOD:4,LEAF:5,SAND:6,MARBLE:7,GOLD:8,CRYSTAL:9,GLOW:10};
+var hmap=[];
+var over={}; // "x,y,z" -> type
+function key(x,y,z){return x+","+y+","+z;}
+function setB(x,y,z,t){if(x<0||z<0||x>=SIZE||z>=SIZE||y<0||y>60)return;over[key(x,y,z)]=t;}
+function getB(x,y,z){
+  if(x<0||z<0||x>=SIZE||z>=SIZE||y<0)return T.STONE;
+  if(y>60)return 0;
+  var k=key(x,y,z);
+  if(over[k]!==undefined)return over[k];
+  var h=hmap[x][z];
+  if(y>h)return 0;
+  if(y===h)return h<=SEA+1?T.SAND:T.GRASS;
+  if(y>=h-2)return h<=SEA+1?T.SAND:T.DIRT;
+  return T.STONE;
+}
+var i,j;
+for(i=0;i<SIZE;i++){hmap[i]=[];for(j=0;j<SIZE;j++){
+  var n=fbm(i*0.045+10,j*0.045+10);
+  var m=fbm(i*0.012+40,j*0.012+40);
+  var h=Math.floor(9+n*9+m*8);
+  if(h<2)h=2;if(h>30)h=30;
+  hmap[i][j]=h;
+}}
+// mythic builds
+var CX=SIZE>>1, CZ=SIZE>>1;
+function box(x0,y0,z0,x1,y1,z1,t){for(var x=x0;x<=x1;x++)for(var y=y0;y<=y1;y++)for(var z=z0;z<=z1;z++)setB(x,y,z,t);}
+(function(){
+  var gy=hmap[CX][CZ];
+  // sun temple platform
+  box(CX-8,gy+1,CZ-8,CX+8,gy+1,CZ+8,T.MARBLE);
+  box(CX-6,gy+2,CZ-6,CX+6,gy+2,CZ+6,T.MARBLE);
+  // pillars
+  var px=[-6,-2,2,6],pz=[-6,6],a,b;
+  for(a=0;a<px.length;a++)for(b=0;b<pz.length;b++){
+    var x=CX+px[a],z=CZ+pz[b];
+    for(var y=gy+3;y<=gy+9;y++)setB(x,y,z,T.MARBLE);
+    setB(x,gy+10,z,T.GOLD);
+  }
+  for(a=-6;a<=6;a++){setB(CX+a,gy+10,CZ-6,T.MARBLE);setB(CX+a,gy+10,CZ+6,T.MARBLE);}
+  for(b=-6;b<=6;b++){setB(CX-6,gy+10,CZ+b,T.MARBLE);setB(CX+6,gy+10,CZ+b,T.MARBLE);}
+  // central crystal
+  for(var y=gy+3;y<=gy+7;y++)setB(CX,y,CZ,T.CRYSTAL);
+  setB(CX,gy+8,CZ,T.GLOW);
+  // world tree (east)
+  var tx=CX+26,tz=CZ+4,tg=hmap[tx][tz];
+  for(y=tg+1;y<=tg+9;y++)setB(tx,y,tz,T.WOOD);
+  for(var dx=-4;dx<=4;dx++)for(var dz=-4;dz<=4;dz++)for(var dy=0;dy<3;dy++){
+    if(Math.abs(dx)+Math.abs(dz)+dy*2<=6)setB(tx+dx,tg+9+dy,tz+dz,T.LEAF);
+  }
+  setB(tx,tg+12,tz,T.GLOW);
+  // stonehenge ring (west)
+  var sx=CX-26,sz=CZ-2,sg=hmap[sx][sz];
+  for(a=0;a<8;a++){var an=a/8*Math.PI*2;var x=Math.round(sx+Math.cos(an)*6),z=Math.round(sz+Math.sin(an)*6);
+    for(y=sg+1;y<=sg+5;y++)setB(x,y,z,T.STONE);
+    var x2=Math.round(sx+Math.cos(an+Math.PI/4)*6),z2=Math.round(sz+Math.sin(an+Math.PI/4)*6);
+    if(a%2===0){setB(x2,sg+6,z2,T.STONE);}
+  }
+  // floating island
+  var fx=CX-4,fz=CZ-24,fy=34;
+  for(dx=-4;dx<=4;dx++)for(dz=-4;dz<=4;dz++){var d=Math.abs(dx)+Math.abs(dz);if(d<=5)setB(fx+dx,fy,fz+dz,T.GRASS);if(d<=3)setB(fx+dx,fy-1,fz+dz,T.DIRT);if(d<=1)setB(fx+dx,fy-2,fz+dz,T.STONE);}
+  for(y=fy+1;y<=fy+4;y++)setB(fx,y,fz,T.WOOD);
+  for(dx=-2;dx<=2;dx++)for(dz=-2;dz<=2;dz++)if(Math.abs(dx)+Math.abs(dz)<=3)setB(fx+dx,fy+4,fz+dz,T.LEAF);
+})();
+
+// ---- three.js scene ----
+var canvas=document.getElementById("c");
+var renderer=new THREE.WebGLRenderer({canvas:canvas});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87b5e8);
+scene.fog=new THREE.Fog(0x87b5e8,40,140);
+var camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,0.1,500);
+scene.add(new THREE.AmbientLight(0xbcd0ff,0.55));
+var sun=new THREE.DirectionalLight(0xfff2d8,0.95);
+sun.position.set(60,90,30);sun.castShadow=true;
+sun.shadow.camera.left=-70;sun.shadow.camera.right=70;sun.shadow.camera.top=70;sun.shadow.camera.bottom=-70;
+scene.add(sun);
+// sea
+var sea=new THREE.Mesh(new THREE.PlaneGeometry(SIZE+400,SIZE+400),new THREE.MeshLambertMaterial({color:0x2e6fc4,transparent:true,opacity:0.85}));
+sea.rotation.x=-Math.PI/2;sea.position.set(SIZE/2,SEA+0.4,SIZE/2);scene.add(sea);
+
+var COLORS={1:[0x5fae3f,0x6fbf4a],2:[0x8a5a2e,0x7a4e28],3:[0x8d8d94,0x7f7f86],4:[0x7a5230,0x6b472a],5:[0x2f7d33,0x35903a],6:[0xe0cf9a,0xd6c48c],7:[0xe8e4da,0xdbd5c6],8:[0xe8b93b,0xd9a92f],9:[0x53d8e8,0x41c4d4],10:[0xffe27a,0xffd75e]};
+var EMISSIVE={9:0x228899,10:0xaa7700};
+var worldMesh=null;
+function buildWorld(){
+  if(worldMesh){scene.remove(worldMesh);worldMesh.geometry.dispose();}
+  var pos=[],nor=[],col=[],idx=[],vc=0;
+  function face(x,y,z,dir,rgb){
+    var v;
+    if(dir===0){v=[[x,y+1,z],[x,y+1,z+1],[x+1,y+1,z+1],[x+1,y+1,z]];nor.push(0,1,0,0,1,0,0,1,0,0,1,0);}
+    else if(dir===1){v=[[x,y,z],[x+1,y,z],[x+1,y,z+1],[x,z+1]];v=[[x,y,z],[x+1,y,z],[x+1,y,z+1],[x,y,z+1]];nor.push(0,-1,0,0,-1,0,0,-1,0,0,-1,0);}
+    else if(dir===2){v=[[x,y,z+1],[x+1,y,z+1],[x+1,y+1,z+1],[x,y+1,z+1]];nor.push(0,0,1,0,0,1,0,0,1,0,0,1);}
+    else if(dir===3){v=[[x+1,y,z],[x,y,z],[x,y+1,z],[x+1,y+1,z]];nor.push(0,0,-1,0,0,-1,0,0,-1,0,0,-1);}
+    else if(dir===4){v=[[x+1,y,z+1],[x+1,y,z],[x+1,y+1,z],[x+1,y+1,z+1]];nor.push(1,0,0,1,0,0,1,0,0,1,0,0);}
+    else{v=[[x,y,z],[x,y,z+1],[x,y+1,z+1],[x,y+1,z]];nor.push(-1,0,0,-1,0,0,-1,0,0,-1,0,0);}
+    for(var k=0;k<4;k++){pos.push(v[k][0],v[k][1],v[k][2]);var sh=0.92+((x*7+y*13+z*5+k*3)%10)/10*0.08;col.push(rgb[0]*sh,rgb[1]*sh,rgb[2]*sh);}
+    idx.push(vc,vc+1,vc+2,vc,vc+2,vc+3);vc+=4;
+  }
+  var c=new THREE.Color();
+  for(var x=0;x<SIZE;x++)for(var z=0;z<SIZE;z++)for(var y=0;y<=60;y++){
+    var t=getB(x,y,z);if(!t)continue;
+    var cc=COLORS[t]||COLORS[3];c.setHex(cc[(x+y+z)&1]);var rgb=[c.r,c.g,c.b];
+    if(!getB(x,y+1,z))face(x,y,z,0,rgb);
+    if(!getB(x,y-1,z))face(x,y,z,1,rgb);
+    if(!getB(x,y,z+1))face(x,y,z,2,rgb);
+    if(!getB(x,y,z-1))face(x,y,z,3,rgb);
+    if(!getB(x+1,y,z))face(x,y,z,4,rgb);
+    if(!getB(x-1,y,z))face(x,y,z,5,rgb);
+  }
+  var g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute("normal",new THREE.Float32BufferAttribute(nor,3));
+  g.setAttribute("color",new THREE.Float32BufferAttribute(col,3));
+  g.setIndex(idx);
+  var m=new THREE.MeshLambertMaterial({vertexColors:true});
+  worldMesh=new THREE.Mesh(g,m);
+  worldMesh.receiveShadow=true;
+  scene.add(worldMesh);
+}
+buildWorld();
+
+// ---- player ----
+var player={x:CX+0.5,y:hmap[CX][CZ]+3,z:CZ+14,vy:0,yaw:Math.PI,pitch:0};
+var keys={};
+addEventListener("keydown",function(e){keys[e.code]=true;if(e.code.indexOf("Digit")===0)select(+e.code.slice(5)-1);});
+addEventListener("keyup",function(e){keys[e.code]=false;});
+document.addEventListener("pointerlockchange",function(){
+  document.getElementById("start").style.display=document.pointerLockElement?"none":"flex";
+});
+document.getElementById("go").onclick=function(){canvas.requestPointerLock();};
+document.addEventListener("mousemove",function(e){
+  if(document.pointerLockElement!==canvas)return;
+  player.yaw-=e.movementX*0.0024;player.pitch-=e.movementY*0.0024;
+  if(player.pitch>1.5)player.pitch=1.5;if(player.pitch<-1.5)player.pitch=-1.5;
+});
+function topY(x,z){
+  var xi=Math.floor(x),zi=Math.floor(z);
+  for(var y=60;y>=0;y--)if(getB(xi,y,zi))return y+1;
+  return 1;
+}
+// blocks palette
+var PAL=[T.GRASS,T.DIRT,T.STONE,T.WOOD,T.MARBLE,T.GLOW];
+var NAMES=["草方块","泥土","石头","木头","大理石","光石"];
+var bar=document.getElementById("bar"),sel=0;
+function select(n){if(n>=0&&n<PAL.length){sel=n;refreshBar();}}
+function refreshBar(){
+  bar.innerHTML="";
+  for(var k=0;k<PAL.length;k++){
+    (function(k){
+      var d=document.createElement("div");d.className="slot"+(k===sel?" sel":"");
+      var c=new THREE.Color(COLORS[PAL[k]][0]);
+      d.innerHTML='<div class="sw" style="background:rgb('+(c.r*255|0)+","+(c.g*255|0)+","+(c.b*255|0)+')"></div>'+NAMES[k];
+      d.onclick=function(){select(k);canvas.requestPointerLock();};
+      bar.appendChild(d);
+    })(k);
+  }
+}
+refreshBar();
+var msgT=null;
+function say(t){var m=document.getElementById("msg");m.textContent=t;clearTimeout(msgT);msgT=setTimeout(function(){m.textContent="";},2200);}
+// edit
+var ray=new THREE.Raycaster();
+function edit(brk){
+  ray.setFromCamera({x:0,y:0},camera);
+  var hit=ray.intersectObject(worldMesh)[0];
+  if(!hit||hit.distance>8)return;
+  var p=hit.point,n=hit.face.normal;
+  var bx,by,bz;
+  if(brk){bx=Math.floor(p.x-n.x*0.5);by=Math.floor(p.y-n.y*0.5);bz=Math.floor(p.z-n.z*0.5);}
+  else{bx=Math.floor(p.x+n.x*0.5);by=Math.floor(p.y+n.y*0.5);bz=Math.floor(p.z+n.z*0.5);}
+  if(brk){
+    if(by<=1){say("基岩层不可破坏");return;}
+    setB(bx,by,bz,0);
+  }else{
+    if(getB(bx,by,bz)){return;}
+    setB(bx,by,bz,PAL[sel]);
+  }
+  buildWorld();
+}
+canvas.addEventListener("mousedown",function(e){
+  if(document.pointerLockElement!==canvas)return;
+  if(e.button===0)edit(true);else if(e.button===2)edit(false);
+});
+addEventListener("contextmenu",function(e){e.preventDefault();});
+// loop
+var last=performance.now();
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min((t-last)/1000,0.05);last=t;
+  var sp=keys.KeyShift?9:5.5;
+  var fx=-Math.sin(player.yaw),fz=-Math.cos(player.yaw);
+  var rx=Math.cos(player.yaw),rz=-Math.sin(player.yaw);
+  var mx=0,mz=0;
+  if(keys.KeyW){mx+=fx;mz+=fz;}if(keys.KeyS){mx-=fx;mz-=fz;}
+  if(keys.KeyD){mx+=rx;mz+=rz;}if(keys.KeyA){mx-=rx;mz-=rz;}
+  var l=Math.hypot(mx,mz)||1;
+  player.x+=mx/l*sp*dt;player.z+=mz/l*sp*dt;
+  if(player.x<1)player.x=1;if(player.z<1)player.z=1;if(player.x>SIZE-1)player.x=SIZE-1;if(player.z>SIZE-1)player.z=SIZE-1;
+  player.vy-=22*dt;
+  player.y+=player.vy*dt;
+  var g=topY(player.x,player.z)+1.62;
+  if(player.y<=g){player.y=g;player.vy=0;if(keys.Space)player.vy=7.5;}
+  camera.position.set(player.x,player.y,player.z);
+  camera.rotation.order="YXZ";camera.rotation.y=player.yaw;camera.rotation.x=player.pitch;
+  document.getElementById("pos").textContent="坐标 "+player.x.toFixed(1)+", "+player.y.toFixed(1)+", "+player.z.toFixed(1);
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(loop);
+addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body>
+</html>
