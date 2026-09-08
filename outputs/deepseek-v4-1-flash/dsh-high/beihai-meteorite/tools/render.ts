@@ -44,15 +44,16 @@ import { cardAt } from "../src/film/shots";
 import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 
-// sharp ships with the platform runtime (not a project dependency); resolve it
-// from the launcher so this offline preview tool can encode PNGs.
+// sharp is provided by the platform runtime (not a project dependency); resolve
+// it by module name, or point PNG_ENCODER at a specific install, so this offline
+// preview tool can encode PNGs.
 const nodeRequire = createRequire(import.meta.url);
 // @ts-ignore platform-provided encoder
 const sharp: (input: Buffer, opts?: Record<string, unknown>) => {
   resize: (w: number, h: number, o?: Record<string, unknown>) => any;
   png: () => any;
   toFile: (f: string) => Promise<unknown>;
-} = nodeRequire("/home/DuanZ/.dsh-launcher/node_modules/sharp");
+} = nodeRequire(process.env.PNG_ENCODER ?? "sharp");
 
 /* ------------------------------------------------------------------ args */
 const args = process.argv.slice(2);

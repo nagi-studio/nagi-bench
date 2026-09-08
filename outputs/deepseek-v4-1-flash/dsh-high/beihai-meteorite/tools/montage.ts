@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { readdirSync } from "node:fs";
 const req = createRequire(import.meta.url);
 // @ts-ignore platform-provided encoder
-const sharp: any = req("/home/DuanZ/.dsh-launcher/node_modules/sharp");
+const sharp: any = req(process.env.PNG_ENCODER ?? "sharp");
 
 const dir = process.argv[2] ?? "preview/sheet";
 const out = process.argv[3] ?? "preview/contact.png";

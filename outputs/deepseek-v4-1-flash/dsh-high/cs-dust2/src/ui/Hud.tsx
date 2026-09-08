@@ -47,7 +47,7 @@ function Killfeed({ hud }: { hud: HudState }) {
         <div className="kf" key={k.id}>
           <span className={k.killerTeam === 'CT' ? 'ct' : 't'}>{k.killer}</span>
           <span className="wpn">
-            {k.headshot ? <span className="hs">◎ </span> : null}
+            {k.headshot ? <span className="hs">HS </span> : null}
             {k.weapon}
           </span>
           <span className={k.victimTeam === 'CT' ? 'ct' : 't'}>{k.victim}</span>
@@ -108,7 +108,7 @@ function Vitals({ hud }: { hud: HudState }) {
         <span className="lbl">HP</span>
         {hud.armor > 0 && (
           <span className="armor-tag">
-            🛡 {hud.armor}
+            {hud.armor}
             {hud.helmet ? ' +盔' : ''}
           </span>
         )}
