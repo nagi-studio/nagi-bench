@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>神话方块 · Minecraft 克隆</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0e14; font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; display: none; }
+  #hud.visible { display: block; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,0.9); box-shadow: 0 0 2px rgba(0,0,0,0.8); }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { left: 0; top: 8px; width: 18px; height: 2px; }
+  #hotbar { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; gap: 4px; pointer-events: none; }
+  .slot { width: 52px; height: 52px; background: rgba(20,20,24,0.72); border: 2px solid rgba(255,255,255,0.22); border-radius: 6px; display: flex; align-items: center; justify-content: center; position: relative; backdrop-filter: blur(4px); }
+  .slot.active { border-color: #f0d060; box-shadow: 0 0 0 1px #f0d060, 0 0 12px rgba(240,208,96,0.35); background: rgba(40,36,20,0.85); }
+  .slot canvas { width: 36px; height: 36px; image-rendering: pixelated; border-radius: 3px; }
+  .slot .key { position: absolute; top: 2px; left: 5px; font-size: 10px; color: rgba(255,255,255,0.55); font-weight: 600; }
+  #info { position: absolute; top: 12px; left: 12px; color: rgba(255,255,255,0.88); font-size: 12px; line-height: 1.55; background: rgba(8,10,14,0.55); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); max-width: 280px; backdrop-filter: blur(6px); }
+  #info b { color: #f0d060; }
+  #coords { position: absolute; top: 12px; right: 12px; color: rgba(255,255,255,0.75); font-size: 12px; background: rgba(8,10,14,0.55); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); font-variant-numeric: tabular-nums; }
+  #mode-badge { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: rgba(240,208,96,0.18); color: #f0d060; font-size: 11px; font-weight: 600; }
+  #overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 30%, rgba(90,140,200,0.18), transparent 55%), linear-gradient(180deg, #0b1220 0%, #0a0e14 100%); }
+  #overlay.hidden { display: none; }
+  .panel { width: min(560px, 92vw); background: rgba(16,20,28,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 36px 32px; box-shadow: 0 24px 80px rgba(0,0,0,0.55); text-align: center; color: #e8eef6; }
+  .panel h1 { font-size: 32px; letter-spacing: 0.04em; margin-bottom: 8px; background: linear-gradient(90deg, #f0d060, #7ec8e3, #c9a0ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .panel .sub { color: rgba(232,238,246,0.65); font-size: 14px; margin-bottom: 22px; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; text-align: left; margin: 0 auto 24px; max-width: 420px; font-size: 13px; color: rgba(232,238,246,0.8); }
+  .controls span.k { display: inline-block; min-width: 64px; color: #f0d060; font-weight: 600; }
+  #startBtn { pointer-events: auto; cursor: pointer; border: none; padding: 12px 36px; border-radius: 999px; font-size: 15px; font-weight: 700; color: #10141c; background: linear-gradient(135deg, #f0d060, #e8b84a); box-shadow: 0 8px 24px rgba(240,208,96,0.35); transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  #startBtn:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(240,208,96,0.45); }
+  #loading { margin-top: 16px; font-size: 12px; color: rgba(232,238,246,0.5); }
+  .features { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 22px; }
+  .chip { font-size: 11px; padding: 4px 10px; border-radius: 999px; background: rgba(126,200,227,0.12); color: #9fd4e8; border: 1px solid rgba(126,200,227,0.25); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="info">
+    <div><b>神话方块</b> · 体素世界</div>
+    <div>WASD 移动 · 空格跳/升 · Shift 降</div>
+    <div>左键破坏 · 右键放置 · 滚轮选方块</div>
+    <div>F 切换飞行 · R 重生 · H 隐藏说明</div>
+    <div id="mode-badge">步行</div>
+  </div>
+  <div id="coords">X 0 · Y 0 · Z 0</div>
+  <div id="hotbar"></div>
+</div>
+<div id="overlay">
+  <div class="panel">
+    <h1>神话方块</h1>
+    <div class="sub">Perlin 地形 · 破坏放置 · 神话遗迹探索</div>
+    <div class="features">
+      <div class="chip">无限滚动地形</div>
+      <div class="chip">30+ 方块材质</div>
+      <div class="chip">浮岛 / 神庙 / 世界树</div>
+      <div class="chip">水晶尖塔 / 巨石阵</div>
+    </div>
+    <div class="controls">
+      <div><span class="k">WASD</span>移动</div>
+      <div><span class="k">鼠标</span>环视</div>
+      <div><span class="k">空格</span>跳跃 / 上升</div>
+      <div><span class="k">Shift</span>下降 / 疾行</div>
+      <div><span class="k">左键</span>破坏方块</div>
+      <div><span class="k">右键</span>放置方块</div>
+      <div><span class="k">1-9 / 滚轮</span>选择方块</div>
+      <div><span class="k">F</span>飞行模式</div>
+    </div>
+    <button id="startBtn">点击进入世界</button>
+    <div id="loading">正在初始化引擎…</div>
+  </div>
+</div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const CHUNK_X = 16, CHUNK_Y = 96, CHUNK_Z = 16;
+const WATER_LEVEL = 28;
+const RENDER_DIST = 4;
+const SEED = 20260214;
+const GRAVITY = 28;
+const JUMP_V = 9.2;
+const WALK_SPEED = 5.4;
+const SPRINT_SPEED = 8.2;
+const FLY_SPEED = 14;
+const REACH = 6;
+
+function mulberry32(a) {
+  return function () {
+    let t = (a += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+class Perlin {
+  constructor(seed = 1) {
+    const rand = mulberry32(seed);
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    for (let i = 255; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      const tmp = p[i]; p[i] = p[j]; p[j] = tmp;
+    }
+    this.perm = new Uint8Array(512);
+    for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+  }
+  fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  lerp(a, b, t) { return a + t * (b - a); }
+  grad(hash, x, y, z) {
+    const h = hash & 15;
+    const u = h < 8 ? x : y;
+    const v = h < 4 ? y : (h === 12 || h === 14 ? x : z);
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+  }
+  noise3(x, y, z) {
+    const p = this.perm;
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+    const Z = Math.floor(z) & 255;
+    x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+    const u = this.fade(x), v = this.fade(y), w = this.fade(z);
+    const A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z;
+    const B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+    return this.lerp(
+      this.lerp(
+        this.lerp(this.grad(p[AA], x, y, z), this.grad(p[BA], x - 1, y, z), u),
+        this.lerp(this.grad(p[AB], x, y - 1, z), this.grad(p[BB], x - 1, y - 1, z), u),
+        v
+      ),
+      this.lerp(
+        this.lerp(this.grad(p[AA + 1], x, y, z - 1), this.grad(p[BA + 1], x - 1, y, z - 1), u),
+        this.lerp(this.grad(p[AB + 1], x, y - 1, z - 1), this.grad(p[BB + 1], x - 1, y - 1, z - 1), u),
+        v
+      ),
+      w
+    );
+  }
+  noise2(x, y) { return this.noise3(x, y, 0.37); }
+  fbm2(x, y, octaves = 4, lacunarity = 2, gain = 0.5) {
+    let amp = 1, freq = 1, sum = 0, norm = 0;
+    for (let i = 0; i < octaves; i++) {
+      sum += amp * this.noise2(x * freq, y * freq);
+      norm += amp; amp *= gain; freq *= lacunarity;
+    }
+    return sum / norm;
+  }
+  ridged2(x, y, octaves = 4) {
+    let amp = 0.5, freq = 1, sum = 0, norm = 0;
+    for (let i = 0; i < octaves; i++) {
+      const n = 1 - Math.abs(this.noise2(x * freq, y * freq));
+      sum += n * n * amp; norm += amp; amp *= 0.5; freq *= 2;
+    }
+    return sum / norm;
+  }
+}
+
+const perlin = new Perlin(SEED);
+const perlin2 = new Perlin(SEED ^ 0x9e3779b9);
+
+const TILE = 16, ATLAS_COLS = 16, ATLAS_ROWS = 8;
+
+const B = {
+  AIR:0, GRASS:1, DIRT:2, STONE:3, COBBLE:4, SAND:5, LOG:6, LEAVES:7,
+  PLANKS:8, BRICK:9, WATER:10, GLASS:11, GOLD:12, DIAMOND:13, OBSIDIAN:14,
+  GLOWSTONE:15, SANDSTONE:16, SNOW:17, MOSSY:18, RUNE:19, CRYSTAL:20,
+  DARK_STONE:21, MARBLE:22, DARK_LOG:23, RED_BRICK:24, IRON:25, COAL:26,
+  GRAVEL:27, NETHERRACK:28, LAVA:29, CHERRY_LOG:30, CHERRY_LEAVES:31,
+  MYTHIC_STONE:32, AMETHYST:33, MOON_STONE:34, ROOT:35, WOOD_DARK_PLANK:36,
+  BONE:37, END_STONE:38
+};
+
+const T = {
+  grass_top:0, grass_side:1, dirt:2, stone:3, cobble:4, sand:5,
+  log_side:6, log_top:7, leaves:8, planks:9, brick:10, water:11,
+  glass:12, gold:13, diamond:14, obsidian:15, glowstone:16,
+  sandstone:17, snow:18, mossy:19, rune:20, crystal:21, dark_stone:22,
+  marble:23, dark_log_side:24, dark_log_top:25, red_brick:26, iron:27,
+  coal:28, gravel:29, netherrack:30, lava:31, cherry_log_side:32,
+  cherry_log_top:33, cherry_leaves:34, mythic:35, amethyst:36,
+  moon:37, root:38, dark_plank:39, bone:40, end_stone:41
+};
+
+const BLOCK_DEFS = [];
+function defBlock(id, name, opts) {
+  BLOCK_DEFS[id] = {
+    id, name,
+    solid: opts.solid !== false,
+    transparent: !!opts.transparent,
+    emissive: opts.emissive || 0,
+    tiles: opts.tiles
+  };
+}
+
+defBlock(B.AIR, '空气', { solid:false, transparent:true, tiles:null });
+defBlock(B.GRASS, '草方块', { tiles:[T.grass_top, T.dirt, T.grass_side] });
+defBlock(B.DIRT, '泥土', { tiles:[T.dirt, T.dirt, T.dirt] });
+defBlock(B.STONE, '石头', { tiles:[T.stone, T.stone, T.stone] });
+defBlock(B.COBBLE, '圆石', { tiles:[T.cobble, T.cobble, T.cobble] });
+defBlock(B.SAND, '沙子', { tiles:[T.sand, T.sand, T.sand] });
+defBlock(B.LOG, '橡木原木', { tiles:[T.log_top, T.log_top, T.log_side] });
+defBlock(B.LEAVES, '橡树树叶', { transparent:true, tiles:[T.leaves, T.leaves, T.leaves] });
+defBlock(B.PLANKS, '橡木木板', { tiles:[T.planks, T.planks, T.planks] });
+defBlock(B.BRICK, '石砖', { tiles:[T.brick, T.brick, T.brick] });
+defBlock(B.WATER, '水', { solid:false, transparent:true, tiles:[T.water, T.water, T.water] });
+defBlock(B.GLASS, '玻璃', { transparent:true, tiles:[T.glass, T.glass, T.glass] });
+defBlock(B.GOLD, '金块', { tiles:[T.gold, T.gold, T.gold] });
+defBlock(B.DIAMOND, '钻石块', { tiles:[T.diamond, T.diamond, T.diamond] });
+defBlock(B.OBSIDIAN, '黑曜石', { tiles:[T.obsidian, T.obsidian, T.obsidian] });
+defBlock(B.GLOWSTONE, '萤石', { emissive:0.85, tiles:[T.glowstone, T.glowstone, T.glowstone] });
+defBlock(B.SANDSTONE, '砂岩', { tiles:[T.sandstone, T.sandstone, T.sandstone] });
+defBlock(B.SNOW, '雪块', { tiles:[T.snow, T.snow, T.snow] });
+defBlock(B.MOSSY, '苔石', { tiles:[T.mossy, T.mossy, T.mossy] });
+defBlock(B.RUNE, '符文石', { emissive:0.35, tiles:[T.rune, T.rune, T.rune] });
+defBlock(B.CRYSTAL, '水晶', { transparent:true, emissive:0.55, tiles:[T.crystal, T.crystal, T.crystal] });
+defBlock(B.DARK_STONE, '暗影石', { tiles:[T.dark_stone, T.dark_stone, T.dark_stone] });
+defBlock(B.MARBLE, '大理石', { tiles:[T.marble, T.marble, T.marble] });
+defBlock(B.DARK_LOG, '暗橡木', { tiles:[T.dark_log_top, T.dark_log_top, T.dark_log_side] });
+defBlock(B.RED_BRICK, '红砖', { tiles:[T.red_brick, T.red_brick, T.red_brick] });
+defBlock(B.IRON, '铁块', { tiles:[T.iron, T.iron, T.iron] });
+defBlock(B.COAL, '煤矿石', { tiles:[T.coal, T.coal, T.coal] });
+defBlock(B.GRAVEL, '沙砾', { tiles:[T.gravel, T.gravel, T.gravel] });
+defBlock(B.NETHERRACK, '下界岩', { tiles:[T.netherrack, T.netherrack, T.netherrack] });
+defBlock(B.LAVA, '岩浆', { solid:false, transparent:true, emissive:1, tiles:[T.lava, T.lava, T.lava] });
+defBlock(B.CHERRY_LOG, '樱花原木', { tiles:[T.cherry_log_top, T.cherry_log_top, T.cherry_log_side] });
+defBlock(B.CHERRY_LEAVES, '樱花树叶', { transparent:true, tiles:[T.cherry_leaves, T.cherry_leaves, T.cherry_leaves] });
+defBlock(B.MYTHIC_STONE, '神话石', { emissive:0.15, tiles:[T.mythic, T.mythic, T.mythic] });
+defBlock(B.AMETHYST, '紫水晶', { transparent:true, emissive:0.5, tiles:[T.amethyst, T.amethyst, T.amethyst] });
+defBlock(B.MOON_STONE, '月石', { emissive:0.4, tiles:[T.moon, T.moon, T.moon] });
+defBlock(B.ROOT, '世界树根', { tiles:[T.root, T.root, T.root] });
+defBlock(B.WOOD_DARK_PLANK, '暗木板', { tiles:[T.dark_plank, T.dark_plank, T.dark_plank] });
+defBlock(B.BONE, '骨块', { tiles:[T.bone, T.bone, T.bone] });
+defBlock(B.END_STONE, '末地石', { tiles:[T.end_stone, T.end_stone, T.end_stone] });
+
+function isSolid(id) { const d = BLOCK_DEFS[id]; return d ? d.solid : false; }
+function isTransparent(id) { const d = BLOCK_DEFS[id]; return d ? d.transparent : true; }
+function isAir(id) { return id === B.AIR; }
+function clamp01(v) { return Math.max(0, Math.min(255, v | 0)); }
+function buildAtlas() {
+  const canvas = document.createElement('canvas');
+  canvas.width = ATLAS_COLS * TILE;
+  canvas.height = ATLAS_ROWS * TILE;
+  const ctx = canvas.getContext('2d');
+
+  function px(ti, x, y, r, g, b, a = 255) {
+    const tx = (ti % ATLAS_COLS) * TILE + x;
+    const ty = Math.floor(ti / ATLAS_COLS) * TILE + y;
+    ctx.fillStyle = `rgba(${clamp01(r)},${clamp01(g)},${clamp01(b)},${a/255})`;
+    ctx.fillRect(tx, ty, 1, 1);
+  }
+  function fillTile(ti, r, g, b) {
+    for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) px(ti, x, y, r, g, b);
+  }
+  function noiseTile(ti, r, g, b, variance = 20, seedOff = 0) {
+    const rnd = mulberry32(SEED + ti * 17 + seedOff);
+    for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+      const n = (rnd() - 0.5) * 2 * variance;
+      px(ti, x, y, r + n, g + n, b + n);
+    }
+  }
+
+  noiseTile(T.grass_top, 110, 168, 62, 28);
+  {
+    const rnd = mulberry32(SEED + 99);
+    for (let i = 0; i < 40; i++) {
+      px(T.grass_top, (rnd()*TILE)|0, (rnd()*TILE)|0, 90+rnd()*40, 150+rnd()*40, 50);
+    }
+  }
+  noiseTile(T.grass_side, 134, 96, 67, 18);
+  for (let x = 0; x < TILE; x++) {
+    const h = 3 + ((x * 7) % 3);
+    for (let y = 0; y < h; y++) {
+      const g = 130 + ((x * 13 + y * 17) % 50);
+      px(T.grass_side, x, y, 100, g, 48);
+    }
+    if ((x * 3) % 5 === 0) px(T.grass_side, x, h, 120, 170, 60);
+  }
+  noiseTile(T.dirt, 134, 96, 67, 22);
+  noiseTile(T.stone, 125, 125, 125, 18);
+  noiseTile(T.cobble, 110, 110, 110, 20);
+  {
+    const rnd = mulberry32(SEED + 7);
+    for (let i = 0; i < 12; i++) {
+      const x0 = 1 + ((rnd()*10)|0), y0 = 1 + ((rnd()*10)|0);
+      const w = 3 + ((rnd()*4)|0), h = 3 + ((rnd()*4)|0);
+      const shade = 90 + rnd() * 40;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (x0+x < TILE-1 && y0+y < TILE-1) {
+          const s = shade + ((x+y)%2)*8;
+          px(T.cobble, x0+x, y0+y, s, s, s);
+        }
+      }
+    }
+  }
+  noiseTile(T.sand, 219, 207, 163, 14);
+  noiseTile(T.log_side, 102, 81, 50, 12);
+  for (let x = 0; x < TILE; x++) {
+    if (x % 4 === 0) for (let y = 0; y < TILE; y++) px(T.log_side, x, y, 80, 62, 38);
+  }
+  fillTile(T.log_top, 160, 130, 80);
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+    const d = Math.hypot(x - 7.5, y - 7.5);
+    const ring = ((d | 0) % 2) * 18;
+    const n = ((x * 13 + y * 7) % 10) - 5;
+    px(T.log_top, x, y, 160 - ring + n, 130 - ring + n, 80 - ring + n);
+  }
+  noiseTile(T.leaves, 56, 120, 40, 30);
+  {
+    const rnd = mulberry32(SEED + 21);
+    for (let i = 0; i < 50; i++) {
+      if (rnd() > 0.35) px(T.leaves, (rnd()*TILE)|0, (rnd()*TILE)|0, 40, 90, 28);
+    }
+  }
+  noiseTile(T.planks, 168, 134, 80, 10);
+  for (let y = 0; y < TILE; y += 4) for (let x = 0; x < TILE; x++) px(T.planks, x, y, 120, 95, 55);
+  noiseTile(T.brick, 140, 140, 140, 12);
+  for (let row = 0; row < 4; row++) {
+    const y0 = row * 4;
+    const off = (row % 2) * 4;
+    for (let x = 0; x < TILE; x++) {
+      px(T.brick, x, y0, 80, 80, 80);
+      px(T.brick, x, y0+3, 90, 90, 90);
+    }
+    for (let x = off; x < TILE; x += 8) {
+      for (let y = y0; y < y0+4; y++) px(T.brick, x, y, 80, 80, 80);
+    }
+  }
+  noiseTile(T.water, 55, 110, 200, 18);
+  {
+    const rnd = mulberry32(SEED + 55);
+    for (let i = 0; i < 20; i++) {
+      const y = (rnd()*TILE)|0, x = (rnd()*TILE)|0;
+      for (let k = 0; k < 4; k++) if (x+k < TILE) px(T.water, x+k, y, 70, 130, 220);
+    }
+  }
+  fillTile(T.glass, 200, 230, 255);
+  for (let i = 0; i < TILE; i++) {
+    px(T.glass, i, 0, 160, 190, 220);
+    px(T.glass, i, TILE-1, 160, 190, 220);
+    px(T.glass, 0, i, 160, 190, 220);
+    px(T.glass, TILE-1, i, 160, 190, 220);
+  }
+  for (let i = 2; i < 10; i++) px(T.glass, i, 3, 240, 250, 255);
+  noiseTile(T.gold, 220, 180, 50, 20);
+  noiseTile(T.diamond, 80, 210, 220, 22);
+  noiseTile(T.obsidian, 25, 18, 40, 12);
+  noiseTile(T.glowstone, 200, 180, 90, 25);
+  {
+    const rnd = mulberry32(SEED + 66);
+    for (let i = 0; i < 30; i++) px(T.glowstone, (rnd()*TILE)|0, (rnd()*TILE)|0, 255, 230, 140);
+  }
+  noiseTile(T.sandstone, 210, 195, 145, 10);
+  noiseTile(T.snow, 235, 240, 245, 12);
+  noiseTile(T.mossy, 100, 110, 100, 16);
+  {
+    const rnd = mulberry32(SEED + 77);
+    for (let i = 0; i < 40; i++) px(T.mossy, (rnd()*TILE)|0, (rnd()*TILE)|0, 70, 120, 55);
+  }
+  noiseTile(T.rune, 70, 60, 90, 14);
+  {
+    const rnd = mulberry32(SEED + 88);
+    for (let i = 0; i < 12; i++) {
+      const x0 = 2 + ((rnd()*10)|0), y0 = 2 + ((rnd()*10)|0);
+      for (let k = 0; k < 3; k++) {
+        px(T.rune, (x0+k)%TILE, y0, 140, 220, 255);
+        px(T.rune, x0, (y0+k)%TILE, 140, 220, 255);
+      }
+    }
+  }
+  noiseTile(T.crystal, 120, 180, 230, 28);
+  {
+    const rnd = mulberry32(SEED + 91);
+    for (let i = 0; i < 16; i++) {
+      px(T.crystal, (rnd()*TILE)|0, (rnd()*TILE)|0, 200, 240, 255);
+    }
+  }
+  noiseTile(T.dark_stone, 55, 50, 60, 14);
+  noiseTile(T.marble, 230, 228, 225, 10);
+  noiseTile(T.dark_log_side, 70, 50, 40, 10);
+  for (let x = 0; x < TILE; x++) if (x % 5 === 0) for (let y = 0; y < TILE; y++) px(T.dark_log_side, x, y, 50, 35, 28);
+  fillTile(T.dark_log_top, 110, 85, 60);
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+    const d = Math.hypot(x-7.5, y-7.5);
+    const ring = ((d|0)%2)*15;
+    px(T.dark_log_top, x, y, 110-ring, 85-ring, 60-ring);
+  }
+  noiseTile(T.red_brick, 160, 70, 55, 14);
+  for (let row = 0; row < 4; row++) {
+    const y0 = row * 4;
+    for (let x = 0; x < TILE; x++) {
+      px(T.red_brick, x, y0, 90, 40, 35);
+      px(T.red_brick, x, y0+3, 100, 45, 40);
+    }
+  }
+  noiseTile(T.iron, 195, 195, 200, 12);
+  noiseTile(T.coal, 100, 100, 100, 12);
+  {
+    const rnd = mulberry32(SEED + 33);
+    for (let i = 0; i < 18; i++) px(T.coal, (rnd()*TILE)|0, (rnd()*TILE)|0, 30, 30, 30);
+  }
+  noiseTile(T.gravel, 130, 125, 118, 22);
+  noiseTile(T.netherrack, 120, 45, 45, 18);
+  noiseTile(T.lava, 220, 90, 20, 28);
+  {
+    const rnd = mulberry32(SEED + 44);
+    for (let i = 0; i < 24; i++) px(T.lava, (rnd()*TILE)|0, (rnd()*TILE)|0, 255, 160, 40);
+  }
+  noiseTile(T.cherry_log_side, 120, 80, 75, 10);
+  for (let x = 0; x < TILE; x++) if (x % 4 === 0) for (let y = 0; y < TILE; y++) px(T.cherry_log_side, x, y, 95, 60, 55);
+  fillTile(T.cherry_log_top, 160, 120, 110);
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+    const d = Math.hypot(x-7.5, y-7.5);
+    const ring = ((d|0)%2)*16;
+    px(T.cherry_log_top, x, y, 160-ring, 120-ring, 110-ring);
+  }
+  noiseTile(T.cherry_leaves, 220, 150, 170, 25);
+  {
+    const rnd = mulberry32(SEED + 111);
+    for (let i = 0; i < 40; i++) px(T.cherry_leaves, (rnd()*TILE)|0, (rnd()*TILE)|0, 240, 180, 200);
+  }
+  noiseTile(T.mythic, 90, 80, 130, 16);
+  {
+    const rnd = mulberry32(SEED + 122);
+    for (let i = 0; i < 20; i++) px(T.mythic, (rnd()*TILE)|0, (rnd()*TILE)|0, 180, 160, 255);
+  }
+  noiseTile(T.amethyst, 140, 90, 200, 24);
+  {
+    const rnd = mulberry32(SEED + 133);
+    for (let i = 0; i < 14; i++) px(T.amethyst, (rnd()*TILE)|0, (rnd()*TILE)|0, 220, 160, 255);
+  }
+  noiseTile(T.moon, 200, 210, 230, 14);
+  {
+    const rnd = mulberry32(SEED + 144);
+    for (let i = 0; i < 10; i++) px(T.moon, (rnd()*TILE)|0, (rnd()*TILE)|0, 240, 250, 255);
+  }
+  noiseTile(T.root, 90, 70, 45, 14);
+  for (let x = 0; x < TILE; x++) if (x % 3 === 0) for (let y = 0; y < TILE; y++) px(T.root, x, y, 60, 45, 28);
+  noiseTile(T.dark_plank, 100, 75, 50, 10);
+  for (let y = 0; y < TILE; y += 4) for (let x = 0; x < TILE; x++) px(T.dark_plank, x, y, 70, 50, 32);
+  noiseTile(T.bone, 220, 215, 200, 10);
+  noiseTile(T.end_stone, 210, 215, 170, 14);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+const atlasTexture = buildAtlas();
+const atlasMaterial = new THREE.MeshBasicMaterial({
+  map: atlasTexture,
+  vertexColors: true,
+  alphaTest: 0.1,
+  side: THREE.FrontSide
+});
+const waterMaterial = new THREE.MeshBasicMaterial({
+  map: atlasTexture,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.72,
+  depthWrite: false,
+  side: THREE.DoubleSide
+});
+
+function tileUV(tileIndex) {
+  const col = tileIndex % ATLAS_COLS;
+  const row = Math.floor(tileIndex / ATLAS_COLS);
+  return {
+    u0: col / ATLAS_COLS,
+    v1: 1 - row / ATLAS_ROWS,
+    du: 1 / ATLAS_COLS,
+    dv: 1 / ATLAS_ROWS
+  };
+}
+
+const FACES = [
+  { dir:[1,0,0], corners:[[1,1,1],[1,0,1],[1,1,0],[1,0,0]], shade:0.72 },
+  { dir:[-1,0,0], corners:[[0,1,0],[0,0,0],[0,1,1],[0,0,1]], shade:0.72 },
+  { dir:[0,1,0], corners:[[0,1,1],[1,1,1],[0,1,0],[1,1,0]], shade:1.0 },
+  { dir:[0,-1,0], corners:[[0,0,0],[1,0,0],[0,0,1],[1,0,1]], shade:0.5 },
+  { dir:[0,0,1], corners:[[0,1,1],[0,0,1],[1,1,1],[1,0,1]], shade:0.85 },
+  { dir:[0,0,-1], corners:[[1,1,0],[1,0,0],[0,1,0],[0,0,0]], shade:0.85 }
+];
+
+function tileForFace(def, faceIndex) {
+  const t = def.tiles;
+  if (!t) return T.stone;
+  if (faceIndex === 2) return t[0];
+  if (faceIndex === 3) return t[1];
+  return t[2];
+}
+
+function heightAt(x, z) {
+  const nx = x * 0.01;
+  const nz = z * 0.01;
+  let h = 36;
+  h += perlin.fbm2(nx, nz, 5) * 28;
+  const mountain = perlin.ridged2(x * 0.004 + 100, z * 0.004 - 50, 4);
+  h += mountain * mountain * 42;
+  const continent = perlin2.fbm2(x * 0.0025, z * 0.0025, 3);
+  h += continent * 12;
+  h += perlin2.noise2(x * 0.08, z * 0.08) * 2;
+  return Math.floor(h);
+}
+
+function biomeAt(x, z) {
+  const temp = perlin2.fbm2(x * 0.003 + 500, z * 0.003 + 500, 3);
+  const moist = perlin2.fbm2(x * 0.004 - 200, z * 0.004 - 200, 3);
+  if (temp > 0.25 && moist < -0.05) return 'desert';
+  if (temp < -0.2) return 'snow';
+  if (moist > 0.15) return 'forest';
+  return 'plains';
+}
+
+function hash2(x, z) {
+  let n = x * 374761393 + z * 668265263;
+  n = (n ^ (n >> 13)) * 1274126177;
+  return ((n ^ (n >> 16)) >>> 0) / 4294967296;
+}
+const chunkData = new Map();
+const chunkMeshes = new Map();
+const dirtyChunks = new Set();
+const pendingBlocks = new Map();
+let structBaseX = 0, structBaseZ = 0;
+
+function setStruct(data, lx, ly, lz, id) {
+  if (lx >= 0 && lx < CHUNK_X && ly >= 0 && ly < CHUNK_Y && lz >= 0 && lz < CHUNK_Z) {
+    setLocal(data, lx, ly, lz, id);
+  } else {
+    const wx = structBaseX + lx;
+    const wz = structBaseZ + lz;
+    pendingBlocks.set(wx + ',' + ly + ',' + wz, id);
+  }
+}
+
+function applyPending(data, baseX, baseZ) {
+  if (!pendingBlocks.size) return;
+  const toDelete = [];
+  for (const [k, id] of pendingBlocks) {
+    const parts = k.split(',');
+    const wx = +parts[0], wy = +parts[1], wz = +parts[2];
+    const lx = wx - baseX, lz = wz - baseZ;
+    if (lx >= 0 && lx < CHUNK_X && lz >= 0 && lz < CHUNK_Z && wy >= 0 && wy < CHUNK_Y) {
+      setLocal(data, lx, wy, lz, id);
+      toDelete.push(k);
+    }
+  }
+  for (const k of toDelete) pendingBlocks.delete(k);
+}
+
+function applyPendingToLoaded() {
+  if (!pendingBlocks.size) return;
+  const toDelete = [];
+  for (const [k, id] of pendingBlocks) {
+    const parts = k.split(',');
+    const wx = +parts[0], wy = +parts[1], wz = +parts[2];
+    const cx = Math.floor(wx / CHUNK_X);
+    const cz = Math.floor(wz / CHUNK_Z);
+    const chunk = chunkData.get(ckey(cx, cz));
+    if (!chunk) continue;
+    if (setBlockInChunk(chunk, wx - cx * CHUNK_X, wy, wz - cz * CHUNK_Z, id)) {
+      markDirty(cx, cz);
+      toDelete.push(k);
+    }
+  }
+  for (const k of toDelete) pendingBlocks.delete(k);
+}
+
+function ckey(cx, cz) { return cx + ',' + cz; }
+
+function setBlockInChunk(chunk, lx, ly, lz, id) {
+  if (lx < 0 || lx >= CHUNK_X || ly < 0 || ly >= CHUNK_Y || lz < 0 || lz >= CHUNK_Z) return false;
+  chunk[lx + lz * CHUNK_X + ly * CHUNK_X * CHUNK_Z] = id;
+  return true;
+}
+
+function getBlockLocal(chunk, lx, ly, lz) {
+  if (lx < 0 || lx >= CHUNK_X || ly < 0 || ly >= CHUNK_Y || lz < 0 || lz >= CHUNK_Z) return B.AIR;
+  return chunk[lx + lz * CHUNK_X + ly * CHUNK_X * CHUNK_Z];
+}
+
+function markDirty(cx, cz) { dirtyChunks.add(ckey(cx, cz)); }
+
+function setBlockWorld(worldX, worldY, worldZ, id) {
+  const x = Math.floor(worldX);
+  const y = Math.floor(worldY);
+  const z = Math.floor(worldZ);
+  const cx = Math.floor(x / CHUNK_X);
+  const cz = Math.floor(z / CHUNK_Z);
+  const chunk = chunkData.get(ckey(cx, cz));
+  if (!chunk) return;
+  const lx = x - cx * CHUNK_X;
+  const lz = z - cz * CHUNK_Z;
+  if (setBlockInChunk(chunk, lx, y, lz, id)) {
+    markDirty(cx, cz);
+    if (lx === 0) markDirty(cx - 1, cz);
+    if (lx === CHUNK_X - 1) markDirty(cx + 1, cz);
+    if (lz === 0) markDirty(cx, cz - 1);
+    if (lz === CHUNK_Z - 1) markDirty(cx, cz + 1);
+  }
+}
+
+function getBlockWorld(worldX, worldY, worldZ) {
+  const x = Math.floor(worldX);
+  const y = Math.floor(worldY);
+  const z = Math.floor(worldZ);
+  const cx = Math.floor(x / CHUNK_X);
+  const cz = Math.floor(z / CHUNK_Z);
+  const chunk = chunkData.get(ckey(cx, cz));
+  if (!chunk) return B.AIR;
+  return getBlockLocal(chunk, x - cx * CHUNK_X, y, z - cz * CHUNK_Z);
+}
+
+function setLocal(data, lx, ly, lz, id) {
+  if (lx < 0 || lx >= CHUNK_X || ly < 0 || ly >= CHUNK_Y || lz < 0 || lz >= CHUNK_Z) return;
+  data[lx + lz * CHUNK_X + ly * CHUNK_X * CHUNK_Z] = id;
+}
+
+function generateChunk(cx, cz) {
+  const data = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
+  const baseX = cx * CHUNK_X;
+  const baseZ = cz * CHUNK_Z;
+
+  for (let lz = 0; lz < CHUNK_Z; lz++) {
+    for (let lx = 0; lx < CHUNK_X; lx++) {
+      const wx = baseX + lx;
+      const wz = baseZ + lz;
+      const h = heightAt(wx, wz);
+      const biome = biomeAt(wx, wz);
+      const col = lx + lz * CHUNK_X;
+
+      for (let y = 0; y < CHUNK_Y; y++) {
+        const idx = col + y * CHUNK_X * CHUNK_Z;
+        if (y === 0) {
+          data[idx] = B.OBSIDIAN;
+        } else if (y < h - 4) {
+          data[idx] = B.STONE;
+          const oreR = hash2(wx * 3 + y, wz * 3 - y);
+          if (oreR > 0.985) data[idx] = B.COAL;
+          else if (oreR > 0.978 && y < 24) data[idx] = B.IRON;
+          else if (oreR > 0.972 && y < 14) data[idx] = B.GOLD;
+          else if (oreR > 0.968 && y < 12) data[idx] = B.DIAMOND;
+          else if (oreR > 0.96 && y > h - 12) data[idx] = B.GRAVEL;
+        } else if (y < h) {
+          data[idx] = biome === 'desert' ? B.SAND : B.DIRT;
+        } else if (y === h) {
+          if (h < WATER_LEVEL - 1) data[idx] = B.SAND;
+          else if (biome === 'desert') data[idx] = B.SAND;
+          else if (biome === 'snow') data[idx] = B.SNOW;
+          else data[idx] = B.GRASS;
+        } else if (y <= WATER_LEVEL && y > h) {
+          data[idx] = B.WATER;
+        }
+      }
+    }
+  }
+
+  placeTrees(data, baseX, baseZ);
+  placeLandmarksNear(data, cx, cz, baseX, baseZ);
+  applyPending(data, baseX, baseZ);
+  const stampDelete = [];
+  for (const [k, id] of pendingBlocks) {
+    const parts = k.split(',');
+    const wx = +parts[0], wy = +parts[1], wz = +parts[2];
+    const ncx = Math.floor(wx / CHUNK_X);
+    const ncz = Math.floor(wz / CHUNK_Z);
+    if (ncx === cx && ncz === cz) continue;
+    const nchunk = chunkData.get(ckey(ncx, ncz));
+    if (!nchunk) continue;
+    if (setBlockInChunk(nchunk, wx - ncx * CHUNK_X, wy, wz - ncz * CHUNK_Z, id)) {
+      markDirty(ncx, ncz);
+      stampDelete.push(k);
+    }
+  }
+  for (const k of stampDelete) pendingBlocks.delete(k);
+  return data;
+}
+
+function placeTrees(data, baseX, baseZ) {
+  for (let lz = 0; lz < CHUNK_Z; lz++) {
+    for (let lx = 0; lx < CHUNK_X; lx++) {
+      const wx = baseX + lx;
+      const wz = baseZ + lz;
+      const r = hash2(wx, wz);
+      if (r >= 0.018) continue;
+      const h = heightAt(wx, wz);
+      const biome = biomeAt(wx, wz);
+      if (h <= WATER_LEVEL) continue;
+      if (biome === 'desert' && r > 0.008) continue;
+      const treeR = hash2(wx + 991, wz - 331);
+      if (biome !== 'forest' && treeR <= 0.4) continue;
+      if (treeR > 0.85 && biome !== 'desert') placeCherryTree(data, lx, h + 1, lz);
+      else placeOakTree(data, lx, h + 1, lz, treeR);
+    }
+  }
+}
+
+function placeOakTree(data, lx, y, lz, r) {
+  const tall = 4 + ((r * 3) | 0);
+  for (let i = 0; i < tall; i++) setLocal(data, lx, y + i, lz, B.LOG);
+  const top = y + tall;
+  for (let dy = -2; dy <= 1; dy++) {
+    const rad = dy <= 0 ? 2 : 1;
+    for (let dx = -rad; dx <= rad; dx++) {
+      for (let dz = -rad; dz <= rad; dz++) {
+        if (dx === 0 && dz === 0 && dy < 1) continue;
+        if (Math.abs(dx) === rad && Math.abs(dz) === rad && r > 0.3) continue;
+        setLocal(data, lx + dx, top + dy, lz + dz, B.LEAVES);
+      }
+    }
+  }
+  setLocal(data, lx, top + 1, lz, B.LEAVES);
+}
+
+function placeCherryTree(data, lx, y, lz) {
+  for (let i = 0; i < 5; i++) setLocal(data, lx, y + i, lz, B.CHERRY_LOG);
+  const top = y + 5;
+  for (let dy = -2; dy <= 1; dy++) {
+    const rad = dy === 0 ? 2 : 1;
+    for (let dx = -rad; dx <= rad; dx++) {
+      for (let dz = -rad; dz <= rad; dz++) {
+        if (dx === 0 && dz === 0 && dy < 1) continue;
+        setLocal(data, lx + dx, top + dy, lz + dz, B.CHERRY_LEAVES);
+      }
+    }
+  }
+}
+
+function placeTinyTree(data, lx, y, lz) {
+  for (let i = 0; i < 3; i++) setStruct(data, lx, y + i, lz, B.LOG);
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) setStruct(data, lx + dx, y + 3, lz + dz, B.LEAVES);
+  setStruct(data, lx, y + 4, lz, B.LEAVES);
+}
+
+function placeLandmarksNear(data, cx, cz, baseX, baseZ) {
+  const cellRange = 2;
+  const originCellX = Math.floor(baseX / 48);
+  const originCellZ = Math.floor(baseZ / 48);
+  for (let sz = -cellRange; sz <= cellRange; sz++) {
+    for (let sx = -cellRange; sx <= cellRange; sx++) {
+      placeLandmark(data, originCellX + sx, originCellZ + sz, baseX, baseZ);
+    }
+  }
+}
+
+function placeLandmark(data, cellX, cellZ, baseX, baseZ) {
+  const r = hash2(cellX * 13 + SEED, cellZ * 17 - SEED);
+  if (r < 0.25) return;
+  const ox = cellX * 48 + ((hash2(cellX, cellZ) * 20) | 0) + 10;
+  const oz = cellZ * 48 + ((hash2(cellZ, cellX) * 20) | 0) + 10;
+  const lx = ox - baseX;
+  const lz = oz - baseZ;
+  // only stamp once, from the chunk that contains the origin
+  if (lx < 0 || lx >= CHUNK_X || lz < 0 || lz >= CHUNK_Z) return;
+  const h = heightAt(ox, oz);
+  const type = Math.floor(r * 7) % 7;
+  structBaseX = baseX;
+  structBaseZ = baseZ;
+  if (type === 0) buildFloatingIsland(data, lx, Math.max(h + 30, 58), lz);
+  else if (type === 1) buildTemple(data, lx, h + 1, lz);
+  else if (type === 2) buildWorldTree(data, lx, h + 1, lz);
+  else if (type === 3) buildCrystalSpire(data, lx, h + 1, lz);
+  else if (type === 4) buildStoneCircle(data, lx, h + 1, lz);
+  else if (type === 5) buildRuinArch(data, lx, h + 1, lz);
+  else buildDragonNest(data, lx, h + 1, lz);
+}
+
+function buildFloatingIsland(data, cx, cy, cz) {
+  const radius = 8;
+  for (let dy = -5; dy <= 3; dy++) {
+    const ry = radius * (1 - Math.abs(dy) / 6);
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        const d = Math.hypot(dx, dz);
+        if (d > ry) continue;
+        let id = B.STONE;
+        if (dy >= 2) id = B.GRASS;
+        else if (dy >= 0) id = B.DIRT;
+        else if (d > ry - 1.5) id = B.COBBLE;
+        setStruct(data, cx + dx, cy + dy, cz + dz, id);
+      }
+    }
+  }
+  for (let i = 0; i < 6; i++) {
+    setStruct(data, cx, cy - 6 - i, cz, B.ROOT);
+    if (i % 2 === 0) {
+      setStruct(data, cx + 1, cy - 6 - i, cz, B.ROOT);
+      setStruct(data, cx, cy - 6 - i, cz + 1, B.ROOT);
+      setStruct(data, cx - 1, cy - 6 - i, cz, B.ROOT);
+    }
+  }
+  setStruct(data, cx, cy + 4, cz, B.GLOWSTONE);
+  for (let i = -2; i <= 2; i++) setStruct(data, cx + i, cy + 3, cz, B.CRYSTAL);
+  placeTinyTree(data, cx - 3, cy + 3, cz + 2);
+  placeTinyTree(data, cx + 2, cy + 3, cz - 2);
+  setStruct(data, cx, cy + 3, cz, B.MOON_STONE);
+}
+
+function buildTemple(data, cx, cy, cz) {
+  const w = 9, d = 9;
+  for (let dx = -w; dx <= w; dx++) {
+    for (let dz = -d; dz <= d; dz++) {
+      const dist = Math.max(Math.abs(dx), Math.abs(dz));
+      const h = Math.max(1, 7 - Math.floor(dist / 2));
+      for (let y = 0; y < h; y++) {
+        let id = B.SANDSTONE;
+        if (y === h - 1) id = ((dx + dz) % 3 === 0) ? B.MARBLE : B.SANDSTONE;
+        if (dist <= 1) id = (y === 0) ? B.RUNE : B.MARBLE;
+        setStruct(data, cx + dx, cy + y, cz + dz, id);
+      }
+    }
+  }
+  for (let y = 7; y < 14; y++) {
+    setStruct(data, cx, cy + y, cz, B.MARBLE);
+    if (y > 9) {
+      setStruct(data, cx + 1, cy + y, cz, B.MARBLE);
+      setStruct(data, cx - 1, cy + y, cz, B.MARBLE);
+      setStruct(data, cx, cy + y, cz + 1, B.MARBLE);
+      setStruct(data, cx, cy + y, cz - 1, B.MARBLE);
+    }
+  }
+  setStruct(data, cx, cy + 14, cz, B.GLOWSTONE);
+  setStruct(data, cx, cy + 15, cz, B.RUNE);
+  for (const [ox, oz] of [[-5,-5],[5,-5],[-5,5],[5,5]]) {
+    for (let y = 0; y < 4; y++) setStruct(data, cx + ox, cy + y, cz + oz, B.SANDSTONE);
+    setStruct(data, cx + ox, cy + 4, cz + oz, B.GLOWSTONE);
+  }
+  for (let i = -1; i <= 1; i++) {
+    setStruct(data, cx + i, cy + 1, cz - 8, B.AIR);
+    setStruct(data, cx + i, cy + 2, cz - 8, B.AIR);
+    setStruct(data, cx + i, cy + 3, cz - 8, B.AIR);
+  }
+}
+
+function buildWorldTree(data, cx, cy, cz) {
+  for (let y = 0; y < 18; y++) setStruct(data, cx, cy + y, cz, B.DARK_LOG);
+  for (let y = 0; y < 6; y++) {
+    setStruct(data, cx + 1, cy + y, cz, B.DARK_LOG);
+    setStruct(data, cx - 1, cy + y, cz, B.DARK_LOG);
+    setStruct(data, cx, cy + y, cz + 1, B.DARK_LOG);
+    setStruct(data, cx, cy + y, cz - 1, B.DARK_LOG);
+  }
+  const top = cy + 16;
+  for (let dy = -2; dy <= 3; dy++) {
+    const rad = dy >= 1 ? 5 : (dy === 0 ? 6 : 4);
+    for (let dx = -rad; dx <= rad; dx++) {
+      for (let dz = -rad; dz <= rad; dz++) {
+        if (dx * dx + dz * dz > rad * rad) continue;
+        if (dx === 0 && dz === 0 && dy < 2) continue;
+        setStruct(data, cx + dx, top + dy, cz + dz, B.LEAVES);
+      }
+    }
+  }
+  for (let i = 0; i < 10; i++) {
+    const ox = ((i % 3) - 1) * 2;
+    const oz = ((Math.floor(i / 3)) % 3 - 1) * 2;
+    setStruct(data, cx + ox, cy - 1 - (i % 3), cz + oz, B.ROOT);
+    if (i % 2 === 0) setStruct(data, cx + ox + 1, cy - 1, cz + oz, B.ROOT);
+  }
+  for (let i = 0; i < 4; i++) {
+    setStruct(data, cx + (i < 2 ? 2 : -2), cy + 14 + (i % 2), cz + (i % 2 ? 2 : -2), B.GLOWSTONE);
+  }
+  setStruct(data, cx, top + 4, cz, B.MYTHIC_STONE);
+}
+
+function buildCrystalSpire(data, cx, cy, cz) {
+  for (let y = 0; y < 5; y++) {
+    setStruct(data, cx, cy + y, cz, B.DARK_STONE);
+    setStruct(data, cx + 1, cy + y, cz, B.DARK_STONE);
+    setStruct(data, cx - 1, cy + y, cz, B.DARK_STONE);
+    setStruct(data, cx, cy + y, cz + 1, B.DARK_STONE);
+    setStruct(data, cx, cy + y, cz - 1, B.DARK_STONE);
+  }
+  for (let y = 5; y < 16; y++) {
+    const w = Math.max(0, 3 - Math.floor((y - 5) / 3));
+    for (let dx = -w; dx <= w; dx++) {
+      for (let dz = -w; dz <= w; dz++) {
+        if (Math.abs(dx) + Math.abs(dz) > w + 1) continue;
+        setStruct(data, cx + dx, cy + y, cz + dz, (y + dx + dz) % 4 === 0 ? B.AMETHYST : B.CRYSTAL);
+      }
+    }
+  }
+  setStruct(data, cx, cy + 16, cz, B.GLOWSTONE);
+  setStruct(data, cx, cy + 17, cz, B.CRYSTAL);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const ox = Math.round(Math.cos(a) * 4);
+    const oz = Math.round(Math.sin(a) * 4);
+    for (let y = 0; y < 3; y++) setStruct(data, cx + ox, cy + y, cz + oz, B.MOSSY);
+    setStruct(data, cx + ox, cy + 3, cz + oz, B.CRYSTAL);
+  }
+}
+
+function buildStoneCircle(data, cx, cy, cz) {
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const ox = Math.round(Math.cos(a) * 6);
+    const oz = Math.round(Math.sin(a) * 6);
+    for (let y = 0; y < 3 + (i % 2); y++) setStruct(data, cx + ox, cy + y, cz + oz, B.MOSSY);
+    setStruct(data, cx + ox, cy + 3 + (i % 2), cz + oz, B.STONE);
+    setStruct(data, cx + Math.round(ox * 0.7), cy + 2, cz + Math.round(oz * 0.7), B.RUNE);
+  }
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      if (Math.abs(dx) === 2 || Math.abs(dz) === 2) setStruct(data, cx + dx, cy, cz + dz, B.COBBLE);
+      else setStruct(data, cx + dx, cy, cz + dz, B.RUNE);
+    }
+  }
+  setStruct(data, cx, cy + 1, cz, B.GLOWSTONE);
+}
+
+function buildRuinArch(data, cx, cy, cz) {
+  for (let y = 0; y < 8; y++) {
+    setStruct(data, cx - 4, cy + y, cz, y < 6 ? B.COBBLE : B.MOSSY);
+    setStruct(data, cx + 4, cy + y, cz, y < 7 ? B.COBBLE : B.MOSSY);
+  }
+  for (let x = -4; x <= 4; x++) {
+    setStruct(data, cx + x, cy + 8, cz, x % 3 === 0 ? B.MOSSY : B.COBBLE);
+    if (x % 2 === 0) setStruct(data, cx + x, cy + 9, cz, B.COBBLE);
+  }
+  for (let dx = -6; dx <= 6; dx++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      if (hash2(cx + dx, cz + dz) > 0.55) setStruct(data, cx + dx, cy, cz + dz, B.STONE);
+    }
+  }
+  setStruct(data, cx, cy + 1, cz, B.RUNE);
+  setStruct(data, cx - 2, cy + 1, cz, B.GLOWSTONE);
+  setStruct(data, cx + 2, cy + 1, cz, B.GLOWSTONE);
+  for (let i = 0; i < 4; i++) {
+    setStruct(data, cx - 5 + (i * 3), cy + 1, cz + ((i % 2) * 2 - 1), B.CRYSTAL);
+  }
+}
+
+function buildDragonNest(data, cx, cy, cz) {
+  for (let dx = -7; dx <= 7; dx++) {
+    for (let dz = -7; dz <= 7; dz++) {
+      const d = Math.hypot(dx, dz);
+      if (d > 7) continue;
+      const h = d < 3 ? 2 : (d < 5 ? 3 : 4);
+      for (let y = 0; y < h; y++) {
+        setStruct(data, cx + dx, cy + y, cz + dz, y === h - 1 ? B.NETHERRACK : B.DARK_STONE);
+      }
+    }
+  }
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      setStruct(data, cx + dx, cy + 2, cz + dz, B.LAVA);
+      if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1) setStruct(data, cx + dx, cy + 3, cz + dz, B.OBSIDIAN);
+    }
+  }
+  const bones = [[-4,0],[4,1],[-3,3],[3,-3],[0,5],[5,0]];
+  for (const [ox, oz] of bones) {
+    for (let y = 0; y < 2; y++) setStruct(data, cx + ox, cy + 4 + y, cz + oz, B.BONE);
+  }
+  setStruct(data, cx, cy + 4, cz, B.GOLD);
+  setStruct(data, cx + 1, cy + 5, cz, B.GOLD);
+  setStruct(data, cx - 1, cy + 5, cz, B.GOLD);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    setStruct(data, cx + Math.round(Math.cos(a) * 6), cy + 4, cz + Math.round(Math.sin(a) * 6), B.GLOWSTONE);
+  }
+}
+function getBlockForMesh(cx, cz, lx, ly, lz) {
+  if (ly < 0 || ly >= CHUNK_Y) return B.AIR;
+  if (lx >= 0 && lx < CHUNK_X && lz >= 0 && lz < CHUNK_Z) {
+    const chunk = chunkData.get(ckey(cx, cz));
+    if (!chunk) return B.STONE;
+    return getBlockLocal(chunk, lx, ly, lz);
+  }
+  const wx = cx * CHUNK_X + lx;
+  const wz = cz * CHUNK_Z + lz;
+  return getBlockWorld(wx, ly, wz);
+}
+
+function buildChunkMesh(cx, cz) {
+  const key = ckey(cx, cz);
+  const old = chunkMeshes.get(key);
+  if (old) {
+    scene.remove(old.solid);
+    scene.remove(old.water);
+    old.solid.geometry.dispose();
+    old.water.geometry.dispose();
+  }
+
+  const chunk = chunkData.get(key);
+  if (!chunk) return;
+
+  const solidPos = [], solidUV = [], solidCol = [], solidIdx = [];
+  const waterPos = [], waterUV = [], waterCol = [], waterIdx = [];
+  let solidV = 0, waterV = 0;
+  const baseX = cx * CHUNK_X;
+  const baseZ = cz * CHUNK_Z;
+
+  for (let ly = 0; ly < CHUNK_Y; ly++) {
+    for (let lz = 0; lz < CHUNK_Z; lz++) {
+      for (let lx = 0; lx < CHUNK_X; lx++) {
+        const id = getBlockLocal(chunk, lx, ly, lz);
+        if (id === B.AIR) continue;
+        const def = BLOCK_DEFS[id];
+        if (!def) continue;
+        const isWater = id === B.WATER;
+        const isTrans = def.transparent;
+
+        for (let fi = 0; fi < 6; fi++) {
+          const face = FACES[fi];
+          const nx = lx + face.dir[0];
+          const ny = ly + face.dir[1];
+          const nz = lz + face.dir[2];
+          const nid = getBlockForMesh(cx, cz, nx, ny, nz);
+          const ndef = BLOCK_DEFS[nid];
+
+          let show = false;
+          if (nid === B.AIR) show = true;
+          else if (isWater) show = nid !== B.WATER && (!ndef || ndef.transparent);
+          else if (isTrans) show = nid !== id && (!ndef || ndef.transparent || ndef.solid === false);
+          else show = ndef && ndef.transparent;
+
+          if (!show) continue;
+
+          const tile = tileForFace(def, fi);
+          const uv = tileUV(tile);
+          const shade = face.shade * (1 + (def.emissive || 0) * 0.35);
+          const em = def.emissive || 0;
+          const r = shade + em * 0.25;
+          const g = shade + em * 0.25;
+          const b = shade + em * 0.25;
+
+          const vi = isWater ? waterV : solidV;
+          const yScale = isWater ? 0.9 : 1;
+          for (let ci = 0; ci < 4; ci++) {
+            const c = face.corners[ci];
+            (isWater ? waterPos : solidPos).push(lx + c[0], ly + c[1] * yScale, lz + c[2]);
+            const uu = (ci === 0 || ci === 1) ? uv.u0 : uv.u0 + uv.du;
+            const vv = (ci === 0 || ci === 2) ? uv.v1 : uv.v1 - uv.dv;
+            (isWater ? waterUV : solidUV).push(uu, vv);
+            (isWater ? waterCol : solidCol).push(r, g, b);
+          }
+          (isWater ? waterIdx : solidIdx).push(vi, vi + 1, vi + 2, vi + 2, vi + 1, vi + 3);
+          if (isWater) waterV += 4;
+          else solidV += 4;
+        }
+      }
+    }
+  }
+
+  let solidMesh = null, waterMesh = null;
+
+  if (solidPos.length) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(solidPos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(solidUV, 2));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(solidCol, 3));
+    geo.setIndex(solidIdx);
+    solidMesh = new THREE.Mesh(geo, atlasMaterial);
+    solidMesh.position.set(baseX, 0, baseZ);
+    solidMesh.matrixAutoUpdate = false;
+    solidMesh.updateMatrix();
+    scene.add(solidMesh);
+  } else {
+    solidMesh = new THREE.Mesh(new THREE.BufferGeometry(), atlasMaterial);
+    solidMesh.position.set(baseX, 0, baseZ);
+  }
+
+  if (waterPos.length) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(waterPos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(waterUV, 2));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(waterCol, 3));
+    geo.setIndex(waterIdx);
+    waterMesh = new THREE.Mesh(geo, waterMaterial);
+    waterMesh.position.set(baseX, 0, baseZ);
+    waterMesh.renderOrder = 1;
+    waterMesh.matrixAutoUpdate = false;
+    waterMesh.updateMatrix();
+    scene.add(waterMesh);
+  } else {
+    waterMesh = new THREE.Mesh(new THREE.BufferGeometry(), waterMaterial);
+    waterMesh.position.set(baseX, 0, baseZ);
+  }
+
+  chunkMeshes.set(key, { solid: solidMesh, water: waterMesh });
+}
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87b5d9);
+scene.fog = new THREE.Fog(0x87b5d9, 40, RENDER_DIST * CHUNK_X * 1.15);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 400);
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.getElementById('app').appendChild(renderer.domElement);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xfff2d0, 0.9);
+sun.position.set(60, 100, 40);
+scene.add(sun);
+const hemi = new THREE.HemisphereLight(0xb8d8ff, 0x6a5a40, 0.35);
+scene.add(hemi);
+
+const highlightGeo = new THREE.BoxGeometry(1.005, 1.005, 1.005);
+const highlightMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.45,
+  depthTest: true
+});
+const highlight = new THREE.Mesh(highlightGeo, highlightMat);
+highlight.visible = false;
+scene.add(highlight);
+
+const player = {
+  pos: new THREE.Vector3(8, 50, 8),
+  vel: new THREE.Vector3(),
+  yaw: 0,
+  pitch: -0.2,
+  onGround: false,
+  flying: false,
+  width: 0.6,
+  height: 1.8,
+  eye: 1.62
+};
+
+const keys = {};
+let selectedSlot = 0;
+const hotbar = [B.GRASS, B.DIRT, B.STONE, B.LOG, B.PLANKS, B.BRICK, B.GLOWSTONE, B.CRYSTAL, B.GLASS];
+
+const raycaster = new THREE.Raycaster();
+raycaster.far = REACH;
+const center = new THREE.Vector2(0, 0);
+let currentHit = null;
+
+function aabbSolid(x, y, z) {
+  return isSolid(getBlockWorld(x, y, z));
+}
+
+function collideAxis(axis) {
+  const p = player.pos;
+  const hw = player.width / 2;
+  const minX = Math.floor(p.x - hw);
+  const maxX = Math.floor(p.x + hw);
+  const minY = Math.floor(p.y);
+  const maxY = Math.floor(p.y + player.height);
+  const minZ = Math.floor(p.z - hw);
+  const maxZ = Math.floor(p.z + hw);
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let z = minZ; z <= maxZ; z++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (!aabbSolid(x, y, z)) continue;
+        if (axis === 0) {
+          if (player.vel.x > 0) p.x = x - hw - 0.001;
+          else if (player.vel.x < 0) p.x = x + 1 + hw + 0.001;
+          player.vel.x = 0;
+        } else if (axis === 1) {
+          if (player.vel.y > 0) p.y = y - player.height - 0.001;
+          else if (player.vel.y < 0) {
+            p.y = y + 1;
+            player.onGround = true;
+          }
+          player.vel.y = 0;
+        } else {
+          if (player.vel.z > 0) p.z = z - hw - 0.001;
+          else if (player.vel.z < 0) p.z = z + 1 + hw + 0.001;
+          player.vel.z = 0;
+        }
+      }
+    }
+  }
+}
+
+function updatePlayer(dt) {
+  const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+  const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+  const move = new THREE.Vector3();
+  if (keys['KeyW']) move.add(forward);
+  if (keys['KeyS']) move.sub(forward);
+  if (keys['KeyD']) move.add(right);
+  if (keys['KeyA']) move.sub(right);
+  if (move.lengthSq() > 0) move.normalize();
+
+  const speed = player.flying ? FLY_SPEED : (keys['ShiftLeft'] || keys['ShiftRight']) ? SPRINT_SPEED : WALK_SPEED;
+  if (player.flying) {
+    player.vel.x = move.x * speed;
+    player.vel.z = move.z * speed;
+    player.vel.y = 0;
+    if (keys['Space']) player.vel.y = FLY_SPEED * 0.8;
+    if (keys['ShiftLeft'] || keys['ShiftRight']) player.vel.y = -FLY_SPEED * 0.8;
+  } else {
+    player.vel.x = move.x * speed;
+    player.vel.z = move.z * speed;
+    player.vel.y -= GRAVITY * dt;
+    if (keys['Space'] && player.onGround) {
+      player.vel.y = JUMP_V;
+      player.onGround = false;
+    }
+  }
+
+  player.onGround = false;
+  player.pos.x += player.vel.x * dt;
+  collideAxis(0);
+  player.pos.y += player.vel.y * dt;
+  collideAxis(1);
+  player.pos.z += player.vel.z * dt;
+  collideAxis(2);
+
+  if (player.pos.y < -20) respawn();
+
+  camera.position.set(player.pos.x, player.pos.y + player.eye, player.pos.z);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+}
+
+function respawn() {
+  const h = heightAt(8, 8);
+  player.pos.set(8.5, Math.max(h + 2, WATER_LEVEL + 2), 8.5);
+  player.vel.set(0, 0, 0);
+  player.yaw = 0;
+  player.pitch = -0.15;
+  player.flying = false;
+}
+
+function updateHighlight() {
+  raycaster.setFromCamera(center, camera);
+  const meshes = [];
+  for (const m of chunkMeshes.values()) {
+    if (m.solid && m.solid.geometry.attributes.position) meshes.push(m.solid);
+  }
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (!hits.length) {
+    currentHit = null;
+    highlight.visible = false;
+    return;
+  }
+  const hit = hits[0];
+  const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+  const blockPos = hit.point.clone().addScaledVector(n, -0.5);
+  const bx = Math.floor(blockPos.x);
+  const by = Math.floor(blockPos.y);
+  const bz = Math.floor(blockPos.z);
+  currentHit = { x: bx, y: by, z: bz, nx: Math.round(n.x), ny: Math.round(n.y), nz: Math.round(n.z) };
+  highlight.position.set(bx + 0.5, by + 0.5, bz + 0.5);
+  highlight.visible = true;
+}
+
+function breakBlock() {
+  if (!currentHit) return;
+  const id = getBlockWorld(currentHit.x, currentHit.y, currentHit.z);
+  if (id === B.AIR) return;
+  setBlockWorld(currentHit.x, currentHit.y, currentHit.z, B.AIR);
+}
+
+function placeBlock() {
+  if (!currentHit) return;
+  const px = currentHit.x + currentHit.nx;
+  const py = currentHit.y + currentHit.ny;
+  const pz = currentHit.z + currentHit.nz;
+  const existing = getBlockWorld(px, py, pz);
+  if (existing !== B.AIR && existing !== B.WATER) return;
+  const hw = player.width / 2;
+  if (
+    px + 1 > player.pos.x - hw && px < player.pos.x + hw &&
+    py + 1 > player.pos.y && py < player.pos.y + player.height &&
+    pz + 1 > player.pos.z - hw && pz < player.pos.z + hw
+  ) return;
+  setBlockWorld(px, py, pz, hotbar[selectedSlot]);
+}
+
+function processDirtyChunks() {
+  if (!dirtyChunks.size) return;
+  let count = 0;
+  for (const key of dirtyChunks) {
+    if (count > 8) break;
+    const [cx, cz] = key.split(',').map(Number);
+    if (chunkData.has(key)) buildChunkMesh(cx, cz);
+    dirtyChunks.delete(key);
+    count++;
+  }
+}
+
+let lastChunkX = null, lastChunkZ = null;
+function updateChunks() {
+  const pcx = Math.floor(player.pos.x / CHUNK_X);
+  const pcz = Math.floor(player.pos.z / CHUNK_Z);
+  if (pcx === lastChunkX && pcz === lastChunkZ) {
+    processDirtyChunks();
+    return;
+  }
+  lastChunkX = pcx;
+  lastChunkZ = pcz;
+
+  const needed = [];
+  for (let dz = -RENDER_DIST; dz <= RENDER_DIST; dz++) {
+    for (let dx = -RENDER_DIST; dx <= RENDER_DIST; dx++) {
+      if (dx * dx + dz * dz > (RENDER_DIST + 0.5) * (RENDER_DIST + 0.5)) continue;
+      needed.push([pcx + dx, pcz + dz, dx * dx + dz * dz]);
+    }
+  }
+  needed.sort((a, b) => a[2] - b[2]);
+
+  let built = 0;
+  for (const [cx, cz] of needed) {
+    const key = ckey(cx, cz);
+    if (!chunkData.has(key)) {
+      chunkData.set(key, generateChunk(cx, cz));
+      buildChunkMesh(cx, cz);
+      markDirty(cx - 1, cz);
+      markDirty(cx + 1, cz);
+      markDirty(cx, cz - 1);
+      markDirty(cx, cz + 1);
+      built++;
+      if (built >= 3) break;
+    }
+  }
+
+  const maxKeep = (RENDER_DIST + 2) * (RENDER_DIST + 2);
+  if (chunkMeshes.size > maxKeep) {
+    for (const [key, meshes] of chunkMeshes) {
+      const [cx, cz] = key.split(',').map(Number);
+      if (Math.abs(cx - pcx) > RENDER_DIST + 1 || Math.abs(cz - pcz) > RENDER_DIST + 1) {
+        scene.remove(meshes.solid);
+        scene.remove(meshes.water);
+        meshes.solid.geometry.dispose();
+        meshes.water.geometry.dispose();
+        chunkMeshes.delete(key);
+      }
+    }
+  }
+  processDirtyChunks();
+}
+
+function forceLoadSpawn() {
+  const pcx = 0, pcz = 0;
+  for (let dz = -2; dz <= 2; dz++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const key = ckey(pcx + dx, pcz + dz);
+      if (!chunkData.has(key)) {
+        chunkData.set(key, generateChunk(pcx + dx, pcz + dz));
+        buildChunkMesh(pcx + dx, pcz + dz);
+      }
+    }
+  }
+  const h = heightAt(8, 8);
+  player.pos.set(8.5, Math.max(h + 2, WATER_LEVEL + 2), 8.5);
+}
+
+function makeIcon(blockId, size = 32) {
+  const def = BLOCK_DEFS[blockId];
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  if (!def || !def.tiles) return c;
+  const tile = def.tiles[2];
+  const col = tile % ATLAS_COLS;
+  const row = Math.floor(tile / ATLAS_COLS);
+  const atlasCanvas = atlasTexture.image;
+  ctx.drawImage(atlasCanvas, col * TILE, row * TILE, TILE, TILE, 0, 0, size, size);
+  return c;
+}
+
+function buildHotbarUI() {
+  const el = document.getElementById('hotbar');
+  el.innerHTML = '';
+  hotbar.forEach((id, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (i === selectedSlot ? ' active' : '');
+    const key = document.createElement('div');
+    key.className = 'key';
+    key.textContent = String(i + 1);
+    slot.appendChild(key);
+    slot.appendChild(makeIcon(id, 36));
+    el.appendChild(slot);
+  });
+}
+
+function updateHotbarUI() {
+  const slots = document.querySelectorAll('#hotbar .slot');
+  slots.forEach((s, i) => s.classList.toggle('active', i === selectedSlot));
+}
+
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const hud = document.getElementById('hud');
+const coordsEl = document.getElementById('coords');
+const modeBadge = document.getElementById('mode-badge');
+const infoEl = document.getElementById('info');
+let locked = false;
+
+startBtn.addEventListener('click', () => {
+  renderer.domElement.requestPointerLock();
+});
+
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === renderer.domElement;
+  overlay.classList.toggle('hidden', locked);
+  hud.classList.toggle('visible', locked);
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!locked) return;
+  player.yaw -= e.movementX * 0.0022;
+  player.pitch -= e.movementY * 0.0022;
+  player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, player.pitch));
+});
+
+document.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.code === 'KeyF' && locked) {
+    player.flying = !player.flying;
+    if (player.flying) player.vel.y = 0;
+    modeBadge.textContent = player.flying ? '飞行' : '步行';
+  }
+  if (e.code === 'KeyR' && locked) respawn();
+  if (e.code === 'KeyH' && locked) {
+    infoEl.style.display = infoEl.style.display === 'none' ? '' : 'none';
+  }
+  if (e.code.startsWith('Digit')) {
+    const n = parseInt(e.code.slice(5), 10);
+    if (n >= 1 && n <= hotbar.length) {
+      selectedSlot = n - 1;
+      updateHotbarUI();
+    }
+  }
+});
+
+document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+document.addEventListener('wheel', (e) => {
+  if (!locked) return;
+  selectedSlot = (selectedSlot + (e.deltaY > 0 ? 1 : -1) + hotbar.length) % hotbar.length;
+  updateHotbarUI();
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (!locked) return;
+  if (e.button === 0) breakBlock();
+  if (e.button === 2) placeBlock();
+});
+
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+document.getElementById('loading').textContent = '生成世界中…';
+forceLoadSpawn();
+buildHotbarUI();
+respawn();
+document.getElementById('loading').textContent = '就绪 · 点击进入';
+
+const TEST_MODE = new URLSearchParams(location.search).has('test');
+if (TEST_MODE) {
+  locked = true;
+  overlay.classList.add('hidden');
+  hud.classList.add('visible');
+  player.flying = true;
+  const q = new URLSearchParams(location.search);
+  const tx = q.get('x');
+  const tz = q.get('z');
+  if (tx !== null && tz !== null) {
+    player.pos.set(Number(tx), Number(q.get('y') || 70), Number(tz));
+    player.pitch = Number(q.get('p') || -0.4);
+    player.yaw = Number(q.get('yaw') || 0.7);
+  } else {
+    // overview of spawn plains
+    player.pos.set(18, 70, 20);
+    player.pitch = -0.55;
+    player.yaw = 2.2;
+  }
+  modeBadge.textContent = '飞行';
+}
+
+let lastTime = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  if (locked) updatePlayer(dt);
+  updateChunks();
+  updateHighlight();
+
+  coordsEl.textContent = `X ${player.pos.x.toFixed(0)} · Y ${player.pos.y.toFixed(0)} · Z ${player.pos.z.toFixed(0)}`;
+
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
