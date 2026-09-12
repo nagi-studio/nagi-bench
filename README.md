@@ -21,7 +21,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 - **模型（Model）**：权重与推理引擎本身，如 GPT-5.5、Gemini 3.1 Pro、Claude Fable 5。思考配额（effort）是模型自身的能力旋钮——同一份权重在高/低思考强度下的推理深度判若两个模型，因此它和权重同属「模型」这一维度，脱离 effort 谈模型表现并不公允；本仓库默认拉满（Max），并在每个组合里如实标注。
 - **Harness（运行环境）**：包裹模型的产品/脚手架，如 Codex CLI、Cursor、AntiGravity、Claude 网页版——它决定工具调用、系统提示词、上下文管理与续写策略，对最终产出的影响往往不亚于模型本身。
 - 因此本仓库的测评单位是一个 **Agent**：同一个模型（含其思考配额）换一个 Harness，就是另一个 Agent，记为不同条目（例如 GPT-5.5 Pro 与跑在 Codex CLI 里的 GPT-5.5（xhigh）是同一模型家族的两个 Agent）。
-- **测的是 Harness 开箱即用的默认形态**：请勿额外加载 Harness 自带以外的 skill / 插件 / MCP / 自定义系统提示——它们对产出的影响不亚于换 Harness，会破坏 Agent 之间的可比性。这类 run **不予收录**（榜单身份只看 模型 × Harness × effort，在 `note` 里说明也不另立身份）。
+- **测的是 Harness 开箱即用的默认形态**：请勿额外加载 skill / 插件 / MCP / 自定义系统提示——它们对产出的影响不亚于换 Harness，会破坏 Agent 之间的可比性。经维护者确认有展示价值的增强产出，可以在 run 上标记 `"evaluation": "showcase"` 后仅供查看；它不会进入 Arena、投票、排行榜或达标场次计算。
 
 ## 已测组合 / Registry
 
@@ -30,6 +30,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 
 | 模型 | 厂商 | 运行环境（Harness）× 思考配额 | 产出 |
 |---|---|---|---|
+| Claude Opus 5 | Anthropic | Claude Code · Max<br>Claude Code · xhigh<br>Claude Code · High | 16 |
 | Claude Fable 5 | Anthropic | Claude Web App · Max<br>Claude Code · High<br>Claude Code · Max<br>Claude Code · xhigh<br>Cursor · High | 11 |
 | Claude Sonnet 5 | Anthropic | Claude Code · Max | 01 |
 | Claude Opus 4.8 | Anthropic | Claude Code · Max<br>Claude Code · xhigh | 08 |
@@ -38,7 +39,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | Claude Opus 4.5 | Anthropic | Cursor · Thinking | 02 |
 | Claude Sonnet 4.6 | Anthropic | Claude Code · Max<br>Cursor · High | 03 |
 | Claude Haiku 4.5 | Anthropic | Claude Code · Default | 02 |
-| GPT-5.6-Sol | OpenAI | Codex CLI · ultra<br>Codex CLI · max<br>Codex CLI · xhigh | 09 |
+| GPT-5.6-Sol | OpenAI | Codex CLI · ultra<br>Codex CLI · max<br>Codex CLI · xhigh | 10 |
 | GPT-5.6-Terra | OpenAI | Codex CLI · ultra<br>Codex CLI · xhigh | 04 |
 | GPT-5.5 Pro | OpenAI | ChatGPT Web · Extended Pro | 03 |
 | GPT-5.5 | OpenAI | Codex CLI · xhigh | 03 |
@@ -46,31 +47,41 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | GPT-5.3 Codex | OpenAI | Cursor · xhigh | 02 |
 | GPT-5.2 | OpenAI | Cursor · xhigh | 02 |
 | Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Gemini Web · Deep Think<br>Google AI Studio · High | 11 |
+| Gemini 3.7 Flash | Google | AntiGravity · Low<br>AntiGravity · Medium<br>AntiGravity · High | 06 |
+| Gemini 3.6 Flash | Google | AntiGravity · High | 05 |
 | DeepSeek V4 Flash | DeepSeek | Claude Code · Max<br>Reasonix · Max | 02 |
+| DeepSeek V4 Flash 0731 | DeepSeek | Claude Code · Max<br>OMP · Default | 05（仅展示 01） |
 | Gemini 3.5 Flash | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 06 |
+| Grok 4.6 | xAI | Grok Build TUI · High | 06 |
 | Grok 4.5 | xAI | Grok Build TUI · High | 03 |
 | Grok Build | xAI | Grok Build TUI · Max | 02 |
 | Grok 4.3 | xAI | Cursor · Default | 02 |
 | Nex-N2-Pro | Nex-AGI | Claude Code · Max | 02 |
 | Composer 2.5 | Cursor | Cursor · Max<br>Cursor · Default<br>Grok Build TUI · Default | 05 |
 | Mistral Medium 3.5 | Mistral AI | Vibe · Thinking | 02 |
-| DeepSeek-V4-Pro | DeepSeek | Claude Code · Max | 03 |
+| DeepSeek-V4-Pro | DeepSeek | Claude Code · Max<br>Qoder · Max<br>Open Code · High | 05 |
+| DeepSeek V4 Pro 0813 | DeepSeek | DeepSeek Harness · High<br>DeepSeek Harness · Minimal · High<br>DeepSeek Harness · Max<br>Codex CLI · xhigh | 21（仅展示 01） |
 | Doubao Seed 2.0 Pro | ByteDance | Doubao Web · Pro Mode | 01 |
 | Doubao Seed 2.0 Mini | ByteDance | Doubao Web · Fast Mode | 01 |
 | MiMo V2.5 | Xiaomi | MiMo Code · High | 03 |
 | MiMo v2.5 Pro | Xiaomi | Claude Code · Max<br>MiMo Code · Max | 03 |
 | MiMo v2.5 Pro UltraSpeed | Xiaomi | Web · Default | 05 |
-| Kimi K3 | Moonshot AI | Kimi Code · Max<br>Kimi Web · Max | 04 |
-| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking | 03 |
+| Kimi K3 | Moonshot AI | Claude Code · Max<br>Kimi Code · Max<br>Kimi Web · Max | 12 |
+| Kimi K2.7-Code | Moonshot AI | Kimi Code · Thinking<br>Qoder · Default | 04 |
 | Kimi K2.6 | Moonshot AI | Kimi Code · Thinking | 02 |
-| MiniMax M3 | MiniMax | MiniMax Code Web · Thinking | 02 |
+| MiniMax M3 | MiniMax | MiniMax Code Web · Thinking<br>Qoder · Default | 03 |
 | MiniMax M2.7 | MiniMax | MiniMax Code Web · Thinking | 01 |
-| GLM-5.2 | Zhipu AI | ZCode · Max | 04 |
+| GLM-5.2 | Zhipu AI | ZCode · Max<br>Qoder · Max | 05 |
 | GLM-5.1 | Zhipu AI | ZCode · Max | 01 |
 | GLM-5 Turbo | Zhipu AI | ZCode · Thinking | 03 |
-| Qwen3.7-Max | Alibaba | Qoder · Default | 02 |
+| Qwen3.7-Max | Alibaba | Qoder · Default | 03 |
+| Qwen3.8-Max-Preview | Alibaba | Qoder · Default<br>Qwen Studio Web · Thinking | 06 |
+| Qwen 3.6 27B | Alibaba | OMP · Default | 01（仅展示 01） |
 | Step 3.7 Flash | StepFun | Claude Code · High | 02 |
+| Spark X2 | iFlytek | Web · Reasoning | 01 |
 | Inkling | Thinking Machines Lab | Tinker Web · xHigh | 02 |
+| Inkling-Small | Thinking Machines Lab | Tinker Web · xHigh | 03 |
+| Qoder Ultimate | Alibaba | Qoder · Default<br>Qoder · Max | 05 |
 <!-- registry:end -->
 
 ## Arena 盲评与社区榜单
@@ -141,6 +152,7 @@ bun scripts/update-registry.ts # 可选：本地预览 Registry 表；合并到 
 - 声明的 run 必须有对应的产出文件；
 - 同一组合对同一案例可提交多个版本：`runs.<case-id>` 写成数组，第二个版本起必须用 `file` 指定不同文件名（如 `pelican-cycling-2.svg`）；
 - `contributor` 填你的 GitHub 用户名，站点会在产出旁展示你的头像并链接到主页；
+- 使用 skill、插件或其他非标准环境的产出只有经维护者确认后才能设置 `"evaluation": "showcase"`；必须在双语 `note` 中如实披露，并永久排除出盲评与榜单；
 - 新组合的 `harness`（运行环境）与 `effort`（思考配额）请如实填写：站点会据此在测评页生成「运行环境 / 思考配额」metadata 徽章，并自动为模型、厂商、Harness 匹配品牌 icon（来自 [lobe-icons](https://github.com/lobehub/lobe-icons)），贡献者无需处理任何图标。
 
 提 PR 后 CI 自动校验数据；合入 `main` 后站点自动重建（通常即时，最长 6 小时）。

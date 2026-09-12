@@ -1,0 +1,2028 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>幻境方块 · MythicCraft —— 单文件《我的世界》克隆</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;font-family:"Segoe UI",system-ui,sans-serif;}
+  #gl{position:fixed;inset:0;display:block;cursor:crosshair;}
+  #hud{position:fixed;inset:0;display:block;pointer-events:none;}
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,rgba(20,40,80,.92),rgba(5,8,20,.97));z-index:10;transition:opacity .25s;}
+  #overlay.hidden{opacity:0;pointer-events:none;}
+  .panel{text-align:center;color:#e8f0ff;max-width:640px;padding:24px;}
+  h1{font-size:46px;margin:8px 0;letter-spacing:6px;text-shadow:0 0 24px rgba(120,190,255,.8);}
+  h1 small{display:block;font-size:15px;letter-spacing:3px;color:#9fc4e8;font-weight:normal;}
+  .sub{color:#bcd6f2;margin:6px 0 18px;font-size:14px;}
+  .keys{display:grid;grid-template-columns:1fr 1fr;gap:6px 26px;text-align:left;font-size:13px;margin:14px auto;width:fit-content;color:#cfe2f7;}
+  .keys b{display:inline-block;min-width:118px;color:#ffd98a;font-weight:600;}
+  .tip{color:#8fb8e8;font-size:13px;margin-top:10px;}
+  #startBtn{margin-top:20px;padding:14px 46px;font-size:19px;letter-spacing:4px;color:#0a1620;background:linear-gradient(180deg,#9fd8ff,#5aa8e8);border:none;border-radius:8px;cursor:pointer;box-shadow:0 0 26px rgba(90,168,232,.55);}
+  #startBtn:hover{filter:brightness(1.12);}
+  #progress{display:none;margin-top:16px;font-size:13px;color:#9fc4e8;}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="hud"></canvas>
+<div id="overlay">
+  <div class="panel">
+    <h1>幻境方块<small>MYTHICCRAFT · VOXEL FANTASY</small></h1>
+    <div class="sub">无限世界 · 程序化神话建筑 · 自由建造 —— 单文件 Minecraft 克隆（纯 WebGL，无外部依赖）</div>
+    <div class="keys">
+      <span><b>鼠标</b>环视视角</span>
+      <span><b>W A S D</b>移动</span>
+      <span><b>空格</b>跳跃 / 双击空格 飞行</span>
+      <span><b>F</b>切换飞行模式</span>
+      <span><b>鼠标左键</b>破坏方块</span>
+      <span><b>鼠标右键</b>放置方块</span>
+      <span><b>滚轮 / 1-9</b>选择方块</span>
+      <span><b>Shift</b>潜行　<b>Ctrl</b>疾跑</span>
+    </div>
+    <div class="tip">远处藏着 <b>巨石城堡</b>、<b>沙漠金字塔</b>、<b>远古神殿</b>、<b>世界树</b>、<b>浮空仙岛</b>、<b>雪山水晶祭坛</b>、<b>巨像遗迹</b>……去探索吧！</div>
+    <button id="startBtn">点 击 进 入 世 界</button>
+    <div id="progress">正在生成世界…</div>
+  </div>
+</div>
+<script>
+"use strict";
+/* =====================================================================
+   幻境方块 MythicCraft —— 单文件 Minecraft 克隆
+   - 纯 WebGL1/2 手写渲染器（无 Three.js / 无外部依赖）
+   - 值噪声 fBm 无限地形 + 洞穴 + 生物群系
+   - 程序化像素材质图集（16×16 仿 MC 风格）
+   - 内置神话建筑：城堡/金字塔/神殿/世界树/浮空岛/水晶祭坛/巨像/村庄/传送门遗迹/高塔
+   ===================================================================== */
+
+// ==================== CORE BEGIN（纯逻辑，无 DOM，可用 Node 测试） ====================
+
+/* ---------- 数学与哈希 ---------- */
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smoothstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+
+function hash2i(ix,iz){
+  let h=Math.imul(ix,374761393)^Math.imul(iz,668265263);
+  h=Math.imul(h^(h>>>13),1274126177); h^=h>>>16; return h>>>0;
+}
+function hash3i(ix,iy,iz){
+  let h=Math.imul(ix,374761393)^Math.imul(iy,2246822519)^Math.imul(iz,668265263);
+  h=Math.imul(h^(h>>>13),1274126177); h^=h>>>16; return h>>>0;
+}
+const h2=(ix,iz)=>hash2i(ix|0,iz|0)/4294967296;
+const h3=(ix,iy,iz)=>hash3i(ix|0,iy|0,iz|0)/4294967296;
+
+/* ---------- 值噪声 / fBm ---------- */
+const fade=t=>t*t*t*(t*(t*6-15)+10);
+function vnoise2(x,z){
+  const xi=Math.floor(x),zi=Math.floor(z);
+  const xf=x-xi,zf=z-zi,u=fade(xf),v=fade(zf);
+  const a=h2(xi,zi),b=h2(xi+1,zi),c=h2(xi,zi+1),d=h2(xi+1,zi+1);
+  return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+}
+function fbm2(x,z,oct){
+  let s=0,amp=0.5,f=1,tot=0;
+  for(let i=0;i<oct;i++){s+=vnoise2(x*f,z*f)*amp;tot+=amp;amp*=0.5;f*=2.05;}
+  return s/tot;
+}
+function vnoise3(x,y,z){
+  const xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z);
+  const xf=x-xi,yf=y-yi,zf=z-zi;
+  const u=fade(xf),v=fade(yf),w=fade(zf);
+  const n000=h3(xi,yi,zi),n100=h3(xi+1,yi,zi),n010=h3(xi,yi+1,zi),n110=h3(xi+1,yi+1,zi);
+  const n001=h3(xi,yi,zi+1),n101=h3(xi+1,yi,zi+1),n011=h3(xi,yi+1,zi+1),n111=h3(xi+1,yi+1,zi+1);
+  const x00=lerp(n000,n100,u),x10=lerp(n010,n110,u),x01=lerp(n001,n101,u),x11=lerp(n011,n111,u);
+  return lerp(lerp(x00,x10,v),lerp(x01,x11,v),w);
+}
+function fbm3(x,y,z,oct){
+  let s=0,amp=0.5,f=1,tot=0;
+  for(let i=0;i<oct;i++){s+=vnoise3(x*f,y*f,z*f)*amp;tot+=amp;amp*=0.5;f*=2.05;}
+  return s/tot;
+}
+
+/* ---------- 世界常量 ---------- */
+const CH=16, CHY=192, SEA=30, SNOWH=76;
+
+/* ---------- 地形 / 生物群系（纯函数，保证无限世界一致；带列缓存加速） ---------- */
+const _colKey=(x,z)=>(x+2097152)*4194304+(z+2097152);
+const _memoH=new Map(),_memoT=new Map(),_memoM=new Map();
+function memoGet(m,k,fn){
+  let v=m.get(k);
+  if(v===undefined){
+    v=fn();m.set(k,v);
+    if(m.size>600000)m.clear();
+  }
+  return v;
+}
+function terrainHeight(x,z){
+  return memoGet(_memoH,_colKey(x,z),()=>{
+    const c=fbm2(x*0.0016+7.3,z*0.0016+3.1,4);
+    const m=fbm2(x*0.00042+91.7,z*0.00042+17.9,3);
+    const r=1-Math.abs(m*2-1), ridge=r*r*r;
+    const mask=smoothstep(0.45,0.68,c);
+    const d=fbm2(x*0.02+31.4,z*0.02+11.8,2)*3-1.5;
+    return Math.round((c+0.05)*62+ridge*62*mask+d);
+  });
+}
+const tempAt=(x,z)=>memoGet(_memoT,_colKey(x,z),()=>fbm2(x*0.0006+411.3,z*0.0006+97.1,3));
+const moistAt=(x,z)=>memoGet(_memoM,_colKey(x,z),()=>fbm2(x*0.00075+131.7,z*0.00075+471.9,3));
+// 洞穴噪声：切变 2D 噪声（廉价 3D 效果）
+const caveN=(x,y,z)=>vnoise2(x*0.055+y*0.095+11.3,z*0.055-y*0.11+53.9);
+const wormN=(x,y,z)=>vnoise2(x*0.09+y*0.15+91.7,z*0.09-y*0.17+17.3);
+function biomeName(x,z){
+  const t=tempAt(x,z),m=moistAt(x,z),g=terrainHeight(x,z);
+  if(g<SEA+1) return "海洋";
+  if(t>0.58) return "沙漠";
+  if(t<0.34) return g>=68?"雪山":"雪原";
+  if(g>=68) return "山地";
+  if(m>0.56) return "森林";
+  return "平原";
+}
+
+/* ---------- 方块定义 ---------- */
+const T={GRASS_TOP:0,GRASS_SIDE:1,DIRT:2,STONE:3,COBBLE:4,PLANKS:5,LOG_SIDE:6,LOG_TOP:7,
+LEAVES:8,SAND:9,GLASS:10,WATER:11,BRICK:12,STONEBRICK:13,MOSSY:14,BEDROCK:15,GLOWSTONE:16,
+SNOW:17,SNOW_SIDE:18,CRYSTAL:19,OBSIDIAN:20,GRAVEL:21,BOOKSHELF:22,SANDSTONE:23,WOOL_RED:24,
+LAVA:25,FLOWER_R:26,FLOWER_Y:27,LEAVES_SPRUCE:28,CACTUS_SIDE:29,CACTUS_TOP:30,CLOUD:31,ORE_GOLD:32};
+const TILE_COUNT=33, ATLAS_COLS=8, ATLAS_ROWS=5;
+
+const B={AIR:0,GRASS:1,DIRT:2,STONE:3,COBBLE:4,SAND:5,LOG:6,LEAVES:7,PLANKS:8,WATER:9,
+BEDROCK:10,BRICK:11,GLASS:12,MOSSY:13,STONEBRICK:14,ORE_GOLD:15,GLOWSTONE:16,SNOWGRASS:17,
+SNOW:18,CRYSTAL:19,OBSIDIAN:20,GRAVEL:21,FLOWER_R:22,FLOWER_Y:23,LAVA:24,BOOKSHELF:25,
+SANDSTONE:26,WOOL_RED:27,LEAVES_SPRUCE:28,CACTUS:29};
+const BCOUNT=30;
+
+const BLOCKS=new Array(BCOUNT);
+BLOCKS[B.AIR]      ={name:"空气",solid:false,transparent:true};
+BLOCKS[B.GRASS]    ={name:"草方块",solid:true,tiles:{top:T.GRASS_TOP,side:T.GRASS_SIDE,bottom:T.DIRT},pcol:[110,170,66]};
+BLOCKS[B.DIRT]     ={name:"泥土",solid:true,tiles:{all:T.DIRT},pcol:[134,96,67]};
+BLOCKS[B.STONE]    ={name:"石头",solid:true,tiles:{all:T.STONE},pcol:[138,138,138]};
+BLOCKS[B.COBBLE]   ={name:"圆石",solid:true,tiles:{all:T.COBBLE},pcol:[120,120,120]};
+BLOCKS[B.SAND]     ={name:"沙子",solid:true,tiles:{all:T.SAND},pcol:[219,207,160]};
+BLOCKS[B.LOG]      ={name:"橡木原木",solid:true,tiles:{top:T.LOG_TOP,side:T.LOG_SIDE,bottom:T.LOG_TOP},pcol:[104,82,42]};
+BLOCKS[B.LEAVES]   ={name:"橡树叶",solid:true,cutout:true,tiles:{all:T.LEAVES},pcol:[70,130,44]};
+BLOCKS[B.PLANKS]   ={name:"橡木木板",solid:true,tiles:{all:T.PLANKS},pcol:[178,142,86]};
+BLOCKS[B.WATER]    ={name:"水",solid:false,transparent:true,liquid:true,tiles:{all:T.WATER}};
+BLOCKS[B.BEDROCK]  ={name:"基岩",solid:true,tiles:{all:T.BEDROCK},pcol:[60,60,60]};
+BLOCKS[B.BRICK]    ={name:"红砖",solid:true,tiles:{all:T.BRICK},pcol:[150,75,60]};
+BLOCKS[B.GLASS]    ={name:"玻璃",solid:true,transparent:true,tiles:{all:T.GLASS}};
+BLOCKS[B.MOSSY]    ={name:"苔石",solid:true,tiles:{all:T.MOSSY},pcol:[105,115,80]};
+BLOCKS[B.STONEBRICK]={name:"石砖",solid:true,tiles:{all:T.STONEBRICK},pcol:[122,122,122]};
+BLOCKS[B.ORE_GOLD] ={name:"金矿石",solid:true,tiles:{all:T.ORE_GOLD},pcol:[150,140,90]};
+BLOCKS[B.GLOWSTONE]={name:"萤石",solid:true,emissive:true,tiles:{all:T.GLOWSTONE},pcol:[230,180,80]};
+BLOCKS[B.SNOWGRASS]={name:"雪草方块",solid:true,tiles:{top:T.SNOW,side:T.SNOW_SIDE,bottom:T.DIRT},pcol:[235,240,246]};
+BLOCKS[B.SNOW]     ={name:"雪块",solid:true,tiles:{all:T.SNOW},pcol:[240,244,250]};
+BLOCKS[B.CRYSTAL]  ={name:"魔法水晶",solid:true,emissive:true,tiles:{all:T.CRYSTAL},pcol:[110,220,240]};
+BLOCKS[B.OBSIDIAN] ={name:"黑曜石",solid:true,tiles:{all:T.OBSIDIAN},pcol:[40,25,70]};
+BLOCKS[B.GRAVEL]   ={name:"沙砾",solid:true,tiles:{all:T.GRAVEL},pcol:[125,116,106]};
+BLOCKS[B.FLOWER_R] ={name:"红花",solid:false,cross:true,tile:T.FLOWER_R};
+BLOCKS[B.FLOWER_Y] ={name:"黄花",solid:false,cross:true,tile:T.FLOWER_Y};
+BLOCKS[B.LAVA]     ={name:"熔岩",solid:false,liquid:true,emissive:true,transparent:false,tiles:{all:T.LAVA}};
+BLOCKS[B.BOOKSHELF]={name:"书架",solid:true,tiles:{all:T.BOOKSHELF},pcol:[150,110,60]};
+BLOCKS[B.SANDSTONE]={name:"砂岩",solid:true,tiles:{all:T.SANDSTONE},pcol:[214,202,150]};
+BLOCKS[B.WOOL_RED] ={name:"红色羊毛",solid:true,tiles:{all:T.WOOL_RED},pcol:[168,52,52]};
+BLOCKS[B.LEAVES_SPRUCE]={name:"云杉树叶",solid:true,cutout:true,tiles:{all:T.LEAVES_SPRUCE},pcol:[46,90,30]};
+BLOCKS[B.CACTUS]   ={name:"仙人掌",solid:true,tiles:{top:T.CACTUS_TOP,side:T.CACTUS_SIDE,bottom:T.CACTUS_TOP},pcol:[72,130,46]};
+
+const HOTBAR=[B.GRASS,B.DIRT,B.STONE,B.COBBLE,B.PLANKS,B.LOG,B.LEAVES,B.GLASS,B.GLOWSTONE,
+B.CRYSTAL,B.BRICK,B.STONEBRICK,B.BOOKSHELF,B.SAND,B.SANDSTONE,B.SNOW,B.OBSIDIAN,B.WOOL_RED,
+B.FLOWER_R,B.FLOWER_Y,B.WATER,B.LAVA,B.MOSSY,B.LEAVES_SPRUCE,B.CACTUS,B.ORE_GOLD];
+
+/* ---------- 面定义（方向 / 光照 / 角点） ---------- */
+const FACES=[
+ {d:[1,0,0],a:1,b:2,light:0.72,corners:[[1,0,1,0,0],[1,0,0,1,0],[1,1,0,1,1],[1,1,1,0,1]]},
+ {d:[-1,0,0],a:1,b:2,light:0.72,corners:[[0,0,0,0,0],[0,0,1,1,0],[0,1,1,1,1],[0,1,0,0,1]]},
+ {d:[0,1,0],a:0,b:2,light:1.0,corners:[[0,1,0,0,0],[1,1,0,1,0],[1,1,1,1,1],[0,1,1,0,1]]},
+ {d:[0,-1,0],a:0,b:2,light:0.45,corners:[[0,0,0,0,0],[0,0,1,1,0],[1,0,1,1,1],[1,0,0,0,1]]},
+ {d:[0,0,1],a:0,b:1,light:0.62,corners:[[0,0,1,0,0],[1,0,1,1,0],[1,1,1,1,1],[0,1,1,0,1]]},
+ {d:[0,0,-1],a:0,b:1,light:0.62,corners:[[1,0,0,0,0],[0,0,0,1,0],[0,1,0,1,1],[1,1,0,0,1]]},
+];
+// 预计算 pad 索引偏移（pad 尺寸 18×194×18）与 AO 切向轴偏移
+for(const F of FACES){
+  F.di=F.d[0]+F.d[1]*324+F.d[2]*18;
+  F.oa=F.a===0?1:(F.a===1?324:18);
+  F.ob=F.b===0?1:(F.b===1?324:18);
+}
+// 液体表（AO 与渲染可见性用）
+const LIQ=new Uint8Array(256);
+LIQ[B.WATER]=1;LIQ[B.LAVA]=1;
+
+/* ---------- 世界（区块数据 / 编辑 / 网格） ---------- */
+class World{
+  constructor(){
+    this.chunks=new Map();          // key "cx,cz" -> {cx,cz,data,maxY,editMap,meshO,meshT,dirty}
+    this.edits=new Map();           // key -> Map<localIdx, blockId>（跨加载保存的玩家编辑）
+  }
+  static key(cx,cz){return cx+","+cz;}
+  ensureData(cx,cz){
+    const k=World.key(cx,cz);
+    if(this.chunks.has(k)) return this.chunks.get(k);
+    const data=genChunkData(cx,cz);
+    let maxY=0;
+    for(let y=0;y<CHY;y++){
+      let any=false;
+      const base=y*256;
+      for(let i=base;i<base+256;i++) if(data[i]){any=true;break;}
+      if(any) maxY=y;
+    }
+    const ch={cx,cz,data,maxY,editMap:this.edits.get(k)||new Map(),meshO:null,meshT:null,dirty:true};
+    this.chunks.set(k,ch);
+    return ch;
+  }
+  getBlock(wx,wy,wz){
+    if(wy<0) return B.BEDROCK;
+    if(wy>=CHY) return B.AIR;
+    const cx=Math.floor(wx/16),cz=Math.floor(wz/16);
+    const ch=this.chunks.get(World.key(cx,cz));
+    if(!ch) return B.AIR;
+    const i=(wy*16+(wz-cz*16))*16+(wx-cx*16);
+    return ch.editMap.has(i)?ch.editMap.get(i):ch.data[i];
+  }
+  setBlock(wx,wy,wz,b){
+    if(wy<0||wy>=CHY) return;
+    const cx=Math.floor(wx/16),cz=Math.floor(wz/16);
+    const k=World.key(cx,cz);
+    let m=this.edits.get(k);
+    if(!m){m=new Map();this.edits.set(k,m);}
+    const lx=wx-cx*16,lz=wz-cz*16;
+    m.set((wy*16+lz)*16+lx,b);
+    const ch=this.chunks.get(k);
+    if(ch){
+      ch.editMap=m;
+      ch.dirty=true;
+      if(lx===0&&this.chunks.has(World.key(cx-1,cz)))this.chunks.get(World.key(cx-1,cz)).dirty=true;
+      if(lx===15&&this.chunks.has(World.key(cx+1,cz)))this.chunks.get(World.key(cx+1,cz)).dirty=true;
+      if(lz===0&&this.chunks.has(World.key(cx,cz-1)))this.chunks.get(World.key(cx,cz-1)).dirty=true;
+      if(lz===15&&this.chunks.has(World.key(cx,cz+1)))this.chunks.get(World.key(cx,cz+1)).dirty=true;
+    }
+  }
+  buildMesh(ch){
+    const m=buildChunkMeshes(this,ch);
+    ch.meshO=m.opaque; ch.meshT=m.trans; ch.dirty=false;
+  }
+}
+
+/* ---------- 区块生成 ---------- */
+function genChunkData(cx,cz){
+  const data=new Uint8Array(16*CHY*16);
+  const x0=cx*16,z0=cz*16;
+  for(let lz=0;lz<16;lz++){
+    const wz=z0+lz;
+    for(let lx=0;lx<16;lx++){
+      const wx=x0+lx;
+      const h=terrainHeight(wx,wz);
+      const t=tempAt(wx,wz),m=moistAt(wx,wz);
+      const desert=t>0.58,snowy=t<0.34;
+      const base=lx+lz*16;
+      const caveMax=Math.min(h-3,46);
+      const doCaves=h>=SEA+2;
+      const yTop=Math.min(CHY-1,Math.max(h,SEA));
+      for(let y=0;y<=yTop;y++){
+        let b=B.AIR;
+        if(y===0) b=B.BEDROCK;
+        else if(y===1) b=h2(wx,wz)<0.5?B.BEDROCK:B.STONE;
+        else if(h<1){ if(y<=2)b=B.SAND; else if(y<=4)b=B.STONE; }
+        else if(y<=h){
+          if(y===h){
+            if(h<SEA+2||desert) b=B.SAND;
+            else if(snowy) b=B.SNOWGRASS;
+            else if(h>=SNOWH) b=B.SNOWGRASS;
+            else if(h>=92) b=B.STONE;
+            else{
+              const steep=Math.abs(h-terrainHeight(wx+1,wz))>=2||Math.abs(h-terrainHeight(wx,wz+1))>=2;
+              b=steep?B.STONE:B.GRASS;
+            }
+          }else if(y>h-4){
+            if(desert) b=y>h-7?B.SAND:B.SANDSTONE;
+            else if(h<SEA+2) b=B.SAND;
+            else b=B.DIRT;
+          }else b=B.STONE;
+          if(b===B.STONE&&h2(wx*3+y*17,wz*5+y*13)<0.01) b=B.ORE_GOLD;
+          // 洞穴
+          if(doCaves&&y>2&&y<caveMax&&(b===B.STONE||b===B.DIRT)){
+            const n=caveN(wx,y,wz);
+            if(n>0.60) b=B.AIR;
+            else{
+              const w=wormN(wx,y,wz);
+              if(w>0.484&&w<0.516) b=B.AIR;
+            }
+            if(b===B.AIR&&y<=SEA) b=B.WATER;
+          }
+        }else if(y<=SEA) b=B.WATER;
+        data[base+y*256]=b;
+      }
+    }
+  }
+  // 植物（8 格外环覆盖，保证跨区块树木无缝）
+  const set=makeSet(x0,z0,data);
+  for(let lz=-5;lz<21;lz++){
+    for(let lx=-5;lx<21;lx++){
+      placeFlora(set,x0+lx,z0+lz);
+    }
+  }
+  // 结构
+  const cells=new Set();
+  for(const wx of [x0,x0+15]) for(const wz of [z0,z0+15]){
+    cells.add((Math.floor(wx/640))+","+(Math.floor(wz/640)));
+  }
+  for(const ck of cells){
+    const [ccx,ccz]=ck.split(",").map(Number);
+    const s=pickStructure(ccx,ccz);
+    if(!s) continue;
+    const R=ST_R[s.type];
+    if(s.ax+R<x0||s.ax-R>x0+15||s.az+R<z0||s.az-R>z0+15) continue;
+    buildStructure(set,s);
+  }
+  return data;
+}
+function makeSet(x0,z0,data){
+  return (x,y,z,b)=>{
+    if(y<0||y>=CHY) return;
+    const lx=x-x0,lz=z-z0;
+    if(lx<0||lx>15||lz<0||lz>15) return;
+    data[(y*16+lz)*16+lx]=b;
+  };
+}
+
+/* ---------- 植物 ---------- */
+function placeFlora(set,wx,wz){
+  const g=terrainHeight(wx,wz);
+  if(g<SEA+2||g>=78) return;
+  const t=tempAt(wx,wz),m=moistAt(wx,wz);
+  if(t>0.58){ // 沙漠：仙人掌
+    if(h2(wx,wz)<0.014&&g<SEA+40){
+      const hgt=1+(h3(wx,wz,3)*3|0);
+      for(let i=1;i<=hgt;i++) set(wx,g+i,wz,B.CACTUS);
+    }
+    return;
+  }
+  if(t<0.34){ // 雪原：云杉
+    if(h2(wx,wz)<0.03&&g<72){
+      const th=5+(h2(wx,wz,13)*3|0);
+      for(let i=1;i<=th;i++) set(wx,g+i,wz,B.LOG);
+      for(let ly=0;ly<3;ly++){
+        const s=ly===0?2:1,yy=g+th+ly;
+        for(let dx=-s;dx<=s;dx++)for(let dz=-s;dz<=s;dz++){
+          if(Math.abs(dx)===s&&Math.abs(dz)===s&&s===2&&ly===0&&h2(wx+dx,wz+dz)<0.5)continue;
+          set(wx+dx,yy,wz+dz,B.LEAVES_SPRUCE);
+        }
+      }
+      set(wx,g+th+3,wz,B.LEAVES_SPRUCE);
+    }
+    return;
+  }
+  if(m>0.56){ // 森林：橡树
+    if(h2(wx,wz)<0.055) placeOak(set,wx,wz);
+    return;
+  }
+  // 平原：稀疏橡树 + 花
+  if(h2(wx,wz)<0.007) placeOak(set,wx,wz);
+  if(g>=SEA+3&&h2(wx,wz,5)<0.06&&h2(wx,wz,5)>0.001){
+    set(wx,g+1,wz,h2(wx,wz,7)<0.5?B.FLOWER_R:B.FLOWER_Y);
+  }
+}
+function placeOak(set,wx,wz){
+  const g=terrainHeight(wx,wz);
+  if(g<SEA+2||g>=78) return;
+  const th=4+(h2(wx,wz,11)*3|0);
+  for(let i=1;i<=th;i++) set(wx,g+i,wz,B.LOG);
+  const cy=g+th;
+  for(let dy=cy-2;dy<=cy+2;dy++){
+    for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++){
+      if(dx===0&&dz===0&&dy<=cy) continue;
+      const d=dx*dx+dz*dz+(dy-cy)*(dy-cy)*2.2;
+      if(d<=4.6) set(wx+dx,dy,wz+dz,B.LEAVES);
+    }
+  }
+}
+
+/* ---------- 结构：占地半径 ---------- */
+const ST_R={castle:30,pyramid:24,temple:17,village:33,colossus:11,portal:11,shrine:15,dungeon:9,worldtree:17,islands:26};
+
+/* ---------- 结构选址（确定性哈希） ---------- */
+function pickStructure(cx,cz){
+  const bx=cx*640+320,bz=cz*640+320;
+  const t=tempAt(bx,bz),m=moistAt(bx,bz),g=terrainHeight(bx,bz);
+  if(g<SEA+3) return null;
+  const r1=h2(cx*7+cz*13,cx*3+cz*29);
+  const r2=h2(cx*17+cz*5,cx*11+cz*23);
+  let type=null;
+  if(t>0.58){           // 沙漠
+    if(r1<0.42)type="pyramid";else if(r1<0.56)type="temple";else if(r1<0.68)type="village";else if(r1<0.78)type="dungeon";
+  }else if(t<0.34){     // 雪原
+    if(r1<0.40)type="shrine";else if(r1<0.58)type="portal";else if(r1<0.74)type="dungeon";else if(r1<0.82)type="village";
+  }else if(g>=68){      // 山地
+    if(r2<0.08)type="islands";else if(r1<0.36)type="colossus";else if(r1<0.54)type="portal";else if(r1<0.76)type="dungeon";
+  }else if(m>0.56){     // 森林
+    if(r2<0.06)type="islands";else if(r1<0.10)type="worldtree";else if(r1<0.28)type="village";else if(r1<0.42)type="temple";else if(r1<0.60)type="dungeon";else if(r1<0.68)type="portal";
+  }else{                // 平原
+    if(r2<0.07)type="islands";else if(r1<0.12)type="castle";else if(r1<0.38)type="village";else if(r1<0.54)type="temple";else if(r1<0.70)type="dungeon";else if(r1<0.78)type="portal";
+  }
+  if(!type) return null;
+  const ox=Math.floor(h2(cx,cz)*360)-180;
+  const oz=Math.floor(h2(cz,cx)*360)-180;
+  const ax=bx+ox,az=bz+oz;
+  const h0=terrainHeight(ax,az);
+  const R=ST_R[type];
+  let ok=true;
+  for(let i=0;i<5;i++){
+    const dx=Math.floor(h2(cx+i*3,cz+i*5)*2*R)-R;
+    const dz=Math.floor(h2(cz+i*7,cx+i*11)*2*R)-R;
+    if(Math.abs(terrainHeight(ax+dx,az+dz)-h0)>8){ok=false;break;}
+  }
+  if(!ok) return null;
+  return {type,ax,az,h0};
+}
+
+/* ---------- 结构施工 ---------- */
+function flatten(set,ax,az,r,bottom,top){
+  const h0=terrainHeight(ax,az);
+  for(let dx=-r;dx<=r;dx++)for(let dz=-r;dz<=r;dz++){
+    if(dx*dx+dz*dz>r*r) continue;
+    const x=ax+dx,z=az+dz,g=terrainHeight(x,z);
+    for(let y=h0;y<=g;y++) set(x,y,z,B.AIR);
+    for(let y=g+1;y<h0;y++) set(x,y,z,bottom);
+    set(x,h0,z,top);
+  }
+}
+function buildStructure(set,s){
+  const ax=s.ax,az=s.az,h=s.h0;
+  switch(s.type){
+    case "castle":{
+      flatten(set,ax,az,30,B.DIRT,B.GRASS);
+      const S=27;
+      for(let dx=-S;dx<=S;dx++)for(let dz=-S;dz<=S;dz++){
+        const wall=Math.abs(dx)>=S-1||Math.abs(dz)>=S-1;
+        if(!wall) continue;
+        for(let dy=1;dy<=10;dy++) set(ax+dx,h+dy,az+dz,B.STONEBRICK);
+        if((dx&1)===0&&(dz&1)===0&&(Math.abs(dx)>=S-1||Math.abs(dz)>=S-1)) set(ax+dx,h+11,az+dz,B.COBBLE);
+      }
+      // 角塔
+      for(const [tx,tz] of [[-S+1,-S+1],[S-1,-S+1],[-S+1,S-1],[S-1,S-1]]){
+        for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++){
+          if(dx*dx+dz*dz>11) continue;
+          for(let dy=1;dy<=15;dy++) set(ax+tx+dx,h+dy,az+tz+dz,B.STONEBRICK);
+          if((dx&1)===0&&(dz&1)===0) set(ax+tx+dx,h+16,az+tz+dz,B.COBBLE);
+        }
+        set(ax+tx,h+16,az+tz,B.GLOWSTONE);
+      }
+      // 城门（南侧）
+      for(let dx=-2;dx<=2;dx++)for(let dy=1;dy<=5;dy++)for(let dz=-S-1;dz<=-S+1;dz++)
+        set(ax+dx,h+dy,az+dz,B.AIR);
+      for(let dx=-3;dx<=3;dx++) set(ax+dx,h+6,az-S+1,B.COBBLE);
+      for(let dx=-2;dx<=2;dx++) set(ax+dx,h+7,az-S+1,B.COBBLE);
+      // 门塔
+      for(const sx of [-7,7]){
+        for(let dx=-2;dx<=2;dx++)for(let dz=-3;dz<=1;dz++)for(let dy=1;dy<=11;dy++)
+          set(ax+sx+dx,h+dy,az-S+dz,B.COBBLE);
+        set(ax+sx,h+12,az-S,B.GLOWSTONE);
+      }
+      // 中央主堡
+      for(let dx=-5;dx<=5;dx++)for(let dz=-5;dz<=5;dz++)
+        for(let dy=1;dy<=19;dy++) set(ax+dx,h+dy,az+dz,B.STONEBRICK);
+      for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++)
+        for(let dy=2;dy<=18;dy++) set(ax+dx,h+dy,az+dz,B.AIR);
+      for(const fy of [6,11,16])
+        for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++) set(ax+dx,h+fy,az+dz,B.PLANKS);
+      // 主堡门（朝南）
+      for(let dx=-1;dx<=1;dx++)for(let dz=-5;dz<=-4;dz++)for(let dy=2;dy<=4;dy++)
+        set(ax+dx,h+dy,az+dz,B.AIR);
+      // 主堡窗
+      for(const wy of [3,8,13])
+        for(const [wx2,wz2] of [[4,0],[-4,0],[0,4]]){
+          set(ax+wx2,h+wy,az+wz2,B.GLASS); set(ax+wx2,h+wy+1,az+wz2,B.GLASS);
+        }
+      // 主堡顶 + 旗帜
+      for(let dx=-5;dx<=5;dx++)for(let dz=-5;dz<=5;dz++)
+        if(Math.max(Math.abs(dx),Math.abs(dz))===5&&(dx&1)===0&&(dz&1)===0) set(ax+dx,h+20,az+dz,B.COBBLE);
+      for(let dy=20;dy<=24;dy++) set(ax,h+dy,az,B.LOG);
+      for(let dx=0;dx<=1;dx++)for(let dy=22;dy<=23;dy++) set(ax+dx,h+dy,az-2,B.WOOL_RED);
+      set(ax,h+25,az,B.GLOWSTONE);
+      // 庭院喷泉
+      for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++){
+        const d=dx*dx+dz*dz;
+        if(d>2.2*2.2&&d<=3.4*3.4) set(ax+dx,h,az+13+dz,B.COBBLE);
+        else if(d<=2.2*2.2) set(ax+dx,h,az+13+dz,B.WATER);
+      }
+      set(ax,h+1,az+13,B.COBBLE); set(ax,h+2,az+13,B.GLOWSTONE);
+      // 石径
+      for(let dz=-23;dz<=-7;dz++){ set(ax-1,h,az+dz,B.GRAVEL); set(ax,h,az+dz,B.GRAVEL); }
+      // 庭院树与壁灯
+      placeOak(set,ax-16,az-16); placeOak(set,ax+16,az-16);
+      placeOak(set,ax-16,az+16); placeOak(set,ax+16,az+16);
+      set(ax-25,h+8,az,B.GLOWSTONE); set(ax+25,h+8,az,B.GLOWSTONE);
+      set(ax,h+8,az-25,B.GLOWSTONE); set(ax,h+8,az+25,B.GLOWSTONE);
+      break;
+    }
+    case "pyramid":{
+      flatten(set,ax,az,26,B.SAND,B.SAND);
+      for(let L=0;L<=20;L++){
+        const half=21-L,y=h+1+L;
+        for(let dx=-half;dx<=half;dx++)for(let dz=-half;dz<=half;dz++)
+          set(ax+dx,y,az+dz,B.SANDSTONE);
+      }
+      set(ax,h+22,az,B.GLOWSTONE);
+      set(ax+2,h+22,az,B.GLOWSTONE); set(ax-2,h+22,az,B.GLOWSTONE);
+      // 北侧墓道
+      for(let dz=-21;dz<=-5;dz++)for(let dx=-1;dx<=1;dx++)for(let dy=1;dy<=3;dy++)
+        set(ax+dx,h+dy,az+dz,B.AIR);
+      for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++)for(let dy=1;dy<=5;dy++)
+        set(ax+dx,h+dy,az+dz,B.AIR);
+      // 石棺
+      for(let dx=1;dx<=2;dx++)for(let dy=1;dy<=2;dy++)for(let dz=0;dz<=1;dz++)
+        set(ax+dx,h+dy,az+dz,B.OBSIDIAN);
+      set(ax,h+6,az,B.GLOWSTONE);
+      set(ax-2,h+5,az-2,B.GLOWSTONE); set(ax+2,h+5,az+2,B.GLOWSTONE);
+      break;
+    }
+    case "temple":{
+      flatten(set,ax,az,17,B.DIRT,B.GRASS);
+      for(let dx=-13;dx<=13;dx++)for(let dz=-10;dz<=10;dz++) set(ax+dx,h+1,az+dz,B.STONEBRICK);
+      for(let s=0;s<4;s++)for(let dx=-4;dx<=4;dx++) set(ax+dx,h,az-11-s,B.STONEBRICK);
+      // 立柱
+      for(const px of [-9,-3,3,9])for(const pz of [-7,7]){
+        for(let dy=2;dy<=10;dy++) set(ax+px,h+dy,az+pz,B.STONEBRICK);
+        set(ax+px,h+11,az+pz,B.COBBLE);
+        set(ax+px,h+12,az+pz,B.GLOWSTONE);
+      }
+      // 屋顶 + 山花
+      for(let dx=-13;dx<=13;dx++)for(let dz=-10;dz<=10;dz++){
+        set(ax+dx,h+12,az+dz,B.STONEBRICK);
+        if(Math.abs(dx)===13||Math.abs(dz)===10) set(ax+dx,h+12,az+dz,B.COBBLE);
+      }
+      for(let dx=-8;dx<=8;dx++) set(ax+dx,h+13,az-11,B.STONEBRICK);
+      for(let dx=-5;dx<=5;dx++) set(ax+dx,h+14,az-12,B.STONEBRICK);
+      for(let dx=-2;dx<=2;dx++) set(ax+dx,h+15,az-13,B.STONEBRICK);
+      // 祭坛
+      for(let dx=0;dx<=1;dx++)for(let dz=0;dz<=1;dz++) set(ax+dx,h+2,az+dz,B.OBSIDIAN);
+      for(let dy=3;dy<=4;dy++){ set(ax,h+dy,az,B.CRYSTAL); set(ax+1,h+dy,az,B.CRYSTAL); }
+      set(ax,h+5,az,B.CRYSTAL);
+      // 火盆
+      for(const [bx2,bz2] of [[-11,-6],[11,-6],[-11,6],[11,6]]){
+        set(ax+bx2,h+2,az+bz2,B.STONEBRICK);
+        set(ax+bx2,h+3,az+bz2,B.GLOWSTONE);
+      }
+      break;
+    }
+    case "colossus":{
+      flatten(set,ax,az,10,B.STONE,B.STONE);
+      const y=h+1;
+      for(const sx of [-3,2])for(let dx=0;dx<2;dx++)for(let dz=-1;dz<=1;dz++)
+        for(let dy=0;dy<5;dy++) set(ax+sx+dx,y+dy,az+dz,B.STONE);
+      for(let dx=-4;dx<=4;dx++)for(let dz=-2;dz<=2;dz++) set(ax+dx,y+5,az+dz,B.STONE);
+      for(let dx=-3;dx<=3;dx++)for(let dz=-2;dz<=2;dz++)
+        for(let dy=6;dy<=9;dy++)
+          set(ax+dx,y+dy,az+dz,h3(ax+dx,y+dy,az+dz)<0.08?B.MOSSY:B.STONE);
+      for(const sx of [-6,5])for(let dx=0;dx<2;dx++)for(let dz=-1;dz<=1;dz++)
+        for(let dy=6;dy<=9;dy++) set(ax+sx+dx,y+dy,az+dz,B.STONE);
+      for(let dx=-4;dx<=4;dx++)for(let dz=-2;dz<=2;dz++) set(ax+dx,y+10,az+dz,B.STONE);
+      for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++) set(ax+dx,y+11,az+dz,B.STONE);
+      for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++)
+        for(let dy=12;dy<=15;dy++) set(ax+dx,y+dy,az+dz,B.STONE);
+      set(ax-1,y+15,az-2,B.GLOWSTONE); set(ax+1,y+15,az-2,B.GLOWSTONE);
+      set(ax,y+8,az-2,B.CRYSTAL);
+      for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++) set(ax+dx,y+16,az+dz,B.OBSIDIAN);
+      break;
+    }
+    case "village":{
+      flatten(set,ax,az,34,B.DIRT,B.GRASS);
+      // 中心井
+      for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++){
+        const edge=Math.max(Math.abs(dx),Math.abs(dz))===2;
+        for(let dy=0;dy<=1;dy++) if(edge) set(ax+dx,h+dy,az+dz,B.COBBLE);
+        if(!edge) set(ax+dx,h,az+dz,B.WATER);
+      }
+      for(const [px,pz] of [[-2,-2],[2,-2],[-2,2],[2,2]]){
+        for(let dy=2;dy<=3;dy++) set(ax+px,h+dy,az+pz,B.LOG);
+      }
+      for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++) set(ax+dx,h+4,az+dz,B.PLANKS);
+      set(ax,h+3,az,B.GLOWSTONE);
+      // 房屋
+      for(let i=0;i<5;i++){
+        const ang=i*1.257+h2(i*7,3)*0.9;
+        const r=15+h2(i*3,i*11)*13;
+        const hx=ax+Math.round(Math.cos(ang)*r),hz=az+Math.round(Math.sin(ang)*r);
+        const dx0=ax-hx,dz0=az-hz;
+        const facing=Math.abs(dx0)>Math.abs(dz0)?(dx0>0?"xp":"xm"):(dz0>0?"zp":"zm");
+        buildHouse(set,hx,hz,h,facing,7,6);
+        buildPath(set,hx,hz,ax,az,h,facing);
+      }
+      // 谷仓
+      const gx=ax+Math.round(Math.cos(0.8)*30),gz=az+Math.round(Math.sin(0.8)*30);
+      buildHouse(set,gx,gz,h,Math.abs(ax-gx)>Math.abs(az-gz)?(ax-gx>0?"xp":"xm"):(az-gz>0?"zp":"zm"),9,7);
+      buildPath(set,gx,gz,ax,az,h,Math.abs(ax-gx)>Math.abs(az-gz)?(ax-gx>0?"xp":"xm"):(az-gz>0?"zp":"zm"));
+      // 野花
+      for(let i=0;i<10;i++){
+        const ang=h2(i*13,7)*6.283,r=6+h2(i*5,11)*20;
+        set(ax+Math.round(Math.cos(ang)*r),h+1,az+Math.round(Math.sin(ang)*r),h2(i,31)<0.5?B.FLOWER_R:B.FLOWER_Y);
+      }
+      break;
+    }
+    case "portal":{
+      flatten(set,ax,az,10,B.DIRT,B.GRASS);
+      for(let dx=-5;dx<=5;dx++)for(let dz=-3;dz<=3;dz++) set(ax+dx,h+1,az+dz,B.MOSSY);
+      // 黑曜石门框（残破）
+      for(let dy=3;dy<=6;dy++){ set(ax-2,h+dy,az,B.OBSIDIAN); set(ax+1,h+dy,az,B.OBSIDIAN); }
+      set(ax-1,h+7,az,B.OBSIDIAN); set(ax,h+7,az,B.OBSIDIAN);
+      for(let dx=-2;dx<=1;dx++) set(ax+dx,h+2,az,B.OBSIDIAN);
+      // 门内水晶
+      for(let dy=3;dy<=6;dy++){ set(ax-1,h+dy,az,B.CRYSTAL); set(ax,h+dy,az,B.CRYSTAL); }
+      // 残柱
+      for(let dy=2;dy<=4;dy++) set(ax-5,h+dy,az,B.STONEBRICK);
+      for(let dy=2;dy<=3;dy++) set(ax+5,h+dy,az,B.STONEBRICK);
+      set(ax-5,h+5,az,B.MOSSY); set(ax+5,h+4,az,B.MOSSY);
+      // 藤蔓与地灯
+      for(let i=0;i<12;i++){
+        const dx=Math.floor(h2(i,3)*11)-5,dz=Math.floor(h2(i,7)*7)-3,dy=Math.floor(h2(i,9)*4)+1;
+        set(ax+dx,h+1+dy,az+dz,B.LEAVES);
+      }
+      set(ax-4,h+2,az-2,B.GLOWSTONE); set(ax+4,h+2,az+2,B.GLOWSTONE);
+      break;
+    }
+    case "shrine":{
+      flatten(set,ax,az,15,B.DIRT,B.SNOW);
+      for(let dx=-10;dx<=10;dx++)for(let dz=-10;dz<=10;dz++){
+        const d=Math.sqrt(dx*dx+dz*dz);
+        if(d>8.3&&d<9.7) set(ax+dx,h+1,az+dz,B.STONEBRICK);
+      }
+      for(let k=0;k<8;k++){
+        const ang=k*Math.PI/4;
+        const px=Math.round(Math.cos(ang)*6),pz=Math.round(Math.sin(ang)*6);
+        const len=3+(h2(k*13,7)*4|0);
+        set(ax+px,h+1,az+pz,B.STONEBRICK);
+        for(let dy=2;dy<=2+len;dy++) set(ax+px,h+dy,az+pz,B.CRYSTAL);
+      }
+      for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++) set(ax+dx,h+1,az+dz,B.STONEBRICK);
+      for(const [cx2,cz2] of [[-1,-1],[1,-1],[-1,1],[1,1]]) set(ax+cx2,h+2,az+cz2,B.GLOWSTONE);
+      for(let dy=2;dy<=3;dy++)for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)
+        set(ax+dx,h+dy,az+dz,B.CRYSTAL);
+      for(let dy=4;dy<=7;dy++) set(ax,h+dy,az,B.CRYSTAL);
+      break;
+    }
+    case "dungeon":{
+      flatten(set,ax,az,8,B.DIRT,B.GRASS);
+      for(let dx=-5;dx<=5;dx++)for(let dz=-5;dz<=5;dz++){
+        const d=dx*dx+dz*dz;
+        if(d>20.5) continue;
+        if(d>6.5){
+          for(let dy=1;dy<=13;dy++)
+            set(ax+dx,h+dy,az+dz,h3(ax+dx,h+dy,az+dz)<0.25?B.COBBLE:B.MOSSY);
+          for(let dy=14;dy<=16;dy++)
+            if(h3(ax+dx,dy,az+dz)>0.45) set(ax+dx,h+dy,az+dz,h3(ax+dx,dy+1,az+dz)<0.4?B.COBBLE:B.MOSSY);
+        }else{
+          for(let dy=1;dy<=13;dy++) set(ax+dx,h+dy,az+dz,B.AIR);
+        }
+      }
+      for(let dy=5;dy<=5;dy++)for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++)
+        if(dx*dx+dz*dz<=9) set(ax+dx,h+dy,az+dz,B.PLANKS);
+      for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++)
+        if(dx*dx+dz*dz<=9) set(ax+dx,h+9,az+dz,B.PLANKS);
+      // 门
+      for(let dx=-1;dx<=1;dx++)for(let dz=-5;dz<=-3;dz++)for(let dy=1;dy<=2;dy++)
+        set(ax+dx,h+dy,az+dz,B.AIR);
+      for(let dx=-2;dx<=2;dx++) set(ax+dx,h+3,az-3,B.COBBLE);
+      set(ax,h+10,az,B.GLOWSTONE); set(ax,h+14,az,B.GLOWSTONE);
+      // 攀附藤蔓
+      for(let i=0;i<10;i++){
+        const dx=Math.floor(h2(i,17)*11)-5,dz=Math.floor(h2(i,19)*11)-5,dy=Math.floor(h2(i,23)*8)+1;
+        if(dx*dx+dz*dz>16) set(ax+dx,h+dy,az+dz,B.LEAVES);
+      }
+      break;
+    }
+    case "worldtree":{
+      // 树根
+      for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        for(let i=1;i<=5;i++){
+          const y=i<=2?h+1:h;
+          set(ax+dx*i,y,az+dz*i,B.LOG);
+          if(i===2){ set(ax+dx*i,h,az+dz*i,B.LOG); }
+        }
+      }
+      // 巨型树干（微螺旋）
+      for(let dy=1;dy<=30;dy++){
+        const ox=Math.round(Math.sin(dy*0.22)*1.6),oz=Math.round(Math.cos(dy*0.17)*1.6);
+        for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++)
+          if(Math.abs(dx)+Math.abs(dz)<=3) set(ax+ox+dx,h+dy,az+oz+dz,B.LOG);
+      }
+      // 枝干 + 叶团
+      for(const bdy of [16,22,27]){
+        for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+          for(let i=2;i<=7;i++){
+            const by=h+bdy+Math.max(0,i-4);
+            set(ax+dx*i,by,az+dz*i,B.LOG);
+            if(i===7){
+              for(let lx=-2;lx<=2;lx++)for(let lz=-2;lz<=2;lz++)
+                if(lx*lx+lz*lz<=4) set(ax+dx*i+lx,by+1,az+dz*i+lz,B.LEAVES);
+            }
+          }
+        }
+      }
+      // 树冠（椭球）
+      const cy=h+34;
+      for(let dx=-14;dx<=14;dx++)for(let dz=-14;dz<=14;dz++)for(let dy=-11;dy<=11;dy++){
+        const d=dx*dx/196+dz*dz/196+dy*dy/121;
+        if(d<=1&&h3(ax+dx,cy+dy,az+dz)>0.16) set(ax+dx,cy+dy,az+dz,B.LEAVES);
+      }
+      // 树心水晶
+      set(ax,cy,az,B.CRYSTAL); set(ax,cy-1,az,B.CRYSTAL);
+      set(ax+1,cy-1,az,B.CRYSTAL); set(ax-1,cy-1,az,B.CRYSTAL);
+      // 悬挂萤石
+      set(ax+11,cy-6,az,B.GLOWSTONE); set(ax-11,cy-6,az,B.GLOWSTONE);
+      set(ax,cy-6,az+11,B.GLOWSTONE); set(ax,cy-6,az-11,B.GLOWSTONE);
+      // 苔石环与守护水晶
+      for(let dx=-5;dx<=5;dx++)for(let dz=-5;dz<=5;dz++){
+        const d=Math.sqrt(dx*dx+dz*dz);
+        if(d>3.2&&d<4.6) set(ax+dx,h,az+dz,B.MOSSY);
+      }
+      set(ax+6,h+1,az+6,B.STONEBRICK);
+      for(let dy=2;dy<=4;dy++) set(ax+6,h+dy,az+6,B.CRYSTAL);
+      set(ax-6,h+1,az-6,B.STONEBRICK);
+      for(let dy=2;dy<=3;dy++) set(ax-6,h+dy,az-6,B.CRYSTAL);
+      for(let i=0;i<6;i++){
+        const ang=h2(i,41)*6.283,r=7+h2(i,43)*3;
+        set(ax+Math.round(Math.cos(ang)*r),h+1,az+Math.round(Math.sin(ang)*r),h2(i,47)<0.5?B.FLOWER_R:B.FLOWER_Y);
+      }
+      break;
+    }
+    case "islands":{
+      const yc=108+(h2(ax,az)*34|0);
+      buildIsland(set,ax,yc,az,15,7,15);
+      for(let k=1;k<=4;k++){
+        const ang=k*1.7+h2(k*5,2)*1.2;
+        const rr=24+h2(k*9,4)*12;
+        const yc2=yc+(h2(k*3,8)-0.5)*26|0;
+        const rx=5+h2(k*7,6)*6|0;
+        buildIsland(set,ax+Math.round(Math.cos(ang)*rr),yc2,az+Math.round(Math.sin(ang)*rr),rx,4+(h2(k,11)*3|0),rx);
+      }
+      // 主岛水晶尖塔
+      for(const [px,pz] of [[6,3],[-4,-7],[1,9]]){
+        const sy=Math.floor(yc+7*Math.sqrt(Math.max(0,1-(px/15)*(px/15)-(pz/15)*(pz/15))));
+        const len=4+(h2(px*7,pz*3)*4|0);
+        set(ax+px,sy+1,az+pz,B.GLOWSTONE);
+        for(let dy=2;dy<=1+len;dy++) set(ax+px,sy+dy,az+pz,B.CRYSTAL);
+      }
+      // 银河瀑布
+      const ex=ax+12,ez=az+2;
+      const g=terrainHeight(ex,ez);
+      for(let yy=g+1;yy<=yc-8;yy++) set(ex,yy,ez,B.WATER);
+      for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++) set(ex+dx,g,ez+dz,B.WATER);
+      break;
+    }
+  }
+}
+function buildIsland(set,cx,cy,cz,rx,ry,rz){
+  for(let dx=-rx;dx<=rx;dx++)for(let dz=-rz;dz<=rz;dz++)for(let dy=-ry;dy<=ry;dy++){
+    const d=dx*dx/(rx*rx)+dy*dy/(ry*ry)+dz*dz/(rz*rz);
+    if(d>1) continue;
+    const j=1+0.22*h3(cx+dx,cy+dy,cz+dz);
+    if(d*j>1) continue;
+    set(cx+dx,cy+dy,cz+dz,d<0.5?B.STONE:(d<0.82?B.DIRT:B.GRASS));
+  }
+  // 表层覆草
+  for(let dx=-rx;dx<=rx;dx++)for(let dz=-rz;dz<=rz;dz++)for(let dy=ry;dy>=-ry;dy--){
+    const d=dx*dx/(rx*rx)+dy*dy/(ry*ry)+dz*dz/(rz*rz);
+    if(d>1) continue;
+    const j=1+0.22*h3(cx+dx,cy+dy,cz+dz);
+    if(d*j>1) continue;
+    const above=(dx*dx/(rx*rx)+(dy+1)*(dy+1)/(ry*ry)+dz*dz/(rz*rz))>1;
+    if(above){ set(cx+dx,cy+dy,cz+dz,B.GRASS); break; }
+  }
+}
+function buildHouse(set,hx,hz,h,facing,w,d){
+  const R=facing==="zm"?[1,0,0,1]:facing==="zp"?[-1,0,0,-1]:facing==="xm"?[0,1,-1,0]:[0,-1,1,0];
+  const P=(u,v)=>[hx+u*R[0]+v*R[1],hz+u*R[2]+v*R[3]];
+  const hw=(w-1)/2|0,hd=(d-1)/2|0;
+  const at=(u,v,b)=>{const p=P(u,v);set(p[0],h+1,p[1],b);};
+  // 地板
+  for(let u=-hw+1;u<=hw-1;u++)for(let v=-hd+1;v<=hd-1;v++) at(u,v,B.PLANKS);
+  // 墙 + 角柱
+  for(let u=-hw;u<=hw;u++)for(let v=-hd;v<=hd;v++){
+    if(Math.abs(u)===hw||Math.abs(v)===hd){
+      const p=P(u,v);
+      for(let dy=1;dy<=4;dy++) set(p[0],h+dy,p[1],B.PLANKS);
+    }
+  }
+  for(const [u,v] of [[-hw,-hd],[hw,-hd],[-hw,hd],[hw,hd]]){
+    const p=P(u,v);
+    for(let dy=1;dy<=4;dy++) set(p[0],h+dy,p[1],B.LOG);
+  }
+  // 门（朝向井）+ 门槛上沿
+  {
+    const p0=P(0,-hd),p1=P(0,-hd+1);
+    set(p0[0],h+1,p0[1],B.AIR); set(p0[0],h+2,p0[1],B.AIR);
+    set(p1[0],h+1,p1[1],B.AIR); set(p1[0],h+2,p1[1],B.AIR);
+    set(p0[0],h+3,p0[1],B.PLANKS); set(p1[0],h+3,p1[1],B.PLANKS);
+  }
+  // 窗
+  {
+    const p=P(0,hd); set(p[0],h+2,p[1],B.GLASS); set(p[0],h+3,p[1],B.GLASS);
+    const q1=P(-hw,0); set(q1[0],h+2,q1[1],B.GLASS); set(q1[0],h+3,q1[1],B.GLASS);
+    const q2=P(hw,0); set(q2[0],h+2,q2[1],B.GLASS); set(q2[0],h+3,q2[1],B.GLASS);
+  }
+  // 屋顶
+  for(let ry=0;ry<=3;ry++){
+    const s=hw+1-ry;
+    for(let u=-s;u<=s;u++)for(let v=-s;v<=s;v++){
+      const p=P(u,v);
+      set(p[0],h+5+ry,p[1],B.PLANKS);
+    }
+  }
+  const p=P(0,0);
+  set(p[0],h+9,p[1],B.COBBLE);
+  set(p[0],h+4,p[1],B.GLOWSTONE);
+}
+function buildPath(set,hx,hz,ax,az,h,facing){
+  const R=facing==="zm"?[0,0,0,-1]:facing==="zp"?[0,0,0,1]:facing==="xm"?[0,1,-1,0]:[0,-1,1,0];
+  let px=hx+R[1]*5,pz=hz+R[3]*5;
+  const sx=Math.sign(ax-px),sz=Math.sign(az-pz);
+  while(px!==ax){ px+=sx; set(px,h,pz,B.GRAVEL); if(pz!==az) set(px,h,pz+sz,B.GRAVEL); }
+  while(pz!==az){ pz+=sz; set(ax,h,pz,B.GRAVEL); }
+}
+
+/* ---------- 区块网格构建（含 AO 环境光遮蔽） ---------- */
+function buildChunkMeshes(world,ch){
+  if(!ch) return {opaque:null,trans:null};
+  const cx=ch.cx,cz=ch.cz,x0=cx*16,z0=cz*16;
+  const PAD=18,PY=194,pad=new Uint8Array(PAD*PY*PAD);
+  const pstride=PAD*PAD;
+  // 将本区块与 8 邻接区块数据拷入 pad（含 1 格边框）：整行 typed 拷贝 + 逐项编辑覆盖
+  for(let oz=-1;oz<=1;oz++)for(let ox=-1;ox<=1;ox++){
+    const nc=world.chunks.get(World.key(cx+ox,cz+oz));
+    if(!nc) continue;
+    const em=nc.editMap,dat=nc.data;
+    const px0=(cx+ox)*16-x0+1,pz0=(cz+oz)*16-z0+1;
+    const xMin=Math.max(0,1-px0),xMax=Math.min(16,PAD-px0);
+    const zMin=Math.max(0,1-pz0),zMax=Math.min(16,PAD-pz0);
+    const wdt=xMax-xMin;
+    if(wdt<=0) continue;
+    for(let y=0;y<CHY;y++){
+      const drow=y*256;
+      const prow=(y+1)*pstride+(zMin+pz0)*PAD+px0;
+      for(let lz=zMin;lz<zMax;lz++){
+        let o=prow+(lz-zMin)*PAD,d=drow+lz*16+xMin;
+        for(let k=0;k<wdt;k++) pad[o+k]=dat[d+k];
+      }
+    }
+    if(em.size){
+      for(const [i,b] of em){
+        const lx=i&15,lz=(i>>4)&15,ly=i>>8;
+        if(lx<xMin||lx>=xMax||lz<zMin||lz>=zMax) continue;
+        pad[(ly+1)*pstride+(lz+pz0)*PAD+lx+px0]=b;
+      }
+    }
+  }
+  const pin=(x,y,z)=>pad[(y+1)*pstride+(z+1)*PAD+(x+1)];
+  const opV=[],opI=[],trV=[],trI=[];
+  const maxY=Math.min(CHY-1,ch.maxY+1);
+  for(let y=0;y<=maxY;y++){
+    const rowBase=(y+1)*pstride+PAD+1;
+    for(let z=0;z<16;z++){
+      const plane=rowBase+z*PAD;
+      for(let x=0;x<16;x++){
+        const i0=plane+x;
+        const b=pad[i0];
+        if(!b) continue;
+        const def=BLOCKS[b];
+        if(def.cross){ emitCross(opV,opI,x0+x,y,z0+z,def.tile); continue; }
+        for(let f=0;f<6;f++){
+          const F=FACES[f];
+          const nb=pad[i0+F.di];
+          const nd=BLOCKS[nb];
+          let visible;
+          if(def.transparent) visible=nb===B.AIR;
+          else visible=nb===B.AIR||(nd&&nd.transparent&&!nd.solid&&nd.liquid);
+          if(!visible) continue;
+          const tile=def.tiles.all!==undefined?def.tiles.all:(F.d[1]===1?def.tiles.top:(F.d[1]===-1?def.tiles.bottom:def.tiles.side));
+          if(def.transparent) emitFace(trV,trI,x,y,z,f,tile,def,pad,x0,z0);
+          else emitFace(opV,opI,x,y,z,f,tile,def,pad,x0,z0);
+        }
+      }
+    }
+  }
+  return {
+    opaque:opV.length?{verts:new Float32Array(opV),idx:new Uint32Array(opI)}:null,
+    trans:trV.length?{verts:new Float32Array(trV),idx:new Uint32Array(trI)}:null,
+  };
+}
+function tileUV(tile,cu,cv){
+  const col=tile%ATLAS_COLS,row=(tile/ATLAS_COLS)|0;
+  // UNPACK_FLIP_Y=false：canvas 顶行 → v=0；FACES 中 cv=1 表示面上缘 → 翻转
+  return [(col+cu*0.999+0.0005)/ATLAS_COLS,(row+(1-cv)*0.999+0.0005)/ATLAS_ROWS];
+}
+function emitFace(V,I,x,y,z,f,tile,def,pad,x0,z0){
+  const F=FACES[f],base=V.length/7;
+  const isTr=def.transparent?1:0;
+  const alpha=isTr?(def.liquid?0.66:0.4):(def.cutout?1:0);
+  const lmul=F.light*(def.emissive?1.3:1);
+  const oa=F.oa,ob=F.ob;
+  for(let k=0;k<4;k++){
+    const c=F.corners[k];
+    const wx=x+c[0],wy=y+c[1],wz=z+c[2];
+    const i0=(wy+1)*324+(wz+1)*18+(wx+1);
+    const q1=pad[i0-oa],q2=pad[i0-ob],q3=pad[i0-oa-ob];
+    const s1=q1!==0&&!LIQ[q1],s2=q2!==0&&!LIQ[q2],s3=q3!==0&&!LIQ[q3];
+    const ao=s1&&s2?0.55:(s1||s2?0.78:(s3?0.88:1.0));
+    const uv=tileUV(tile,c[3],c[4]);
+    V.push(x0+wx,wy,z0+wz,uv[0],uv[1],lmul*ao,alpha);
+  }
+  I.push(base,base+1,base+2,base,base+2,base+3);
+}
+function emitCross(V,I,x,y,z,tile){
+  const [u0,v0]=tileUV(tile,0,0),[u1,v1]=tileUV(tile,1,1);
+  const q=[
+    [x,y,z,u0,v0],[x+1,y+1,z,u1,v1],[x+1,y+1,z+1,u1,v0],[x,y,z+1,u0,v1],
+    [x+1,y,z,u0,v0],[x,y+1,z,u1,v1],[x,y+1,z+1,u1,v0],[x+1,y,z+1,u0,v1],
+  ];
+  const base=V.length/7;
+  for(const p of q) V.push(p[0],p[1],p[2],p[3],p[4],1.0,1);
+  I.push(base,base+1,base+2,base,base+2,base+3,base+4,base+5,base+6,base+4,base+6,base+7);
+}
+
+// ==================== CORE END ====================
+
+/* =====================================================================
+   以下为 DOM / WebGL / 输入 / UI 部分
+   ===================================================================== */
+
+const glCanvas=document.getElementById("gl");
+const overlay=document.getElementById("overlay");
+const progressEl=document.getElementById("progress");
+const startBtn=document.getElementById("startBtn");
+const hudCanvas=document.getElementById("hud");
+const hudCtx=hudCanvas.getContext("2d");
+
+/* ---------- 程序化像素材质（16×16，仿 MC 风格） ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function mkTile(fn){
+  const c=document.createElement("canvas");c.width=c.height=16;
+  const x=c.getContext("2d");fn(x,mulberry32(Math.floor(Math.random()*1e9)));
+  return c;
+}
+function speckle(x,R,colors,n){
+  for(let i=0;i<n;i++){x.fillStyle=colors[(R()*colors.length)|0];x.fillRect((R()*16)|0,(R()*16)|0,1,1);}
+}
+const TILES=[];
+TILES[T.GRASS_TOP]=mkTile((x,R)=>{x.fillStyle="#7fb444";x.fillRect(0,0,16,16);
+  speckle(x,R,["#6da138","#8fc458","#75aa3e","#95c96a","#5f8f30","#a8d678"],70);});
+TILES[T.GRASS_SIDE]=mkTile((x,R)=>{x.fillStyle="#8a6541";x.fillRect(0,0,16,16);
+  speckle(x,R,["#7a5536","#9a6f4c","#6e4a2e","#a57b55","#5f3f27"],36);
+  const G=["#7fb444","#6da138","#8fc458","#75aa3e"];
+  for(let yy=0;yy<4;yy++)for(let xx=0;xx<16;xx++){
+    const th=[1,0.85,0.5,0.18][yy];
+    if(R()<th){x.fillStyle=G[(R()*G.length)|0];x.fillRect(xx,yy,1,1);}
+  }});
+TILES[T.DIRT]=mkTile((x,R)=>{x.fillStyle="#8a5f3d";x.fillRect(0,0,16,16);
+  speckle(x,R,["#7a5335","#9a6f4c","#6e4a2e","#a57b55","#5f3f27","#966b46"],60);});
+TILES[T.STONE]=mkTile((x,R)=>{x.fillStyle="#8d8d8d";x.fillRect(0,0,16,16);
+  speckle(x,R,["#7f7f7f","#9a9a9a","#767676","#a5a5a5","#6f6f6f"],70);});
+TILES[T.COBBLE]=mkTile((x,R)=>{x.fillStyle="#5c5c5c";x.fillRect(0,0,16,16);
+  for(let i=0;i<11;i++){
+    const cx=(R()*16)|0,cy=(R()*16)|0,w=2+((R()*3)|0),h=2+((R()*3)|0);
+    const sh=["#8a8a8a","#7d7d7d","#949494","#838383"][(R()*4)|0];
+    x.fillStyle=sh;x.fillRect(cx,cy,w,h);
+    x.fillStyle="#9c9c9c";x.fillRect(cx,cy,w,1);x.fillRect(cx,cy,1,h);
+    x.fillStyle="#4d4d4d";x.fillRect(cx,cy+h-1,w,1);x.fillRect(cx+w-1,cy,1,h);
+  }});
+TILES[T.PLANKS]=mkTile((x,R)=>{x.fillStyle="#b8945f";x.fillRect(0,0,16,16);
+  speckle(x,R,["#a8864f","#c6a26b","#99794a"],22);
+  x.fillStyle="#8a6238";
+  x.fillRect(0,3,16,1);x.fillRect(0,7,16,1);x.fillRect(0,11,16,1);x.fillRect(0,15,16,1);
+  x.fillRect(7,0,1,16);x.fillRect(0,0,1,16);
+  x.fillStyle="#c8a76e";x.fillRect(0,4,16,1);x.fillRect(0,8,16,1);x.fillRect(0,12,16,1);});
+TILES[T.LOG_SIDE]=mkTile((x,R)=>{const P=["#5a4418","#7a6232","#6b5320","#4f3d15"];
+  for(let xx=0;xx<16;xx++){x.fillStyle=P[(hash2i(xx,7)%4)];x.fillRect(xx,0,1,16);}
+  x.fillStyle="#3f3010";x.fillRect(3,0,1,16);x.fillRect(8,0,1,16);x.fillRect(13,0,1,16);
+  x.fillStyle="#8a7040";x.fillRect(4,0,1,16);x.fillRect(9,0,1,16);x.fillRect(14,0,1,16);});
+TILES[T.LOG_TOP]=mkTile((x,R)=>{x.fillStyle="#4f3d15";x.fillRect(0,0,16,16);
+  for(let yy=0;yy<16;yy++)for(let xx=0;xx<16;xx++){
+    const d=Math.sqrt((xx-7.5)**2+(yy-7.5)**2);
+    let c;
+    if(d<2)c="#c9a873";else if(d<4)c="#b8945f";else if(d<6)c="#8a6a3f";else if(d<7)c="#6f4f2a";else c="#4f3d15";
+    if(Math.abs(d-2)<0.4||Math.abs(d-4)<0.4||Math.abs(d-6)<0.4)c="#5a4418";
+    x.fillStyle=c;x.fillRect(xx,yy,1,1);
+  }});
+TILES[T.LEAVES]=mkTile((x,R)=>{x.fillStyle="#47872c";x.fillRect(0,0,16,16);
+  speckle(x,R,["#3a7022","#569a35","#2f601c","#64aa3e","#4c9131"],70);
+  for(let i=0;i<13;i++)x.clearRect((R()*16)|0,(R()*16)|0,1,1);});
+TILES[T.LEAVES_SPRUCE]=mkTile((x,R)=>{x.fillStyle="#2e5d1c";x.fillRect(0,0,16,16);
+  speckle(x,R,["#244a15","#3a7426","#1c3c10","#467f2e"],60);
+  for(let i=0;i<9;i++)x.clearRect((R()*16)|0,(R()*16)|0,1,1);});
+TILES[T.SAND]=mkTile((x,R)=>{x.fillStyle="#e3d9a6";x.fillRect(0,0,16,16);
+  speckle(x,R,["#d6ca92","#ede4b8","#c9bc85","#f2eac6","#dcd2a0"],55);});
+TILES[T.GLASS]=mkTile((x,R)=>{x.clearRect(0,0,16,16);
+  x.fillStyle="rgba(220,240,245,0.95)";
+  x.fillRect(0,0,16,1);x.fillRect(0,15,16,1);x.fillRect(0,0,1,16);x.fillRect(15,0,1,16);
+  x.fillStyle="rgba(255,255,255,0.4)";
+  for(let i=0;i<6;i++)x.fillRect(3+i,5+i,1,1);
+  for(let i=0;i<5;i++)x.fillRect(9+i,2+i,1,1);
+  x.fillStyle="rgba(255,255,255,0.5)";x.fillRect(1,1,2,2);});
+TILES[T.WATER]=mkTile((x,R)=>{x.fillStyle="rgba(63,118,228,0.62)";x.fillRect(0,0,16,16);
+  speckle(x,R,["rgba(90,140,240,0.5)","rgba(40,90,190,0.6)","rgba(52,105,215,0.5)"],40);
+  x.fillStyle="rgba(160,200,255,0.35)";
+  for(let i=0;i<8;i++)x.fillRect((R()*16)|0,(R()*16)|0,1,1);});
+TILES[T.BRICK]=mkTile((x,R)=>{x.fillStyle="#c9bfb0";x.fillRect(0,0,16,16);
+  for(let ry=0;ry<4;ry++){
+    const y=ry*4;
+    if(ry%2===0){for(const [bx2,w] of [[0,7],[8,7]])brick(x,bx2,y,w,3);}
+    else{for(const [bx2,w] of [[0,3],[4,7],[12,3]])brick(x,bx2,y,w,3);}
+  }
+  function brick(x,bx,y,w,hgt){
+    x.fillStyle="#9c4a3a";x.fillRect(bx,y,w,hgt);
+    x.fillStyle="#b35a48";x.fillRect(bx,y,w,1);
+    x.fillStyle="#7e352a";x.fillRect(bx,y+hgt-1,w,1);
+  }});
+TILES[T.STONEBRICK]=mkTile((x,R)=>{x.fillStyle="#6f6f6f";x.fillRect(0,0,16,16);
+  for(let ry=0;ry<4;ry++){
+    const y=ry*4;
+    if(ry%2===0){for(const [bx2,w] of [[0,7],[8,7]]){x.fillStyle="#8a8a8a";x.fillRect(bx2,y,w,3);x.fillStyle="#9c9c9c";x.fillRect(bx2,y,w,1);x.fillStyle="#7a7a7a";x.fillRect(bx2,y+2,w,1);}}
+    else{for(const [bx2,w] of [[0,3],[4,7],[12,3]]){x.fillStyle="#8a8a8a";x.fillRect(bx2,y,w,3);x.fillStyle="#9c9c9c";x.fillRect(bx2,y,w,1);x.fillStyle="#7a7a7a";x.fillRect(bx2,y+2,w,1);}}
+  }});
+TILES[T.MOSSY]=mkTile((x,R)=>{x.fillStyle="#5c5c5c";x.fillRect(0,0,16,16);
+  for(let i=0;i<11;i++){
+    const cx=(R()*16)|0,cy=(R()*16)|0,w=2+((R()*3)|0),h=2+((R()*3)|0);
+    x.fillStyle=["#8a8a8a","#7d7d7d","#949494"][(R()*3)|0];x.fillRect(cx,cy,w,h);
+    x.fillStyle="#4d4d4d";x.fillRect(cx,cy+h-1,w,1);
+  }
+  for(let i=0;i<16;i++){
+    x.fillStyle=["#5c8a3a","#4a7a2e","#6fa04a"][(R()*3)|0];
+    x.fillRect((R()*16)|0,(R()*16)|0,1,1);
+  }});
+TILES[T.BEDROCK]=mkTile((x,R)=>{x.fillStyle="#333333";x.fillRect(0,0,16,16);
+  for(let i=0;i<9;i++){x.fillStyle=["#4d4d4d","#1c1c1c","#5f5f5f","#262626"][(R()*4)|0];x.fillRect((R()*14)|0,(R()*14)|0,2+((R()*2)|0),2+((R()*2)|0));}});
+TILES[T.GLOWSTONE]=mkTile((x,R)=>{x.fillStyle="#e0a73c";x.fillRect(0,0,16,16);
+  for(let i=0;i<26;i++){x.fillStyle=["#ffd97a","#c98a2e","#f5b84f","#b8832f"][(R()*4)|0];x.fillRect((R()*16)|0,(R()*16)|0,1,1);}
+  x.fillStyle="#fff2b0";for(let i=0;i<8;i++)x.fillRect((R()*16)|0,(R()*16)|0,1,1);});
+TILES[T.SNOW]=mkTile((x,R)=>{x.fillStyle="#f3f7fb";x.fillRect(0,0,16,16);
+  speckle(x,R,["#e6edf5","#ffffff","#dfe9f3","#eef3f9"],45);});
+TILES[T.SNOW_SIDE]=mkTile((x,R)=>{x.fillStyle="#8a5f3d";x.fillRect(0,0,16,16);
+  speckle(x,R,["#7a5335","#9a6f4c","#6e4a2e"],30);
+  for(let yy=0;yy<3;yy++)for(let xx=0;xx<16;xx++){
+    if(R()<[1,0.8,0.35][yy]){x.fillStyle=R()<0.5?"#f3f7fb":"#e6edf5";x.fillRect(xx,yy,1,1);}
+  }});
+TILES[T.CRYSTAL]=mkTile((x,R)=>{x.fillStyle="#7adff0";x.fillRect(0,0,16,16);
+  for(let yy=0;yy<16;yy++)for(let xx=0;xx<16;xx++){
+    if((xx+yy)%5<2)x.fillStyle="#4fc3dd";
+    else if((xx+yy)%7===0)x.fillStyle="#d8fbff";
+    x.fillRect(xx,yy,1,1);
+  }
+  x.fillStyle="#2fa3c8";x.fillRect(0,0,16,1);x.fillRect(0,15,16,1);x.fillRect(0,0,1,16);x.fillRect(15,0,1,16);});
+TILES[T.OBSIDIAN]=mkTile((x,R)=>{x.fillStyle="#1a1230";x.fillRect(0,0,16,16);
+  speckle(x,R,["#241840","#0e0818","#301f55","#3a2a66","#150e28"],55);
+  x.fillStyle="#4a3580";for(let i=0;i<6;i++)x.fillRect((R()*16)|0,(R()*16)|0,1,1);});
+TILES[T.GRAVEL]=mkTile((x,R)=>{x.fillStyle="#7d746a";x.fillRect(0,0,16,16);
+  speckle(x,R,["#8d8578","#5c554d","#a59c8d","#4d463f","#94887a"],100);});
+TILES[T.BOOKSHELF]=mkTile((x,R)=>{x.fillStyle="#8a5a2f";x.fillRect(0,0,16,16);
+  x.fillStyle="#5a3a1c";x.fillRect(0,0,16,1);x.fillRect(0,15,16,1);x.fillRect(0,0,1,16);x.fillRect(15,0,1,16);
+  for(const y of [2,8]){
+    for(let xx=0;xx<16;xx+=2){
+      x.fillStyle=["#7a2f2f","#2f5a7a","#3a6a2f","#8a7a2f","#5a2f6a","#4a6a8a","#9a4a2a"][(R()*7)|0];
+      x.fillRect(xx,y,2,5);
+    }
+    x.fillStyle="#5a3a1c";x.fillRect(0,y-1,16,1);
+  }});
+TILES[T.SANDSTONE]=mkTile((x,R)=>{x.fillStyle="#ddd0a0";x.fillRect(0,0,16,16);
+  speckle(x,R,["#cfc08c","#e9ddb4","#c4b482"],40);
+  x.fillStyle="#bfae7e";x.fillRect(0,4,16,1);x.fillRect(0,8,16,1);x.fillRect(0,12,16,1);
+  x.fillStyle="#ede2c0";x.fillRect(0,5,16,1);x.fillRect(0,9,16,1);x.fillRect(0,13,16,1);});
+TILES[T.WOOL_RED]=mkTile((x,R)=>{x.fillStyle="#b02e2e";x.fillRect(0,0,16,16);
+  x.fillStyle="#8f2424";
+  for(let yy=0;yy<16;yy+=2)for(let xx=0;xx<16;xx+=2)x.fillRect(xx,yy,1,1);
+  speckle(x,R,["#c44040","#9a2828"],20);});
+TILES[T.LAVA]=mkTile((x,R)=>{x.fillStyle="#e25a12";x.fillRect(0,0,16,16);
+  for(let i=0;i<34;i++){x.fillStyle=["#f2a13e","#ffd24a","#c8431a","#b3350f"][(R()*4)|0];x.fillRect((R()*16)|0,(R()*16)|0,1,1);}
+  x.fillStyle="#7a1f0a";for(let i=0;i<6;i++)x.fillRect((R()*16)|0,(R()*16)|0,1,1);
+  x.fillStyle="#ffec9a";for(let i=0;i<5;i++)x.fillRect((R()*16)|0,(R()*16)|0,1,1);});
+TILES[T.FLOWER_R]=mkTile((x,R)=>{x.clearRect(0,0,16,16);
+  x.fillStyle="#3f7d2a";x.fillRect(7,9,1,6);x.fillRect(8,12,1,3);x.fillRect(5,11,1,1);
+  x.fillStyle="#c13b2e";
+  for(const [xx,yy] of [[7,5],[8,5],[6,6],[7,6],[9,6],[7,7],[8,7],[6,5],[9,5]])x.fillRect(xx,yy,1,1);
+  x.fillStyle="#7a241c";x.fillRect(7,6,1,1);x.fillRect(8,6,1,1);});
+TILES[T.FLOWER_Y]=mkTile((x,R)=>{x.clearRect(0,0,16,16);
+  x.fillStyle="#3f7d2a";x.fillRect(7,9,1,6);x.fillRect(8,12,1,3);x.fillRect(5,11,1,1);
+  x.fillStyle="#e8c33a";
+  for(const [xx,yy] of [[7,5],[8,5],[6,6],[7,6],[9,6],[7,7],[8,7],[6,5],[9,5]])x.fillRect(xx,yy,1,1);
+  x.fillStyle="#8a6a1a";x.fillRect(7,6,1,1);x.fillRect(8,6,1,1);});
+TILES[T.CACTUS_SIDE]=mkTile((x,R)=>{x.fillStyle="#3f7d2a";x.fillRect(0,0,16,16);
+  x.fillStyle="#2f5d1e";x.fillRect(2,0,1,16);x.fillRect(7,0,1,16);x.fillRect(12,0,1,16);
+  x.fillStyle="#54983a";x.fillRect(3,0,1,16);x.fillRect(8,0,1,16);x.fillRect(13,0,1,16);
+  x.fillStyle="#d8e8d0";x.fillRect(5,4,1,1);x.fillRect(10,9,1,1);x.fillRect(4,12,1,1);});
+TILES[T.CACTUS_TOP]=mkTile((x,R)=>{x.fillStyle="#4a8a2f";x.fillRect(0,0,16,16);
+  x.fillStyle="#2f5d1e";x.fillRect(0,0,16,1);x.fillRect(0,15,16,1);x.fillRect(0,0,1,16);x.fillRect(15,0,1,16);
+  x.fillStyle="#54983a";x.fillRect(3,3,10,10);x.fillRect(5,5,6,6);x.fillStyle="#4a8a2f";x.fillRect(7,7,2,2);});
+TILES[T.CLOUD]=mkTile((x,R)=>{x.clearRect(0,0,16,16);
+  x.fillStyle="rgba(255,255,255,0.85)";x.fillRect(3,4,10,8);x.fillRect(5,2,6,12);
+  x.fillStyle="rgba(255,255,255,0.4)";x.fillRect(2,5,1,6);x.fillRect(13,5,1,6);x.fillRect(4,3,1,1);x.fillRect(11,3,1,1);
+  x.fillRect(4,13,1,1);x.fillRect(11,13,1,1);x.fillRect(5,1,6,1);x.fillRect(5,14,6,1);});
+TILES[T.ORE_GOLD]=mkTile((x,R)=>{x.fillStyle="#8d8d8d";x.fillRect(0,0,16,16);
+  speckle(x,R,["#7f7f7f","#9a9a9a","#767676"],45);
+  for(let i=0;i<11;i++){x.fillStyle=["#f7e24a","#c9a826"][(R()*2)|0];x.fillRect((R()*16)|0,(R()*16)|0,1,1);}
+  x.fillStyle="#fff6a0";for(let i=0;i<4;i++)x.fillRect((R()*16)|0,(R()*16)|0,1,1);});
+
+/* ---------- 图集 ---------- */
+function buildAtlas(){
+  const c=document.createElement("canvas");
+  c.width=ATLAS_COLS*16;c.height=ATLAS_ROWS*16;
+  const x=c.getContext("2d");
+  for(let i=0;i<TILE_COUNT;i++){
+    x.drawImage(TILES[i],(i%ATLAS_COLS)*16,((i/ATLAS_COLS)|0)*16);
+  }
+  return c;
+}
+
+/* ---------- WebGL 渲染器 ---------- */
+const CHUNK_VS=`
+attribute vec3 aPos;attribute vec2 aUV;attribute float aLight;attribute float aExtra;
+uniform mat4 uProj,uView;
+varying vec2 vUV;varying float vLight;varying float vExtra;varying float vDist;
+void main(){vec4 wp=vec4(aPos,1.0);vec4 vp=uView*wp;gl_Position=uProj*vp;
+vUV=aUV;vLight=aLight;vExtra=aExtra;vDist=length(vp.xyz);}`;
+const CHUNK_FS_OP=`
+precision mediump float;
+varying vec2 vUV;varying float vLight;varying float vExtra;varying float vDist;
+uniform sampler2D uTex;uniform vec3 uFogColor;uniform float uFogDensity;
+void main(){
+ vec4 t=texture2D(uTex,vUV);
+ if(vExtra>0.5&&t.a<0.45)discard;
+ vec3 c=t.rgb*vLight;
+ float f=exp(-pow(vDist*uFogDensity,4.0));
+ c=mix(uFogColor,c,clamp(f,0.0,1.0));
+ gl_FragColor=vec4(c,1.0);}`;
+const CHUNK_FS_TR=`
+precision mediump float;
+varying vec2 vUV;varying float vLight;varying float vExtra;varying float vDist;
+uniform sampler2D uTex;uniform vec3 uFogColor;uniform float uFogDensity;
+void main(){
+ vec4 t=texture2D(uTex,vUV);
+ vec3 c=t.rgb*vLight;
+ float f=exp(-pow(vDist*uFogDensity,4.0));
+ c=mix(uFogColor,c,clamp(f,0.0,1.0));
+ gl_FragColor=vec4(c,t.a*vExtra);}`;
+const SKY_VS=`
+attribute vec2 aP;uniform vec3 uRayX,uRayY;uniform mat3 uRotInv;varying vec3 vDir;
+void main(){gl_Position=vec4(aP,0.9999,1.0);
+vDir=uRotInv*normalize(uRayX*aP.x+uRayY*aP.y+vec3(0.0,0.0,-1.0));}`;
+const SKY_FS=`
+precision mediump float;
+varying vec3 vDir;uniform vec3 uSunDir;
+void main(){
+ vec3 d=normalize(vDir);float t=d.y;
+ vec3 horizon=vec3(0.72,0.80,0.93);vec3 zenith=vec3(0.22,0.45,0.80);
+ vec3 c=mix(horizon,zenith,pow(max(t,0.0),0.5));
+ c=mix(horizon*vec3(0.42,0.50,0.62),c,clamp(t*2.5+0.5,0.0,1.0));
+ float s=max(dot(d,uSunDir),0.0);
+ c+=vec3(1.0,0.92,0.75)*(pow(s,1200.0)*2.0+pow(s,90.0)*0.4+pow(s,8.0)*0.18);
+ gl_FragColor=vec4(c,1.0);}`;
+const LINE_VS=`
+attribute vec3 aP;uniform mat4 uProj,uView;uniform vec3 uOff;
+void main(){gl_Position=uProj*uView*vec4(aP*1.004+uOff,1.0);}`;
+const LINE_FS=`precision mediump float;uniform vec3 uCol;void main(){gl_FragColor=vec4(uCol,1.0);}`;
+
+function compileShader(gl,type,src){
+  const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){console.error(gl.getShaderInfoLog(s));return null;}
+  return s;
+}
+function makeProgram(gl,vs,fs){
+  const p=gl.createProgram();
+  gl.attachShader(p,compileShader(gl,gl.VERTEX_SHADER,vs));
+  gl.attachShader(p,compileShader(gl,gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){console.error(gl.getProgramInfoLog(p));return null;}
+  return p;
+}
+function mat4Perspective(fovy,aspect,near,far){
+  const f=1/Math.tan(fovy/2),m=new Float32Array(16);
+  m[0]=f/aspect;m[5]=f;m[10]=(far+near)/(near-far);m[11]=-1;m[14]=2*far*near/(near-far);
+  return m;
+}
+function mat4LookAt(ex,ey,ez,cx,cy,cz,ux,uy,uz){
+  let zx=ex-cx,zy=ey-cy,zz=ez-cz;let l=Math.hypot(zx,zy,zz);zx/=l;zy/=l;zz/=l;
+  let xx=uy*zz-uz*zy,xy=uz*zx-ux*zz,xz=ux*zy-uy*zx;l=Math.hypot(xx,xy,xz);xx/=l;xy/=l;xz/=l;
+  const yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
+  const m=new Float32Array(16);
+  m[0]=xx;m[1]=yx;m[2]=zx;m[3]=0;
+  m[4]=xy;m[5]=yy;m[6]=zy;m[7]=0;
+  m[8]=xz;m[9]=yz;m[10]=zz;m[11]=0;
+  m[12]=-(xx*ex+xy*ey+xz*ez);m[13]=-(yx*ex+yy*ey+yz*ez);m[14]=-(zx*ex+zy*ey+zz*ez);m[15]=1;
+  return m;
+}
+function mat4Mul(a,b){
+  const m=new Float32Array(16);
+  for(let c=0;c<4;c++)for(let r=0;r<4;r++){
+    m[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];
+  }
+  return m;
+}
+
+class Renderer{
+  constructor(canvas){
+    this.canvas=canvas;
+    this.gl=canvas.getContext("webgl2")||canvas.getContext("webgl")||canvas.getContext("experimental-webgl");
+    const gl=this.gl;
+    if(!gl) throw new Error("WebGL 不可用");
+    const isGL2=(typeof WebGL2RenderingContext!=="undefined")&&(gl instanceof WebGL2RenderingContext);
+    if(!isGL2&&!gl.getExtension("OES_element_index_uint")) throw new Error("需要 OES_element_index_uint");
+    gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
+    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    // 纹理图集
+    const atlas=buildAtlas();
+    const tex=gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D,tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,atlas);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    this.tex=tex;
+    // 程序
+    this.progOp=makeProgram(gl,CHUNK_VS,CHUNK_FS_OP);
+    this.progTr=makeProgram(gl,CHUNK_VS,CHUNK_FS_TR);
+    this.progSky=makeProgram(gl,SKY_VS,SKY_FS);
+    this.progLine=makeProgram(gl,LINE_VS,LINE_FS);
+    const loc=p=>{const u={};for(const n of ["aPos","aUV","aLight","aExtra","uProj","uView","uTex","uFogColor","uFogDensity"])
+      u[n]=gl.getUniformLocation(p,n)??gl.getAttribLocation(p,n);
+      return u;};
+    this.uOp=loc(this.progOp);this.uTr=loc(this.progTr);
+    this.uSky={aP:gl.getAttribLocation(this.progSky,"aP"),
+      uRayX:gl.getUniformLocation(this.progSky,"uRayX"),uRayY:gl.getUniformLocation(this.progSky,"uRayY"),
+      uRotInv:gl.getUniformLocation(this.progSky,"uRotInv"),uSunDir:gl.getUniformLocation(this.progSky,"uSunDir")};
+    this.uLine={aP:gl.getAttribLocation(this.progLine,"aP"),uProj:gl.getUniformLocation(this.progLine,"uProj"),
+      uView:gl.getUniformLocation(this.progLine,"uView"),uOff:gl.getUniformLocation(this.progLine,"uOff"),
+      uCol:gl.getUniformLocation(this.progLine,"uCol")};
+    // 天空三角形
+    this.skyBuf=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,this.skyBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+    // 高亮线框（单位立方体 12 棱）
+    const E=[],cub=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+    const edges=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+    for(const [a,b] of edges){E.push(...cub[a],...cub[b]);}
+    this.lineBuf=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,this.lineBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(E),gl.STATIC_DRAW);
+    // 动态缓冲（云 / 粒子）
+    this.dynBuf=gl.createBuffer();
+    this.dynIdx=gl.createBuffer();
+    this.sunDir=[-0.42,0.52,-0.74];
+    const l=Math.hypot(...this.sunDir);this.sunDir=this.sunDir.map(v=>v/l);
+  }
+  createMesh(m){
+    if(!m) return null;
+    const gl=this.gl;
+    const vbo=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+    gl.bufferData(gl.ARRAY_BUFFER,m.verts,gl.STATIC_DRAW);
+    const ibo=gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,m.idx,gl.STATIC_DRAW);
+    return {vbo,ibo,count:m.idx.length};
+  }
+  freeMesh(m){
+    if(!m) return;
+    this.gl.deleteBuffer(m.vbo);this.gl.deleteBuffer(m.ibo);
+  }
+  _drawMesh(m,u,fog,texAlpha){
+    const gl=this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER,m.vbo);
+    const stride=28;
+    gl.vertexAttribPointer(u.aPos,3,gl.FLOAT,false,stride,0);gl.enableVertexAttribArray(u.aPos);
+    gl.vertexAttribPointer(u.aUV,2,gl.FLOAT,false,stride,12);gl.enableVertexAttribArray(u.aUV);
+    gl.vertexAttribPointer(u.aLight,1,gl.FLOAT,false,stride,20);gl.enableVertexAttribArray(u.aLight);
+    gl.vertexAttribPointer(u.aExtra,1,gl.FLOAT,false,stride,24);gl.enableVertexAttribArray(u.aExtra);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ibo);
+    gl.uniform3f(u.uFogColor,fog[0],fog[1],fog[2]);
+    gl.uniform1f(u.uFogDensity,fog[3]);
+    gl.drawElements(gl.TRIANGLES,m.count,gl.UNSIGNED_INT,0);
+  }
+  _drawDyn(verts,idx,u,fog,alpha){
+    const gl=this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER,this.dynBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,verts,gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.dynIdx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.DYNAMIC_DRAW);
+    const stride=28;
+    gl.vertexAttribPointer(u.aPos,3,gl.FLOAT,false,stride,0);gl.enableVertexAttribArray(u.aPos);
+    gl.vertexAttribPointer(u.aUV,2,gl.FLOAT,false,stride,12);gl.enableVertexAttribArray(u.aUV);
+    gl.vertexAttribPointer(u.aLight,1,gl.FLOAT,false,stride,20);gl.enableVertexAttribArray(u.aLight);
+    gl.vertexAttribPointer(u.aExtra,1,gl.FLOAT,false,stride,24);gl.enableVertexAttribArray(u.aExtra);
+    gl.uniform3f(u.uFogColor,fog[0],fog[1],fog[2]);
+    gl.uniform1f(u.uFogDensity,fog[3]);
+    gl.drawElements(gl.TRIANGLES,idx.length,gl.UNSIGNED_INT,0);
+  }
+  render(world,cam,clouds,particles,highlight){
+    const gl=this.gl;
+    const W=this.canvas.width,H=this.canvas.height;
+    gl.viewport(0,0,W,H);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    const proj=mat4Perspective(cam.fov*Math.PI/180,W/H,0.08,900);
+    const view=mat4LookAt(cam.x,cam.y,cam.z,cam.x+cam.fx,cam.y+cam.fy,cam.z+cam.fz,0,1,0);
+    const vp=mat4Mul(proj,view);
+    // 天空
+    gl.disable(gl.DEPTH_TEST);gl.depthMask(false);
+    gl.useProgram(this.progSky);
+    gl.bindBuffer(gl.ARRAY_BUFFER,this.skyBuf);
+    gl.vertexAttribPointer(this.uSky.aP,2,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(this.uSky.aP);
+    const tanH=Math.tan(cam.fov*Math.PI/360),asp=W/H;
+    const rv=[cam.rx,cam.ry,cam.rz],uv=[cam.ux,cam.uy,cam.uz],fv=[cam.fx,cam.fy,cam.fz];
+    gl.uniform3f(this.uSky.uRayX,rv[0]*tanH*asp,rv[1]*tanH*asp,rv[2]*tanH*asp);
+    gl.uniform3f(this.uSky.uRayY,uv[0]*tanH,uv[1]*tanH,uv[2]*tanH);
+    gl.uniformMatrix3fv(this.uSky.uRotInv,false,[rv[0],rv[1],rv[2],uv[0],uv[1],uv[2],fv[0],fv[1],fv[2]]);
+    gl.uniform3f(this.uSky.uSunDir,this.sunDir[0],this.sunDir[1],this.sunDir[2]);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    gl.enable(gl.DEPTH_TEST);gl.depthMask(true);
+    // 雾
+    const inWater=cam.inWater;
+    const fog=inWater?[0.05,0.25,0.5,0.05]:[0.72,0.80,0.93,0.0135];
+    // 不透明区块
+    gl.useProgram(this.progOp);
+    gl.uniformMatrix4fv(this.uOp.uProj,false,proj);
+    gl.uniformMatrix4fv(this.uOp.uView,false,view);
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.tex);
+    gl.uniform1i(this.uOp.uTex,0);
+    gl.disable(gl.BLEND);
+    const transList=[];
+    for(const ch of world.chunks.values()){
+      if(!ch.visible) continue;
+      if(ch.meshO) this._drawMesh(ch.meshO,this.uOp,fog,1);
+      if(ch.meshT) transList.push(ch);
+    }
+    // 透明区块（远→近）
+    if(transList.length){
+      gl.enable(gl.BLEND);
+      gl.depthMask(false);
+      gl.useProgram(this.progTr);
+      gl.uniformMatrix4fv(this.uTr.uProj,false,proj);
+      gl.uniformMatrix4fv(this.uTr.uView,false,view);
+      gl.uniform1i(this.uTr.uTex,0);
+      transList.sort((a,b)=>b.dist-a.dist);
+      for(const ch of transList) if(ch.meshT) this._drawMesh(ch.meshT,this.uTr,fog,1);
+      gl.depthMask(true);
+    }
+    // 云
+    if(clouds.verts.length){
+      gl.useProgram(this.progTr);
+      gl.uniformMatrix4fv(this.uTr.uProj,false,proj);
+      gl.uniformMatrix4fv(this.uTr.uView,false,view);
+      gl.depthMask(false);
+      this._drawDyn(clouds.verts,clouds.idx,this.uTr,[0,0,0,0],1);
+    }
+    // 粒子
+    if(particles.verts.length){
+      gl.useProgram(this.progTr);
+      gl.depthMask(false);
+      this._drawDyn(particles.verts,particles.idx,this.uTr,fog,1);
+    }
+    gl.depthMask(true);
+    // 高亮
+    if(highlight){
+      gl.useProgram(this.progLine);
+      gl.uniformMatrix4fv(this.uLine.uProj,false,proj);
+      gl.uniformMatrix4fv(this.uLine.uView,false,view);
+      gl.bindBuffer(gl.ARRAY_BUFFER,this.lineBuf);
+      gl.vertexAttribPointer(this.uLine.aP,3,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(this.uLine.aP);
+      gl.uniform3f(this.uLine.uOff,highlight[0],highlight[1],highlight[2]);
+      gl.uniform3f(this.uLine.uCol,0.05,0.05,0.05);
+      gl.drawArrays(gl.LINES,0,24);
+    }
+    gl.disable(gl.BLEND);
+  }
+  resize(){
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+    this.canvas.width=Math.floor(innerWidth*dpr);
+    this.canvas.height=Math.floor(innerHeight*dpr);
+  }
+}
+
+/* ---------- 音频 ---------- */
+let AC=null;
+function ensureAudio(){
+  if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+  if(AC&&AC.state==="suspended")AC.resume();
+}
+function sfx(kind){
+  if(!AC) return;
+  const t=AC.currentTime;
+  const noise=(dur)=>{const b=AC.createBuffer(1,AC.sampleRate*dur,AC.sampleRate);const d=b.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return b;};
+  if(kind==="break"){
+    const s=AC.createBufferSource();s.buffer=noise(0.07);
+    const f=AC.createBiquadFilter();f.type="bandpass";f.frequency.value=500+Math.random()*600;f.Q.value=0.8;
+    const g=AC.createGain();g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.07);
+    s.connect(f);f.connect(g);g.connect(AC.destination);s.start();
+  }else if(kind==="place"){
+    const s=AC.createBufferSource();s.buffer=noise(0.05);
+    const f=AC.createBiquadFilter();f.type="lowpass";f.frequency.value=1200;
+    const g=AC.createGain();g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.05);
+    s.connect(f);f.connect(g);g.connect(AC.destination);s.start();
+    const o=AC.createOscillator();o.type="square";o.frequency.value=150;
+    const g2=AC.createGain();g2.gain.setValueAtTime(0.06,t);g2.gain.exponentialRampToValueAtTime(0.001,t+0.05);
+    o.connect(g2);g2.connect(AC.destination);o.start();o.stop(t+0.06);
+  }else if(kind==="step"){
+    const s=AC.createBufferSource();s.buffer=noise(0.035);
+    const f=AC.createBiquadFilter();f.type="lowpass";f.frequency.value=380;
+    const g=AC.createGain();g.gain.setValueAtTime(0.05,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.035);
+    s.connect(f);f.connect(g);g.connect(AC.destination);s.start();
+  }else if(kind==="land"){
+    const s=AC.createBufferSource();s.buffer=noise(0.09);
+    const f=AC.createBiquadFilter();f.type="lowpass";f.frequency.value=240;
+    const g=AC.createGain();g.gain.setValueAtTime(0.13,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.09);
+    s.connect(f);f.connect(g);g.connect(AC.destination);s.start();
+  }
+}
+
+/* ---------- 玩家 ---------- */
+const PLAYER={
+  pos:[0,100,0],vel:[0,0,0],yaw:Math.PI,pitch:0,onGround:false,flying:false,inWater:false,
+  fov:70,stepT:0,lastSpace:0,
+};
+const EYE=1.62,HW=0.3,PH=1.8;
+function isSolid(b){return b!==B.AIR&&!BLOCKS[b].liquid&&!BLOCKS[b].cross;}
+function camBasis(){
+  const cp=Math.cos(PLAYER.pitch),sp=Math.sin(PLAYER.pitch);
+  const cy=Math.cos(PLAYER.yaw),sy=Math.sin(PLAYER.yaw);
+  const fx=-sy*cp,fy=sp,fz=-cy*cp;
+  const rx=cy,ry=0,rz=-sy;
+  // up = right × forward
+  const ux=ry*fz-rz*fy,uy=rz*fx-rx*fz,uz=rx*fy-ry*fx;
+  return {fx,fy,fz,rx,ry,rz,ux,uy,uz};
+}
+function sweepAxis(ax,dt){
+  const p=PLAYER.pos;
+  p[ax]+=PLAYER.vel[ax]*dt;
+  let again=true,guard=0;
+  while(again&&guard++<6){
+    again=false;
+    const x0=Math.floor(p[0]-HW),x1=Math.floor(p[0]+HW);
+    const y0=Math.floor(p[1]),y1=Math.floor(p[1]+PH);
+    const z0=Math.floor(p[2]-HW),z1=Math.floor(p[2]+HW);
+    for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++)for(let x=x0;x<=x1;x++){
+      if(!isSolid(world.getBlock(x,y,z))) continue;
+      if(p[0]-HW<x+1&&p[0]+HW>x&&p[1]<y+1&&p[1]+PH>y&&p[2]-HW<z+1&&p[2]+HW>z){
+        if(ax===0){p[0]=PLAYER.vel[0]>=0?x-HW-0.001:x+1+HW+0.001;PLAYER.vel[0]=0;}
+        else if(ax===1){
+          if(PLAYER.vel[1]<=0){p[1]=y+1+0.001;PLAYER.onGround=true;}
+          else p[1]=y-PH-0.001;
+          PLAYER.vel[1]=0;
+        }
+        else{p[2]=PLAYER.vel[2]>=0?z-HW-0.001:z+1+HW+0.001;PLAYER.vel[2]=0;}
+        again=true;
+      }
+    }
+  }
+}
+function updatePlayer(dt,keys){
+  const b=camBasis();
+  let fw=(keys.KeyW?1:0)-(keys.KeyS?1:0);
+  let st=(keys.KeyD?1:0)-(keys.KeyA?1:0);
+  const sneak=!!keys.ShiftLeft||!!keys.ShiftRight;
+  const sprint=!!keys.ControlLeft||!!keys.ControlRight;
+  const l=Math.hypot(fw,st);
+  if(l>0){fw/=l;st/=l;}
+  let speed=4.4;
+  if(sneak)speed=1.9;
+  else if(sprint)speed=7.0;
+  if(PLAYER.inWater)speed*=0.62;
+  const headY=PLAYER.pos[1]+EYE;
+  const hb=world.getBlock(Math.floor(PLAYER.pos[0]),Math.floor(headY),Math.floor(PLAYER.pos[2]));
+  const inW=hb===B.WATER||hb===B.LAVA;
+  PLAYER.inWater=inW;
+  if(PLAYER.flying){
+    speed=sneak?4:(sprint?17:10.5);
+    const target=[(b.rx*st+b.fx*fw)*speed,(keys.Space?1:0-(keys.ShiftLeft||keys.ShiftRight?1:0))*speed,(b.rz*st+b.fz*fw)*speed];
+    for(let i=0;i<3;i++)PLAYER.vel[i]+=(target[i]-PLAYER.vel[i])*Math.min(1,dt*9);
+  }else{
+    const target=[(b.rx*st+b.fx*fw)*speed,0,(b.rz*st+b.fz*fw)*speed];
+    const acc=PLAYER.onGround?12:5.5;
+    PLAYER.vel[0]+=(target[0]-PLAYER.vel[0])*Math.min(1,dt*acc);
+    PLAYER.vel[2]+=(target[2]-PLAYER.vel[2])*Math.min(1,dt*acc);
+    if(inW){
+      PLAYER.vel[1]+=(3.0-PLAYER.vel[1])*Math.min(1,dt*3);
+      if(keys.Space)PLAYER.vel[1]=Math.max(PLAYER.vel[1],4.5);
+    }else{
+      PLAYER.vel[1]-=30*dt;
+      if(PLAYER.vel[1]<-60)PLAYER.vel[1]=-60;
+    }
+  }
+  const wasGround=PLAYER.onGround;
+  PLAYER.onGround=false;
+  sweepAxis(0,dt);sweepAxis(2,dt);sweepAxis(1,dt);
+  if(PLAYER.onGround&&!wasGround&&PLAYER.vel[1]<=0&&!PLAYER.flying){
+    if(PLAYER.fallV>14)sfx("land");
+  }
+  if(PLAYER.onGround){
+    PLAYER.fallV=0;
+    const hs=Math.hypot(PLAYER.vel[0],PLAYER.vel[2]);
+    if(hs>2){PLAYER.stepT-=dt*hs;if(PLAYER.stepT<=0){PLAYER.stepT=0.28;sfx("step");}}
+  }else{
+    PLAYER.fallV=Math.max(PLAYER.fallV||0,-PLAYER.vel[1]);
+  }
+  if(PLAYER.pos[1]<-40){PLAYER.pos[1]=140;PLAYER.vel=[0,0,0];}
+}
+function doJump(){
+  const now=performance.now();
+  if(now-PLAYER.lastSpace<300){PLAYER.flying=!PLAYER.flying;PLAYER.vel[1]=0;PLAYER.lastSpace=0;return;}
+  PLAYER.lastSpace=now;
+  if(PLAYER.flying)return;
+  if(PLAYER.onGround)PLAYER.vel[1]=9.3;
+  else if(PLAYER.inWater)PLAYER.vel[1]=4.5;
+}
+
+/* ---------- 射线拾取（DDA） ---------- */
+function raycast(ox,oy,oz,dx,dy,dz,maxD){
+  let x=Math.floor(ox),y=Math.floor(oy),z=Math.floor(oz);
+  const sx=dx>0?1:-1,sy=dy>0?1:-1,sz=dz>0?1:-1;
+  const tdx=Math.abs(1/(dx||1e-9)),tdy=Math.abs(1/(dy||1e-9)),tdz=Math.abs(1/(dz||1e-9));
+  let tmx=dx!==0?((x+(sx>0?1:0))-ox)*tdx:1e9;
+  let tmy=dy!==0?((y+(sy>0?1:0))-oy)*tdy:1e9;
+  let tmz=dz!==0?((z+(sz>0?1:0))-oz)*tdz:1e9;
+  let px=x,py=y,pz=z,nx=0,ny=0,nz=0,t=0;
+  for(let i=0;i<256;i++){
+    if(t>maxD)break;
+    if(isSolid(world.getBlock(x,y,z))) return {x,y,z,px,py,pz,nx,ny,nz,hit:true};
+    px=x;py=y;pz=z;
+    if(tmx<tmy&&tmx<tmz){x+=sx;t=tmx;tmx+=tdx;nx=-sx;ny=0;nz=0;}
+    else if(tmy<tmz){y+=sy;t=tmy;tmy+=tdy;nx=0;ny=-sy;nz=0;}
+    else{z+=sz;t=tmz;tmz+=tdz;nx=0;ny=0;nz=-sz;}
+  }
+  return {x:px,y:py,z:pz,nx,ny,nz,hit:false};
+}
+
+/* ---------- 粒子 ---------- */
+const particles=[];
+function spawnBreakParticles(x,y,z,b){
+  const def=BLOCKS[b];
+  if(!def||!def.pcol)return;
+  const tile=def.tiles.all!==undefined?def.tiles.all:(def.tiles.side||def.tiles.top);
+  for(let i=0;i<9;i++){
+    particles.push({
+      x:x+0.2+Math.random()*0.6,y:y+0.2+Math.random()*0.6,z:z+0.2+Math.random()*0.6,
+      vx:(Math.random()-0.5)*4,vy:2+Math.random()*3,vz:(Math.random()-0.5)*4,
+      life:0.55+Math.random()*0.25,tile,
+    });
+  }
+  if(particles.length>300)particles.splice(0,particles.length-300);
+}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.life-=dt;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    p.vy-=18*dt;
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
+    if(p.y<0.2){p.y=0.2;p.vy*=-0.4;p.vx*=0.7;p.vz*=0.7;}
+  }
+}
+
+/* ---------- 输入 ---------- */
+const keys={};
+let selected=0;
+let breakTimer=null,breaking=false;
+let hudReady=false;
+
+startBtn.addEventListener("click",()=>{ensureAudio();requestLock();});
+document.addEventListener("pointerlockchange",()=>{
+  const locked=document.pointerLockElement===glCanvas;
+  overlay.classList.toggle("hidden",locked);
+  if(locked){ensureAudio();if(hudReady)overlay.classList.add("hidden");}
+});
+function requestLock(){
+  const el=glCanvas;
+  if(el.requestPointerLock)el.requestPointerLock();
+  else if(el.webkitRequestPointerLock)el.webkitRequestPointerLock();
+}
+document.addEventListener("mousemove",e=>{
+  if(document.pointerLockElement!==glCanvas)return;
+  const s=0.0021;
+  PLAYER.yaw-=e.movementX*s;
+  PLAYER.pitch-=e.movementY*s;
+  PLAYER.pitch=clamp(PLAYER.pitch,-1.56,1.56);
+});
+document.addEventListener("keydown",e=>{
+  if(e.ctrlKey&&["KeyW","KeyS","KeyA","KeyD","KeyR","KeyT"].includes(e.code))e.preventDefault();
+  keys[e.code]=true;
+  if(e.repeat)return;
+  if(e.code==="Space"){e.preventDefault();doJump();}
+  if(e.code==="KeyF"){PLAYER.flying=!PLAYER.flying;PLAYER.vel[1]=0;}
+  if(e.code.startsWith("Digit")){
+    const n=parseInt(e.code.slice(5));
+    const win=hotbarWinStart();
+    if(n>=1&&n<=9)selected=Math.min(win+n-1,HOTBAR.length-1);
+  }
+});
+document.addEventListener("keyup",e=>{keys[e.code]=false;});
+document.addEventListener("wheel",e=>{
+  selected=(selected+(e.deltaY>0?1:-1)+HOTBAR.length)%HOTBAR.length;
+},{passive:true});
+function hotbarWinStart(){
+  return clamp(selected-4,0,Math.max(0,HOTBAR.length-9));
+}
+glCanvas.addEventListener("contextmenu",e=>e.preventDefault());
+glCanvas.addEventListener("mousedown",e=>{
+  if(document.pointerLockElement!==glCanvas){requestLock();return;}
+  if(e.button===0){
+    doBreak();
+    breaking=true;
+    breakTimer=setInterval(doBreak,220);
+  }else if(e.button===2){
+    doPlace();
+  }
+});
+document.addEventListener("mouseup",e=>{
+  if(e.button===0&&breaking){breaking=false;clearInterval(breakTimer);}
+});
+function doBreak(){
+  if(document.pointerLockElement!==glCanvas)return;
+  const c=camBasis();
+  const r=raycast(PLAYER.pos[0],PLAYER.pos[1]+EYE,PLAYER.pos[2],c.fx,c.fy,c.fz,6.5);
+  if(!r.hit)return;
+  const b=world.getBlock(r.x,r.y,r.z);
+  if(b===B.BEDROCK)return;
+  world.setBlock(r.x,r.y,r.z,B.AIR);
+  rebuildEdited(r.x,r.y,r.z);
+  spawnBreakParticles(r.x,r.y,r.z,b);
+  sfx("break");
+}
+function doPlace(){
+  if(document.pointerLockElement!==glCanvas)return;
+  const c=camBasis();
+  const r=raycast(PLAYER.pos[0],PLAYER.pos[1]+EYE,PLAYER.pos[2],c.fx,c.fy,c.fz,6.5);
+  if(!r.hit)return;
+  const b=HOTBAR[selected];
+  if(b===B.AIR)return;
+  const x=r.hit?r.px:r.x,y=r.hit?r.py:r.y,z=r.hit?r.pz:r.z;
+  const cur=world.getBlock(x,y,z);
+  if(!(cur===B.AIR||BLOCKS[cur].liquid||BLOCKS[cur].cross))return;
+  // 不与玩家重叠
+  if(x+1>PLAYER.pos[0]-HW&&x<PLAYER.pos[0]+HW&&y+1>PLAYER.pos[1]&&y<PLAYER.pos[1]+PH&&
+     z+1>PLAYER.pos[2]-HW&&z<PLAYER.pos[2]+HW)return;
+  world.setBlock(x,y,z,b);
+  rebuildEdited(x,y,z);
+  sfx("place");
+}
+/* 编辑后立即重建受影响区块网格（零延迟反馈） */
+function rebuildEdited(x,y,z){
+  const cx=Math.floor(x/16),cz=Math.floor(z/16);
+  const lx=x-cx*16,lz=z-cz*16;
+  const keysTo=[World.key(cx,cz)];
+  if(lx===0)keysTo.push(World.key(cx-1,cz));
+  if(lx===15)keysTo.push(World.key(cx+1,cz));
+  if(lz===0)keysTo.push(World.key(cx,cz-1));
+  if(lz===15)keysTo.push(World.key(cx,cz+1));
+  for(const k of keysTo){
+    const ch=world.chunks.get(k);
+    if(!ch||!ch.dirty)continue;
+    if(ch.meshO&&ch.meshO.vbo)renderer.freeMesh(ch.meshO);
+    if(ch.meshT&&ch.meshT.vbo)renderer.freeMesh(ch.meshT);
+    world.buildMesh(ch);
+    ch.meshO=ch.meshO?renderer.createMesh(ch.meshO):null;
+    ch.meshT=ch.meshT?renderer.createMesh(ch.meshT):null;
+  }
+}
+
+/* ---------- 主循环 ---------- */
+const renderer=new Renderer(glCanvas);
+const world=new World();
+let RENDER_DIST=6;
+const cloudVerts=[],cloudIdx=[];
+let lastTime=performance.now();
+let fps=0,fpsT=0,fpsN=0;
+let highlight=null;
+
+function findSpawn(){
+  for(let r=0;r<40;r++){
+    const cells=[];
+    if(r===0)cells.push([0,0]);
+    else{
+      for(let i=-r;i<=r;i++){
+        cells.push([i,-r],[i,r],[-r,i],[r,i]);
+      }
+    }
+    for(const [cx,cz] of cells){
+      let ok=true;
+      for(const [ox,oz] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]])
+        if(pickStructure(cx+ox,cz+oz)){ok=false;break;}
+      if(!ok)continue;
+      const x=cx*640+320,z=cz*640+320;
+      const h=terrainHeight(x,z);
+      if(h<SEA+4||h>66)continue;
+      const t=tempAt(x,z),m=moistAt(x,z);
+      if(t>0.58||t<0.34)continue;   // 出生在温和平原
+      if(Math.abs(terrainHeight(x+8,z)-h)>4||Math.abs(terrainHeight(x,z+8)-h)>4)continue;
+      return {x:x+0.5,z:z+0.5,h};
+    }
+  }
+  return {x:0.5,z:0.5,h:40};
+}
+function findNearestStructure(){
+  const px=PLAYER.pos[0],pz=PLAYER.pos[2];
+  let best=null,bd=1e18;
+  for(let r=0;r<12;r++){
+    const cells=[];
+    if(r===0)cells.push([0,0]);
+    else for(let i=-r;i<=r;i++)cells.push([i,-r],[i,r],[-r,i],[r,i]);
+    for(const [cx,cz] of cells){
+      const s=pickStructure(cx,cz);
+      if(!s)continue;
+      const d=(s.ax-px)**2+(s.az-pz)**2;
+      if(d<bd){bd=d;best=s;}
+    }
+  }
+  return best;
+}
+
+function chunksInRadius(){
+  const pcx=Math.floor(PLAYER.pos[0]/16),pcz=Math.floor(PLAYER.pos[2]/16);
+  const list=[];
+  for(let oz=-RENDER_DIST;oz<=RENDER_DIST;oz++)for(let ox=-RENDER_DIST;ox<=RENDER_DIST;ox++){
+    if(ox*ox+oz*oz<=RENDER_DIST*RENDER_DIST)list.push([pcx+ox,pcz+oz]);
+  }
+  return list;
+}
+
+let booted=false;
+async function boot(){
+  const spawn=findSpawn();
+  PLAYER.pos=[spawn.x,spawn.h+2.1,spawn.z];
+  // 面向最近的建筑（史诗开场）
+  const ns=findNearestStructure();
+  if(ns)PLAYER.yaw=Math.atan2(-(ns.ax-PLAYER.pos[0]),-(ns.az-PLAYER.pos[2]));
+  // 初始生成（含进度条）
+  overlay.querySelector(".panel .keys").style.display="none";
+  overlay.querySelector(".tip").style.display="none";
+  startBtn.style.display="none";
+  progressEl.style.display="block";
+  const cells=chunksInRadius();
+  const total=cells.length;
+  for(let i=0;i<cells.length;i++){
+    world.ensureData(cells[i][0],cells[i][1]);
+    if(i%10===0){progressEl.textContent="正在生成世界… "+(i+1)+" / "+total+" 区块";await new Promise(r=>setTimeout(r,0));}
+  }
+  // 邻居数据（网格用）
+  for(let i=0;i<cells.length;i++){
+    const [cx,cz]=cells[i];
+    for(let oz=-1;oz<=1;oz++)for(let ox=-1;ox<=1;ox++)world.ensureData(cx+ox,cz+oz);
+    if(i%12===0){progressEl.textContent="正在构建网格… "+Math.round((i+1)/total*100)+"%";await new Promise(r=>setTimeout(r,0));}
+  }
+  // 网格：近圈同步构建，远圈交给流式构建（更快进入世界）
+  const pcx=Math.floor(PLAYER.pos[0]/16),pcz=Math.floor(PLAYER.pos[2]/16);
+  for(const [cx,cz] of cells){
+    const ch=world.ensureData(cx,cz);
+    const d2=(cx-pcx)*(cx-pcx)+(cz-pcz)*(cz-pcz);
+    if(d2<=16&&ch.dirty)world.buildMesh(ch);
+  }
+  // 包装 GL 网格
+  for(const ch of world.chunks.values()){
+    if(ch.meshO&&!ch.meshO.vbo)ch.meshO=renderer.createMesh(ch.meshO);
+    if(ch.meshT&&!ch.meshT.vbo)ch.meshT=renderer.createMesh(ch.meshT);
+  }
+  progressEl.textContent="完成！";
+  booted=true;
+  hudReady=true;
+  overlay.querySelector(".panel .keys").style.display="grid";
+  overlay.querySelector(".tip").style.display="block";
+  startBtn.style.display="inline-block";
+  progressEl.style.display="none";
+  try{requestLock();}catch(e){}
+}
+
+function streamChunks(){
+  const pcx=Math.floor(PLAYER.pos[0]/16),pcz=Math.floor(PLAYER.pos[2]/16);
+  const missing=[];
+  for(const [cx,cz] of chunksInRadius()){
+    if(!world.chunks.has(World.key(cx,cz)))missing.push([cx,cz]);
+  }
+  missing.sort((a,b)=>{
+    const da=(a[0]-pcx)**2+(a[1]-pcz)**2,db=(b[0]-pcx)**2+(b[1]-pcz)**2;
+    return da-db;
+  });
+  // 每帧最多生成 2 个数据块；网格按积压量动态预算
+  let budget=2;
+  while(budget-->0&&missing.length){
+    const [cx,cz]=missing.shift();
+    world.ensureData(cx,cz);
+    for(let oz=-1;oz<=1;oz++)for(let ox=-1;ox<=1;ox++)world.ensureData(cx+ox,cz+oz);
+  }
+  let pendingMesh=0;
+  const radiusList=chunksInRadius();
+  for(const [cx,cz] of radiusList){
+    const ch=world.chunks.get(World.key(cx,cz));
+    if(ch&&ch.dirty)pendingMesh++;
+  }
+  budget=pendingMesh>30?6:2;
+  // 按距离排序，优先重建玩家附近（编辑反馈零延迟）
+  const dirtyList=[];
+  for(const [cx,cz] of radiusList){
+    const ch=world.chunks.get(World.key(cx,cz));
+    if(ch&&ch.dirty)dirtyList.push([cx,cz,(cx-pcx)**2+(cz-pcz)**2]);
+  }
+  dirtyList.sort((a,b)=>a[2]-b[2]);
+  for(const [cx,cz] of dirtyList){
+    const ch=world.chunks.get(World.key(cx,cz));
+    if(ch&&ch.dirty&&budget-->0){
+      if(ch.meshO&&ch.meshO.vbo)renderer.freeMesh(ch.meshO);
+      if(ch.meshT&&ch.meshT.vbo)renderer.freeMesh(ch.meshT);
+      world.buildMesh(ch);
+      ch.meshO=ch.meshO?renderer.createMesh(ch.meshO):null;
+      ch.meshT=ch.meshT?renderer.createMesh(ch.meshT):null;
+    }
+  }
+  // 卸载远处区块
+  for(const [k,ch] of world.chunks){
+    const d=Math.hypot(ch.cx*16+8-PLAYER.pos[0],ch.cz*16+8-PLAYER.pos[2]);
+    if(d>(RENDER_DIST+3)*16){
+      if(ch.meshO&&ch.meshO.vbo)renderer.freeMesh(ch.meshO);
+      if(ch.meshT&&ch.meshT.vbo)renderer.freeMesh(ch.meshT);
+      world.chunks.delete(k);
+    }
+  }
+}
+
+function updateClouds(){
+  cloudVerts.length=0;cloudIdx.length=0;
+  const t=performance.now()/1000;
+  const [u0,v0]=tileUV(T.CLOUD,0,0),[u1,v1]=tileUV(T.CLOUD,1,1);
+  const baseX=Math.floor((PLAYER.pos[0]-260)/64)*64;
+  const baseZ=Math.floor((PLAYER.pos[2]-260)/64)*64;
+  for(let cx=baseX;cx<baseX+560;cx+=64)for(let cz=baseZ;cz<baseZ+560;cz+=64){
+    const r=h2(cx/64,cz/64);
+    if(r>0.42)continue;
+    const x=cx+((t*7+r*97)%128)-32;
+    const z=cz+((r*131)%64)-16;
+    const y=188+((r*173)%14);
+    const s=18+r*22;
+    const base=cloudVerts.length/7;
+    cloudVerts.push(x,y,z,u0,v0,1.0,0.75, x+s,y,z,u1,v0,1.0,0.75,
+      x+s,y,z+s,u1,v1,1.0,0.75, x,y,z+s,u0,v1,1.0,0.75);
+    cloudIdx.push(base,base+1,base+2,base,base+2,base+3);
+  }
+  return {verts:new Float32Array(cloudVerts),idx:new Uint32Array(cloudIdx)};
+}
+
+function updateParticleVerts(cam){
+  const V=[],I=[];
+  if(!particles.length)return {verts:new Float32Array(0),idx:new Uint32Array(0)};
+  const rx=cam.rx,rz=cam.rz,upx=cam.ux,upy=cam.uy,upz=cam.uz;
+  for(const p of particles){
+    const a=clamp(p.life/0.7,0,1)*0.9;
+    const s=0.12;
+    const [u0,v0]=tileUV(p.tile,0,0),[u1,v1]=tileUV(p.tile,1,1);
+    const hx=rx*s,hz=rz*s,ux=upx*s,uy=upy*s,uz=upz*s;
+    const base=V.length/7;
+    V.push(
+      p.x-hx-ux,p.y-uy,p.z-hz-uz,u0,v0,1.2,a,
+      p.x+hx-ux,p.y-uy,p.z+hz-uz,u1,v0,1.2,a,
+      p.x+hx+ux,p.y+uy,p.z+hz+uz,u1,v1,1.2,a,
+      p.x-hx+ux,p.y+uy,p.z-hz+uz,u0,v1,1.2,a);
+    I.push(base,base+1,base+2,base,base+2,base+3);
+  }
+  return {verts:new Float32Array(V),idx:new Uint32Array(I)};
+}
+
+const CULL_CORNERS=[[-8,-96,-8],[8,-96,-8],[-8,96,-8],[8,96,-8],[-8,-96,8],[8,-96,8],[-8,96,8],[8,96,8]];
+function updateCulling(cam){
+  // 视锥剔除：5 个锥面 + 近平面，对区块包围盒 8 角做保守测试
+  const f=[cam.fx,cam.fy,cam.fz],r=[cam.rx,cam.ry,cam.rz],u=[cam.ux,cam.uy,cam.uz];
+  const fov=PLAYER.fov*Math.PI/180;
+  const asp=glCanvas.width/Math.max(1,glCanvas.height);
+  const hw=Math.tan(fov/2)*asp,hh=Math.tan(fov/2);
+  const planes=[
+    f,
+    [f[0]-r[0]*hw,f[1]-r[1]*hw,f[2]-r[2]*hw],
+    [f[0]+r[0]*hw,f[1]+r[1]*hw,f[2]+r[2]*hw],
+    [f[0]-u[0]*hh,f[1]-u[1]*hh,f[2]-u[2]*hh],
+    [f[0]+u[0]*hh,f[1]+u[1]*hh,f[2]+u[2]*hh],
+  ];
+  const E=[cam.x,cam.y,cam.z];
+  for(const ch of world.chunks.values()){
+    const cx=ch.cx*16+8,cz=ch.cz*16+8;
+    let vis=true;
+    for(const n of planes){
+      let allOut=true;
+      for(const c of CULL_CORNERS){
+        const vx=cx+c[0]-E[0],vy=96+c[1]-E[1],vz=cz+c[2]-E[2];
+        if(vx*n[0]+vy*n[1]+vz*n[2]>=0.05){allOut=false;break;}
+      }
+      if(allOut){vis=false;break;}
+    }
+    if(vis){ // 近裁剪面
+      let allOut=true;
+      for(const c of CULL_CORNERS){
+        const vx=cx+c[0]-E[0],vy=96+c[1]-E[1],vz=cz+c[2]-E[2];
+        if(vx*f[0]+vy*f[1]+vz*f[2]>=0.08){allOut=false;break;}
+      }
+      if(allOut)vis=false;
+    }
+    ch.visible=vis;
+    ch.dist=(cx-E[0])*(cx-E[0])+(cz-E[2])*(cz-E[2]);
+  }
+}
+
+function frame(t){
+  requestAnimationFrame(frame);
+  let dt=(t-lastTime)/1000;
+  lastTime=t;
+  dt=clamp(dt,0.0001,0.05);
+  dtLast=dt;
+  if(!booted)return;
+  updatePlayer(dt,keys);
+  updateParticles(dt);
+  streamChunks();
+  // 相机
+  const b=camBasis();
+  const cam={
+    x:PLAYER.pos[0],y:PLAYER.pos[1]+EYE,z:PLAYER.pos[2],
+    fx:b.fx,fy:b.fy,fz:b.fz,rx:b.rx,ry:b.ry,rz:b.rz,ux:b.ux,uy:b.uy,uz:b.uz,
+    fov:PLAYER.fov,inWater:PLAYER.inWater,
+  };
+  // FOV 平滑
+  const targetFov=keys.ControlLeft&&!PLAYER.flying?78:70;
+  PLAYER.fov+=(targetFov-PLAYER.fov)*Math.min(1,dt*8);
+  // 高亮
+  const rr=raycast(cam.x,cam.y,cam.z,b.fx,b.fy,b.fz,6.5);
+  highlight=rr.hit?[rr.x,rr.y,rr.z]:null;
+  // 渲染
+  updateCulling(cam);
+  const clouds=updateClouds();
+  const pv=updateParticleVerts(cam);
+  renderer.render(world,cam,clouds,pv,highlight);
+  drawHUD();
+}
+
+function drawHUD(){
+  const W=innerWidth,H=innerHeight;
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  if(hudCanvas.width!==Math.floor(W*dpr)){hudCanvas.width=Math.floor(W*dpr);hudCanvas.height=Math.floor(H*dpr);}
+  hudCtx.setTransform(dpr,0,0,dpr,0,0);
+  hudCtx.clearRect(0,0,W,H);
+  // 准星
+  const cx=W/2,cy=H/2;
+  hudCtx.fillStyle="rgba(0,0,0,0.55)";
+  hudCtx.fillRect(cx-1.5,cy-9,3,18);hudCtx.fillRect(cx-9,cy-1.5,18,3);
+  hudCtx.fillStyle="rgba(255,255,255,0.9)";
+  hudCtx.fillRect(cx-0.5,cy-8,1,16);hudCtx.fillRect(cx-8,cy-0.5,16,1);
+  // 水下滤镜
+  if(PLAYER.inWater){
+    hudCtx.fillStyle="rgba(20,70,170,0.32)";
+    hudCtx.fillRect(0,0,W,H);
+  }
+  // 快捷栏
+  const slot=46,gap=4,n=9;
+  const totalW=n*slot+(n-1)*gap;
+  const x0=W/2-totalW/2,y0=H-60;
+  const win=hotbarWinStart();
+  for(let i=0;i<n;i++){
+    const idx=win+i;
+    if(idx>=HOTBAR.length)break;
+    const x=x0+i*(slot+gap);
+    hudCtx.fillStyle=i===selected-win?"rgba(255,255,255,0.85)":"rgba(0,0,0,0.45)";
+    hudCtx.fillRect(x-2,y0-2,slot+4,slot+4);
+    hudCtx.fillStyle="rgba(30,30,30,0.85)";
+    hudCtx.fillRect(x,y0,slot,slot);
+    const b=HOTBAR[idx];
+    const bd=BLOCKS[b];
+    const icon=bd.tiles.all!==undefined?bd.tiles.all:(bd.tiles.side!==undefined?bd.tiles.side:(bd.tile!==undefined?bd.tile:bd.tiles.top));
+    hudCtx.imageSmoothingEnabled=false;
+    hudCtx.drawImage(TILES[icon],x+3,y0+3,40,40);
+    hudCtx.strokeStyle="rgba(0,0,0,0.6)";hudCtx.strokeRect(x+0.5,y0+0.5,slot-1,slot-1);
+  }
+  hudCtx.font="13px 'Segoe UI',system-ui,sans-serif";
+  hudCtx.textAlign="center";
+  hudCtx.fillStyle="rgba(0,0,0,0.6)";
+  hudCtx.fillText((selected+1)+" · "+BLOCKS[HOTBAR[selected]].name,W/2,y0-8);
+  hudCtx.fillStyle="#fff";
+  hudCtx.fillText((selected+1)+" · "+BLOCKS[HOTBAR[selected]].name,W/2,y0-9);
+  // 左上信息
+  hudCtx.textAlign="left";
+  const px=Math.floor(PLAYER.pos[0]),py=Math.floor(PLAYER.pos[1]),pz=Math.floor(PLAYER.pos[2]);
+  const lines=[
+    "FPS "+fps+" ｜ 位置 "+px+" / "+py+" / "+pz,
+    "生物群系："+biomeName(px,pz)+"　区块："+world.chunks.size,
+    PLAYER.flying?"飞行模式 (F 切换)":"",
+  ];
+  hudCtx.font="13px 'Segoe UI',system-ui,sans-serif";
+  for(let i=0;i<3;i++){
+    if(!lines[i])continue;
+    hudCtx.fillStyle="rgba(0,0,0,0.55)";
+    hudCtx.fillText(lines[i],9,21+i*18);
+    hudCtx.fillStyle="#eef";
+    hudCtx.fillText(lines[i],8,20+i*18);
+  }
+  // FPS 统计
+  fpsN++;fpsT+=dtLast;
+  if(fpsT>=0.5){fps=Math.round(fpsN/fpsT);fpsN=0;fpsT=0;}
+}
+
+let dtLast=0.016;
+window.addEventListener("resize",()=>renderer.resize());
+
+/* ---------- 启动 ---------- */
+renderer.resize();
+document.getElementById("gl").addEventListener("click",()=>{
+  if(document.pointerLockElement!==glCanvas&&booted)requestLock();
+});
+boot();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

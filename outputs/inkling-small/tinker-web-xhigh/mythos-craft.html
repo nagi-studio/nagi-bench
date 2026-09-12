@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>《异界·星穹遗迹》 — 幻境沙盒 (HTML5 + Three.js)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&family=ZCOOL+KuaiLe&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #050b14;
+      overflow: hidden;
+      font-family: "Noto Serif SC", "ZCOOL KuaiLe", serif;
+      color: #e8dcc8;
+    }
+    canvas { display: block; outline: none; }
+    /* 顶部信息栏 */
+    #info {
+      position: absolute;
+      top: 12px; left: 12px;
+      background: rgba(10, 18, 30, 0.85);
+      border: 1px solid rgba(212, 175, 125, 0.4);
+      border-radius: 10px;
+      padding: 14px 20px;
+      max-width: 420px;
+      pointer-events: none;
+      box-shadow: 0 0 30px rgba(180, 140, 60, 0.15);
+      backdrop-filter: blur(4px);
+    }
+    #info h1 {
+      font-family: "ZCOOL KuaiLe", cursive;
+      font-size: 22px;
+      color: #f0d878;
+      letter-spacing: 3px;
+      margin-bottom: 6px;
+      text-shadow: 0 0 8px rgba(240, 216, 120, 0.35);
+    }
+    #info .subtitle {
+      font-size: 13px;
+      color: #bfae8a;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+    #info p { font-size: 13px; line-height: 1.7; color: #ccc4b2; }
+    #info .tag {
+      display: inline-block;
+      margin: 2px 4px 2px 0;
+      padding: 2px 8px;
+      background: rgba(212, 175, 125, 0.15);
+      border: 1px solid rgba(212,175,125,0.3);
+      border-radius: 4px;
+      font-size: 12px;
+      color: #e6cfa8;
+    }
+
+    /* 十字准星 */
+    #crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(240, 216, 120, 0.9);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      box-shadow: 0 0 6px rgba(240,216,120,0.6), inset 0 0 4px rgba(240,216,120,0.3);
+    }
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 4px; height: 4px;
+      background: rgba(240,216,120,0.95);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* 底部提示 */
+    #hint {
+      position: absolute;
+      bottom: 16px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10,18,30,0.75);
+      border: 1px solid rgba(212,175,125,0.3);
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      color: #ddd0b8;
+      pointer-events: none;
+      text-align: center;
+      letter-spacing: 1px;
+    }
+  </style>
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<div id="info">
+  <h1>异界·星穹遗迹</h1>
+  <div class="subtitle">神话幻想 · 无限卷轴 · 第一人称沙盒</div>
+  <p>
+    <strong>世界观设计</strong>：
+  </p>
+  <p>
+    这是一片由多层柏林噪声雕刻出的“悬浮大陆”——远处是尖耸的晶体山脉，中央悬浮着由星晶与石碑构筑的“星穹圣殿”，东北方的“深渊裂缝”处矗立着直冲云霄的晶体尖塔，西南则留有古远的拱门遗迹。地形与建筑交融，形成一种“神权遗落”的奇幻氛围。
+  </p>
+  <p>
+    <span class="tag">柏林噪声地形</span>
+    <span class="tag">星穹圣殿</span>
+    <span class="tag">晶体尖塔</span>
+    <span class="tag">古远遗迹</span>
+  </p>
+  <p style="margin-top:6px; font-size:12px; color:#907a5a;">
+    设计师：AI 原创 · 方块：草地 / 泥土 / 石头 / 星晶 · 操作：WASD + 鼠标
+  </p>
+</div>
+
+<div id="crosshair"></div>
+<div id="hint">点击画面锁定鼠标 · WASD 移动 · 左键破坏 · 右键放置 · Esc 释放</div>
+
+<script>
+/* =========================================================
+   1. 柏林噪声 (Perlin Noise) - 简洁版
+   ========================================================= */
+const Perlin = {};
+(function() {
+  const p = [
+    151,160,137,91,253,216,240,97,251,63,234,140,103,111,...
+  ]; // standard permutation (简化使用)
+  // 使用一个可运行的紧凑版实现（基于经典 Perlin）
+  const perm = new Uint8Array(512);
+  const grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],
+    [1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],
+    [0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+  const initPerm = () => {
+    const seed = new Array(256).fill(0).map((_,i)=>i);
+    for(let i=255;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [seed[i],seed[j]]=[seed[j],seed[i]]; }
+    for(let i=0;i<512;i++) perm[i]=seed[i&255];
+  };
+  initPerm();
+  function fade(t){ return t*t*t*(t*(t*6-15)+10); }
+  function lerp(a,b,t){ return a+(b-a)*t; }
+  function grad(hash,x,y,z){
+    const h = hash & 15;
+    const u = h<8 ? x : y;
+    const v = h<4 ? y : (h===12||h===14 ? x : z);
+    return ((h&1)===0 ? u : -u) + ((h&2)===0 ? v : -v);
+  }
+  Perlin.noise = function(x,y,z){
+    z = z || 0;
+    const X = Math.floor(x)&255, Y = Math.floor(y)&255, Z = Math.floor(z)&255;
+    x-=Math.floor(x); y-=Math.floor(y); z-=Math.floor(z);
+    const u = fade(x), v = fade(y), w = fade(z);
+    const A = perm[X]+Y, AA = perm[A]+Z, AB = perm[A+1]+Z;
+    const B = perm[X+1]+Y, BA = perm[B]+Z, BB = perm[B+1]+Z;
+    return lerp(
+      lerp(lerp(grad(perm[AA],x,y,z), grad(perm[BA],x-1,y,z), u),
+           lerp(grad(perm[AB],x,y-1,z), grad(perm[BB],x-1,y-1,z), u), v),
+      lerp(lerp(grad(perm[AA+1],x,y,z-1), grad(perm[BA+1],x-1,y,z-1), u),
+           lerp(grad(perm[AB+1],x,y-1,z-1), grad(perm[BB+1],x-1,y-1,z-1), u), v),
+      w
+    );
+  };
+})();
+
+/* =========================================================
+   2. 常量与材质
+   ========================================================= */
+const CHUNK_S = 12;      //  chunk 横向尺寸
+const CHUNK_H = 24;      //  chunk 高度
+const RENDER_RAD = 3;    //  渲染半径（块）
+const CAP = CHUNK_S * CHUNK_H * CHUNK_S; // InstancedMesh 容量（足够）
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x051020);
+scene.fog = new THREE.FogExp2(0x0a1628, 0.035);
+
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 200);
+camera.position.set(0, 22, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+/* 光照：星空蓝 + 暖色点光源模拟圣殿火焰/晶体光 */
+const hemi = new THREE.HemisphereLight(0x88b3d4, 0x242a20, 0.7);
+scene.add(hemi);
+const dir = new THREE.DirectionalLight(0xddeeff, 0.8);
+dir.position.set(20, 30, 10);
+scene.add(dir);
+
+// 生成纹理（Canvas 纹理）
+function makeTex(baseHex, noiseHex) {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = baseHex;
+  ctx.fillRect(0,0,64,64);
+  // 添加随机噪点增强“真实感”
+  ctx.fillStyle = noiseHex;
+  for(let i=0;i<220;i++) {
+    ctx.fillRect(Math.random()*64, Math.random()*64, Math.random()*2+1, Math.random()*2+1);
+  }
+  // 顶部/侧面轻微渐变（简单模拟）
+  const grad = ctx.createLinearGradient(0,0,0,64);
+  grad.addColorStop(0, 'rgba(255,255,255,0.05)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.05)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,64,64);
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  return tex;
+}
+
+// 4 种方块：1=草地, 2=泥土, 3=石头, 4=星晶（幻想建筑专用）
+const mats = {
+  1: new THREE.MeshLambertMaterial({ map: makeTex('#4a8c3f', '#2d611f'), color: 0xffffff }), // 草地绿
+  2: new THREE.MeshLambertMaterial({ map: makeTex('#8b5a2b', '#4e3220'), color: 0xffffff }), // 泥土褐
+  3: new THREE.MeshLambertMaterial({ map: makeTex('#777e85', '#4a545e'), color: 0xffffff }), // 石灰
+  4: new THREE.MeshLambertMaterial({ map: makeTex('#d6b0f8', '#8a4fc9'), color: 0xffffff })  // 星晶紫
+};
+
+/* =========================================================
+   3. Chunk / 世界数据管理
+   ========================================================= */
+const chunks = {}; // key: "cx,cz" -> 3D array
+const chunkMeshes = {}; // key -> { type: InstancedMesh }
+
+// 初始化空 Chunk 数据
+function makeChunkData() {
+  const d = new Array(CHUNK_S);
+  for(let x=0;x<CHUNK_S;x++) {
+    d[x] = [];
+    for(let y=0;y<CHUNK_H;y++) {
+      d[x][y] = new Int8Array(CHUNK_S);
+    }
+  }
+  return d;
+}
+
+// 根据世界坐标生成 Chunk
+function generateChunk(cx, cz) {
+  const key = cx + ',' + cz;
+  if(chunks[key]) return;
+  const data = makeChunkData();
+
+  for(let x=0; x<CHUNK_S; x++) {
+    for(let z=0; z<CHUNK_S; z++) {
+      const wx = cx*CHUNK_S + x;
+      const wz = cz*CHUNK_S + z;
+      // 多层噪声构造“悬浮感”地形：底部海平面 + 山峰起伏
+      let n = Perlin.noise(wx*0.06, wz*0.06) * 8;
+      n += Perlin.noise(wx*0.02, wz*0.02) * 18;
+      const h = Math.floor(10 + n);
+      const floorY = Math.max(0, Math.min(CHUNK_H-1, h));
+
+      for(let y=0; y<CHUNK_H; y++) {
+        if(y < floorY - 3) data[x][y][z] = 3; // 石头深层
+        else if(y < floorY - 1) data[x][y][z] = 2; // 泥土
+        else if(y < floorY) data[x][y][z] = 1;     // 草地表面
+        else data[x][y][z] = 0;                    // 空气
+      }
+    }
+  }
+
+  // ===== 内置神话建筑与地形覆盖 =====
+  applyFantasyStructures(cx, cz, data);
+
+  chunks[key] = data;
+}
+
+/* ===== 设计：内置建筑 ===== */
+function applyFantasyStructures(cx, cz, data) {
+  // 星穹圣殿：位于中心大致 (0,0) 周围，悬浮平台 + 水晶柱
+  if(cx === 0 && cz === 0) {
+    // 中心平台（本地坐标大约 3~9）
+    for(let x=3; x<=9; x++) {
+      for(let z=3; z<=9; z++) {
+        if((x>=4 && x<=8) && (z>=4 && z<=8)) {
+          for(let y=18; y<=21; y++) {
+            const t = (y===21 && (x===5||x===8||z===5||z===8)) ? 4 : 3;
+            // 仅填充本 chunk 容量范围
+            if(x>=0&&x<CHUNK_S && z>=0&&z<CHUNK_S && y>=0&&y<CHUNK_H)
+              data[x][y][z] = t;
+          }
+        }
+      }
+    }
+    // 4 根水晶柱支撑
+    for(let y=10; y<=17; y++) {
+      const cols = [[5,5],[8,5],[5,8],[8,8]];
+      cols.forEach(c => {
+        if(y>=0&&y<CHUNK_H) data[c[0]][y][c[1]] = 4;
+      });
+    }
+  }
+
+  // 深渊裂缝晶体尖塔：位于 (3, -2)
+  if(cx === 3 && cz === -2) {
+    const cx0 = Math.floor(CHUNK_S/2);
+    const cz0 = Math.floor(CHUNK_S/2);
+    for(let y=8; y<=26; y++) {
+      if(y>=0 && y<CHUNK_H) {
+        if(y>=24) {
+          // 顶部晶体“花瓣”扩散
+          data[cx0][y][cz0] = 4;
+          data[cx0-1][y][cz0] = 4;
+          data[cx0+1][y][cz0] = 4;
+          data[cx0][y][cz0-1] = 4;
+          data[cx0][y][cz0+1] = 4;
+        } else {
+          // 主塔柱
+          data[cx0][y][cz0] = 4;
+        }
+      }
+    }
+  }
+
+  // 古远石碑遗迹：位于 (-2, 3)
+  if(cx === -2 && cz === 3) {
+    // 拱门结构（本地坐标 4~10 之间）
+    for(let y=9; y<=13; y++) {
+      if(y>=0 && y<CHUNK_H) {
+        if(y===12 || y===13) {
+          // 横梁
+          for(let x=5; x<=9; x++) if(x>=0&&x<CHUNK_S) data[x][y][6] = 3;
+        } else if(y===10 || y===11) {
+          // 立柱侧边
+          if(5>=0&&5<CHUNK_S) data[5][y][6] = 3;
+          if(9>=0&&9<CHUNK_S) data[9][y][6] = 3;
+        }
+      }
+    }
+    // 中间断碑（废墟感）
+    for(let y=9; y<=11; y++) {
+      if(y>=0&&y<CHUNK_H) {
+        data[7][y][6] = 3;
+        data[8][y][6] = 3;
+      }
+    }
+  }
+
+  // 额外：在 (0,1) 附近增加一片“发光晶矿”自然奇观
+  if(cx === 0 && cz === 1) {
+    for(let x=2; x<10; x+=2) {
+      for(let z=2; z<10; z+=2) {
+        if(x>=0&&x<CHUNK_S && z>=0&&z<CHUNK_S && 10>=0&&10<CHUNK_H) {
+          data[x][10][z] = 4;
+        }
+      }
+    }
+  }
+}
+
+/* =========================================================
+   4. Chunk Mesh 更新（InstancedMesh 方案，可靠高效）
+   ========================================================= */
+const dummy = new THREE.Object3D();
+
+function updateChunkMeshes(cx, cz) {
+  const key = cx + ',' + cz;
+  if(!chunks[key]) return;
+  const data = chunks[key];
+  const posLists = {1:[],2:[],3:[],4:[]}; // 每种方块的世界坐标列表
+
+  // 收集
+  for(let x=0; x<CHUNK_S; x++) {
+    for(let y=0; y<CHUNK_H; y++) {
+      for(let z=0; z<CHUNK_S; z++) {
+        const t = data[x][y][z];
+        if(t>0 && t<=4) {
+          posLists[t].push({x: cx*CHUNK_S + x, y, z: cz*CHUNK_S + z});
+        }
+      }
+    }
+  }
+
+  if(!chunkMeshes[key]) chunkMeshes[key] = {};
+
+  for(let t=1; t<=4; t++) {
+    const arr = posLists[t];
+    let mesh = chunkMeshes[key][t];
+    if(!mesh) {
+      mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), mats[t], CAP);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      chunkMeshes[key][t] = mesh;
+      scene.add(mesh);
+    }
+
+    // 更新矩阵
+    for(let i=0; i<arr.length; i++) {
+      dummy.position.set(arr[i].x, arr[i].y, arr[i].z);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+    // 清空超出部分（设为透明/隐藏不需要，总数直接设为 arr.length）
+    mesh.count = arr.length;
+    if(arr.length > 0) mesh.instanceMatrix.needsUpdate = true;
+  }
+}
+
+/* =========================================================
+   5. 控制器：第一人称（Pointer Lock + WASD + 鼠标）
+   ========================================================= */
+let yaw = 0, pitch = 0;
+let move = {f:0,b:0,l:0,r:0};
+const speed = 0.12;
+let isLocked = false;
+
+// 鼠标锁定或点击开始
+document.body.addEventListener('click', () => {
+  if(!isLocked) {
+    document.body.requestPointerLock();
+  }
+});
+document.addEventListener('pointerlockchange', () => {
+  isLocked = (document.pointerLockElement === document.body);
+});
+
+document.addEventListener('mousemove', (e) => {
+  if(!isLocked) return;
+  const dx = e.movementX;
+  const dy = e.movementY;
+  yaw -= dx * 0.002;
+  pitch -= dy * 0.002;
+  pitch = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, pitch));
+  camera.rotation.set(pitch, yaw, 0, 'YXZ');
+});
+
+document.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if(k==='w') move.f = 1; if(k==='s') move.b = 1;
+  if(k==='a') move.l = 1; if(k==='d') move.r = 1;
+});
+document.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if(k==='w') move.f = 0; if(k==='s') move.b = 0;
+  if(k==='a') move.l = 0; if(k==='d') move.r = 0;
+});
+
+// 阻止右键菜单
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+/* =========================================================
+   6. 交互：左键破坏 / 右键放置（基于 Raycaster 对 InstancedMesh）
+   ========================================================= */
+const ray = new THREE.Raycaster();
+const centerVec = new THREE.Vector2(0, 0);
+
+function getWorldFromHit(hit) {
+  const p = hit.point;
+  // 由于方块精确对齐，直接取 floor；边界浮点误差极小，无需复杂修正
+  const bx = Math.floor(p.x + 0.001);
+  const by = Math.floor(p.y + 0.001);
+  const bz = Math.floor(p.z + 0.001);
+  const chunkCX = Math.floor(bx / CHUNK_S);
+  const chunkCZ = Math.floor(bz / CHUNK_S);
+  const lx = ((bx % CHUNK_S) + CHUNK_S) % CHUNK_S;
+  const ly = by;
+  const lz = ((bz % CHUNK_S) + CHUNK_S) % CHUNK_S;
+  return {bx,by,bz, cx:chunkCX, cz:chunkCZ, lx, ly, lz, faceNormal: hit.face.normal};
+}
+
+document.addEventListener('mousedown', (e) => {
+  if(!isLocked) return;
+  if(e.button === 0 || e.button === 2) {
+    // 先收集所有可交互 Mesh
+    const meshes = [];
+    for(const k in chunkMeshes) {
+      const obj = chunkMeshes[k];
+      for(let t=1; t<=4; t++) if(obj[t]) meshes.push(obj[t]);
+    }
+    ray.setFromCamera(centerVec, camera);
+    const hits = ray.intersectObjects(meshes);
+    if(hits.length === 0) return;
+
+    const h = hits[0];
+    const info = getWorldFromHit(h);
+    const chunk = chunks[info.cx + ',' + info.cz];
+    if(!chunk) return;
+
+    if(e.button === 0) { // 左键破坏
+      if(info.ly >= 0 && info.ly < CHUNK_H && info.lx >=0 && info.lx < CHUNK_S && info.lz>=0 && info.lz < CHUNK_S) {
+        if(chunk[info.lx][info.ly][info.lz] !== 0) {
+          chunk[info.lx][info.ly][info.lz] = 0;
+          updateChunkMeshes(info.cx, info.cz);
+        }
+      }
+    } else if(e.button === 2) { // 右键放置（放在相邻格子，使用面法线方向）
+      const nx = Math.round(info.faceNormal.x);
+      const ny = Math.round(info.faceNormal.y);
+      const nz = Math.round(info.faceNormal.z);
+      const pbx = info.bx + nx, pby = info.by + ny, pbz = info.bz + nz;
+      const pcx = Math.floor(pbx / CHUNK_S), pcz = Math.floor(pbz / CHUNK_S);
+      const plx = ((pbx % CHUNK_S)+CHUNK_S)%CHUNK_S, ply = pby, plz = ((pbz % CHUNK_S)+CHUNK_S)%CHUNK_S;
+      const pChunk = chunks[pcx + ',' + pcz];
+      if(pChunk && ply>=0 && ply < CHUNK_H && plx>=0 && plx < CHUNK_S && plz>=0 && plz < CHUNK_S) {
+        if(pChunk[plx][ply][plz] === 0) {
+          // 放置：默认放置石头（3）或星晶（4）；这里如放在空中放星晶增加奇幻感
+          pChunk[plx][ply][plz] = 4; // 星晶
+          generateChunk(pcx, pcz); // 确保存在（若在边界新生成）
+          updateChunkMeshes(pcx, pcz);
+        }
+      }
+    }
+  }
+});
+
+/* =========================================================
+   7. 主循环：加载世界、移动、更新
+   ========================================================= */
+function tick() {
+  // 移动（WASD）
+  const dir = new THREE.Vector3();
+  if(move.f) dir.z -= 1;
+  if(move.b) dir.z += 1;
+  if(move.l) dir.x -= 1;
+  if(move.r) dir.x += 1;
+  if(dir.lengthSq() > 0) {
+    dir.normalize();
+    // 根据 yaw 旋转移动向量
+    const rx = Math.sin(yaw) * dir.z + Math.cos(yaw) * dir.x;
+    const rz = Math.cos(yaw) * dir.z - Math.sin(yaw) * dir.x;
+    camera.position.x += rx * speed;
+    camera.position.z += rz * speed;
+    // 轻微重力/地面碰撞（简单处理：保持 y >= 10 以上，避免掉到地下）
+    if(camera.position.y < 15) camera.position.y = 15;
+  }
+
+  // 根据玩家位置加载/刷新 Chunk
+  const pcx = Math.floor(camera.position.x / CHUNK_S);
+  const pcz = Math.floor(camera.position.z / CHUNK_S);
+  for(let cx = pcx - RENDER_RAD; cx <= pcx + RENDER_RAD; cx++) {
+    for(let cz = pcz - RENDER_RAD; cz <= pcz + RENDER_RAD; cz++) {
+      if(!chunks[cx + ',' + cz]) generateChunk(cx, cz);
+      // 每次循环只在新增时更新 mesh；已存在的不重新生成（避免每帧重算）
+      // 但为保证交互后的立即刷新，我们在交互函数里已调用 updateChunkMeshes
+    }
+  }
+
+  // 对已存在但可能在视野内的 chunk 进行 mesh 初始化（首次出现）
+  for(let cx = pcx - RENDER_RAD; cx <= pcx + RENDER_RAD; cx++) {
+    for(let cz = pcz - RENDER_RAD; cz <= pcz + RENDER_RAD; cz++) {
+      const key = cx + ',' + cz;
+      if(chunks[key] && !chunkMeshes[key]) {
+        updateChunkMeshes(cx, cz);
+      }
+      // 保险：如果 chunk 数据存在但 mesh 丢失（例如从远处回来），重建
+      if(chunks[key] && chunkMeshes[key]) {
+        // 检查一下是否需要重建（简单方式：每帧不重建，交互已重建）
+      }
+    }
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+/* =========================================================
+   8. 窗口尺寸变化
+   ========================================================= */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* =========================================================
+   9. 初始化：生成起始区域并开始
+   ========================================================= */
+(function init() {
+  // 生成起点周围
+  for(let cx=-RENDER_RAD; cx<=RENDER_RAD; cx++) {
+    for(let cz=-RENDER_RAD; cz<=RENDER_RAD; cz++) {
+      generateChunk(cx, cz);
+      updateChunkMeshes(cx, cz);
+    }
+  }
+  // 让玩家站在“星穹圣殿”附近（中心偏上，体验建筑）
+  camera.position.set(2, 26, 2);
+  yaw = Math.PI / 6;
+  camera.rotation.y = yaw;
+  tick();
+})();
+</script>
+
+</body>
+</html>

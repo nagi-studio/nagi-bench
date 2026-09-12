@@ -1,0 +1,2234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AETHERION · 以太之境</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --gold: #e8c872;
+    --gold-dim: #b0893a;
+    --ink: #120c08;
+    --parchment: #f4e6c1;
+  }
+  * { box-sizing: border-box; user-select: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #05070c; }
+  body { font-family: "Noto Serif SC", serif; color: var(--parchment); }
+  canvas.webgl { display: block; width: 100%; height: 100%; }
+  #overlay, #pause, #load {
+    position: fixed; inset: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+  }
+  #load {
+    background: radial-gradient(ellipse at center, #1a140c 0%, #05070c 70%);
+    gap: 18px;
+  }
+  #load h1, #overlay h1 {
+    font-family: Cinzel, "Noto Serif SC", serif;
+    font-weight: 900; letter-spacing: 0.28em;
+    font-size: clamp(42px, 7vw, 86px);
+    margin: 0;
+    background: linear-gradient(180deg, #fff6d4 0%, #e8c872 45%, #8a5a18 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: none;
+  }
+  #load .sub, #overlay .sub {
+    letter-spacing: 0.42em; font-size: 13px; color: var(--gold-dim);
+    margin-top: 6px;
+  }
+  #bar {
+    width: min(420px, 70vw); height: 6px; background: #2a2014;
+    border: 1px solid var(--gold-dim); border-radius: 99px; overflow: hidden;
+  }
+  #bar > i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #8a5a18, #e8c872); }
+  #load .hint { font-size: 13px; color: #9a8b6a; min-height: 1.2em; }
+  #overlay {
+    background: linear-gradient(180deg, rgba(5,7,12,0.35) 0%, rgba(5,7,12,0.55) 100%);
+    cursor: pointer;
+  }
+  #overlay .lore {
+    max-width: 640px; margin: 28px 24px 0;
+    font-size: 15px; line-height: 2; color: #e6d7b0;
+    text-shadow: 0 2px 10px #000;
+  }
+  #overlay .cta {
+    margin-top: 36px; padding: 12px 36px;
+    border: 1px solid var(--gold);
+    color: var(--gold); letter-spacing: 0.32em; font-size: 14px;
+    background: rgba(20,14,6,0.45);
+    animation: pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; box-shadow: 0 0 24px rgba(232,200,114,0.25); }
+  }
+  #pause {
+    background: rgba(5,7,12,0.72); display: none; cursor: pointer;
+  }
+  #pause .panel {
+    background: rgba(18,12,8,0.92);
+    border: 1px solid var(--gold-dim);
+    padding: 36px 48px; max-width: 560px;
+  }
+  #pause h2 { font-family: Cinzel, serif; letter-spacing: 0.2em; color: var(--gold); margin: 0 0 18px; }
+  #pause ul { text-align: left; line-height: 1.9; color: #ddd0b0; font-size: 14px; padding: 0; list-style: none; }
+  #pause kbd {
+    display: inline-block; min-width: 22px; padding: 0 6px; margin-right: 4px;
+    border: 1px solid #7a6232; color: var(--gold); font-family: inherit; font-size: 12px;
+    background: #1a140c;
+  }
+  #hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+  #cross {
+    position: absolute; left: 50%; top: 50%; width: 18px; height: 18px;
+    transform: translate(-50%, -50%);
+  }
+  #cross::before, #cross::after {
+    content: ""; position: absolute; background: rgba(255,255,255,0.85);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.45);
+  }
+  #cross::before { left: 7px; top: 0; width: 2px; height: 18px; }
+  #cross::after { left: 0; top: 8px; width: 18px; height: 2px; }
+  #hotbar {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+    display: flex; gap: 3px; padding: 6px 8px;
+    background: rgba(10,8,5,0.55); border: 1px solid rgba(184,140,60,0.45);
+  }
+  .slot {
+    width: 52px; height: 52px; position: relative;
+    background: rgba(30,22,12,0.75);
+    border: 2px solid #4a3720;
+    image-rendering: pixelated;
+  }
+  .slot.sel { border-color: #f0d78c; box-shadow: 0 0 0 1px #f0d78c, inset 0 0 10px rgba(240,215,140,0.2); }
+  .slot canvas { width: 40px; height: 40px; margin: 4px; image-rendering: pixelated; }
+  .slot .n {
+    position: absolute; right: 3px; bottom: 1px; font-size: 10px;
+    color: #eee; text-shadow: 0 1px 2px #000;
+  }
+  #bname {
+    position: absolute; left: 50%; bottom: 86px; transform: translateX(-50%);
+    font-size: 14px; letter-spacing: 0.12em; color: #f4e6c1;
+    text-shadow: 0 2px 6px #000; opacity: 0; transition: opacity 0.2s;
+  }
+  #info {
+    position: absolute; left: 14px; top: 12px; font-size: 12px; line-height: 1.7;
+    color: #e8dcb8; text-shadow: 0 1px 3px #000; white-space: pre; opacity: 0.9;
+  }
+  #look {
+    position: absolute; left: 50%; top: calc(50% + 22px); transform: translateX(-50%);
+    font-size: 12px; color: rgba(255,255,255,0.8); text-shadow: 0 1px 3px #000;
+  }
+  #compass {
+    position: absolute; right: 16px; top: 12px; font-family: Cinzel, serif;
+    font-size: 18px; color: var(--gold); letter-spacing: 0.2em;
+    text-shadow: 0 2px 8px #000;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="hud" class="hidden">
+  <div id="cross"></div>
+  <div id="look"></div>
+  <div id="info"></div>
+  <div id="compass">N</div>
+  <div id="bname"></div>
+  <div id="hotbar"></div>
+</div>
+<div id="load">
+  <h1>AETHERION</h1>
+  <div class="sub">以太之境</div>
+  <div id="bar"><i id="barfill"></i></div>
+  <div class="hint" id="loadhint">正在唤醒世界……</div>
+</div>
+<div id="overlay" class="hidden">
+  <h1>AETHERION</h1>
+  <div class="sub">MYTHIC VOXEL REALM</div>
+  <div class="lore">
+    星龙陨落之后，众神以方块重塑大地。<br/>
+    北境矗立月神殿，西土扎根世界树，虚空之塔俯瞰埃尔多利亚废墟。<br/>
+    天空神殿悬于云海，水晶圣所仍在低语远古之名。<br/>
+    此地无尽延展——往群山之外，柏林之风仍在生长新的大地。
+  </div>
+  <div class="cta">点击进入世界</div>
+</div>
+<div id="pause">
+  <div class="panel">
+    <h2>暂停</h2>
+    <ul>
+      <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动　　<kbd>空格</kbd> 跳跃 / 上升</li>
+      <li><kbd>Shift</kbd> 冲刺 / 下降　　<kbd>F</kbd> 或连按空格 飞行</li>
+      <li>鼠标 环视　　左键破坏　　右键放置</li>
+      <li><kbd>1</kbd>–<kbd>9</kbd> / 滚轮 选择方块　　<kbd>R</kbd> 重生</li>
+      <li><kbd>F3</kbd> 坐标　　<kbd>ESC</kbd> 暂停 / 释放鼠标</li>
+      <li style="margin-top:10px;color:#cbb57a;">北 · 月神殿　西 · 世界树　东 · 星龙骸</li>
+      <li style="color:#cbb57a;">南 · 废墟与虚空塔　上空 · 天空神殿</li>
+    </ul>
+    <p style="margin:18px 0 0;color:#e8c872;letter-spacing:0.2em;">点击继续</p>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  if (typeof THREE === "undefined") {
+    const h = document.getElementById("loadhint");
+    if (h) h.textContent = "无法加载 Three.js，请检查网络后刷新。";
+    return;
+  }
+
+  const CHUNK = 16;
+  const HEIGHT = 96;
+  const SEA = 30;
+  const VIEW = 4;
+  const EYE = 1.62;
+  const PW = 0.3;
+  const PH = 1.8;
+  const ATLAS_TILES = 16;
+  const TILE_PX = 16;
+
+  const AIR=0,GRASS=1,DIRT=2,STONE=3,COBBLE=4,LOG=5,LEAVES=6,SAND=7,WATER=8,
+    SANDSTONE=9,BRICK=10,STONEBRICK=11,QUARTZ=12,OBSIDIAN=13,GOLD=14,CRYSTAL=15,
+    BONE=16,GLOWSTONE=17,LAVA=18,NETHERRACK=19,COAL=20,IRON=21,GOLDORE=22,DIAMOND=23,
+    SNOW=24,ICE=25,PLANKS=26,MOSSY=27,BEDROCK=28,CLOUD=29,RUNE=30,MOONSTONE=31,
+    WOOL_R=32,WOOL_P=33,WOOL_B=34,WOOL_W=35,WOOL_K=36,GLASS=37,CACTUS=38,DARKLOG=39,
+    DARKLEAF=40,EMERALD=41,LAPIS=42,PURPUR=43,GRAVEL=44,SNOWGRASS=45,SCALE=46,CLAY=47;
+
+  const T = {};
+  const BLOCKS = [];
+  const edits = new Map();
+  const STR = new Map();
+  const chunks = new Map();
+  const chunkMeshes = new Map();
+  const lights = [];
+
+  function key(x, y, z) { return x + "," + y + "," + z; }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function smooth(t) { return t * t * (3 - 2 * t); }
+  function hash2(x, z) {
+    let h = (x * 374761393 + z * 668265263) | 0;
+    h = (h ^ (h >>> 13)) * 1274126177;
+    return (h ^ (h >>> 16)) >>> 0;
+  }
+  function hash3(x, y, z) {
+    let h = (x * 374761393 + y * 668265263 + z * 2147483647) | 0;
+    h = (h ^ (h >>> 13)) * 1274126177;
+    return (h ^ (h >>> 16)) >>> 0;
+  }
+
+  class Perlin {
+    constructor(seed) {
+      const p = new Uint8Array(512);
+      const src = new Uint8Array(256);
+      for (let i = 0; i < 256; i++) src[i] = i;
+      let s = seed >>> 0;
+      for (let i = 255; i > 0; i--) {
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+        const j = s % (i + 1);
+        const t = src[i]; src[i] = src[j]; src[j] = t;
+      }
+      for (let i = 0; i < 512; i++) p[i] = src[i & 255];
+      this.p = p;
+    }
+    fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+    grad(h, x, y, z) {
+      const u = (h & 15);
+      const a = u < 8 ? x : y;
+      const b = u < 4 ? y : (u === 12 || u === 14 ? x : z);
+      return ((u & 1) === 0 ? a : -a) + ((u & 2) === 0 ? b : -b);
+    }
+    noise3(x, y, z) {
+      const p = this.p;
+      const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+      const xf = x - Math.floor(x), yf = y - Math.floor(y), zf = z - Math.floor(z);
+      const u = this.fade(xf), v = this.fade(yf), w = this.fade(zf);
+      const A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z;
+      const B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+      const g = this.grad.bind(this);
+      const lerp = (a, b, t) => a + t * (b - a);
+      return lerp(
+        lerp(
+          lerp(g(p[AA], xf, yf, zf), g(p[BA], xf - 1, yf, zf), u),
+          lerp(g(p[AB], xf, yf - 1, zf), g(p[BB], xf - 1, yf - 1, zf), u), v),
+        lerp(
+          lerp(g(p[AA + 1], xf, yf, zf - 1), g(p[BA + 1], xf - 1, yf, zf - 1), u),
+          lerp(g(p[AB + 1], xf, yf - 1, zf - 1), g(p[BB + 1], xf - 1, yf - 1, zf - 1), u), v),
+        w);
+    }
+    fbm2(x, z, oct, lac, gain) {
+      let a = 0, amp = 1, f = 1, n = 0;
+      for (let i = 0; i < oct; i++) {
+        a += this.noise3(x * f, 0.5, z * f) * amp;
+        n += amp; amp *= gain; f *= lac;
+      }
+      return a / n;
+    }
+    fbm3(x, y, z, oct, lac, gain) {
+      let a = 0, amp = 1, f = 1, n = 0;
+      for (let i = 0; i < oct; i++) {
+        a += this.noise3(x * f, y * f, z * f) * amp;
+        n += amp; amp *= gain; f *= lac;
+      }
+      return a / n;
+    }
+  }
+
+  const noise = new Perlin(20260820);
+  const noise2 = new Perlin(7919);
+
+  const MODS = [
+    { type: "flat", x: 0, z: 0, r: 10, h: 36, protect: 1 },
+    { type: "flat", x: 18, z: -118, r: 24, h: 42, protect: 1 },
+    { type: "flat", x: -36, z: -6, r: 20, h: 35, protect: 1 },
+    { type: "flat", x: -118, z: -36, r: 18, h: 37, protect: 1 },
+    { type: "flat", x: -24, z: 112, r: 24, h: 36, protect: 1 },
+    { type: "flat", x: 92, z: 114, r: 18, h: 34, protect: 1 },
+    { type: "flat", x: -98, z: 70, r: 16, h: 35, protect: 1 },
+    { type: "flat", x: 26, z: 22, r: 12, h: 36, protect: 1 },
+    { type: "crater", x: 124, z: 28, r: 24, h: 32, depth: 10, protect: 1 },
+    { type: "lake", x: 12, z: 48, r: 16, h: 28 },
+    { type: "flat", x: 48, z: -48, r: 8, h: 38, protect: 1 }
+  ];
+
+  function rawHeight(x, z) {
+    const c = noise.fbm2(x * 0.0032, z * 0.0032, 5, 2.05, 0.5);
+    const r = noise.fbm2(x * 0.0016 + 40, z * 0.0016, 4, 2.1, 0.48);
+    const m = Math.pow(Math.max(0, r + 0.15), 1.65);
+    const d = noise.fbm2(x * 0.018, z * 0.018, 3, 2.0, 0.5);
+    let h = 34 + c * 9 + m * 26 + d * 2.4;
+    const ridge = 1 - Math.abs(noise.fbm2(x * 0.008 + 90, z * 0.008, 3, 2.2, 0.5));
+    if (m > 0.35) h += Math.pow(ridge, 3) * 10;
+    return h;
+  }
+
+  function terrainHeight(x, z) {
+    let h = rawHeight(x, z);
+    for (let i = 0; i < MODS.length; i++) {
+      const m = MODS[i];
+      const dx = x - m.x, dz = z - m.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist >= m.r) continue;
+      const t = smooth(dist / m.r);
+      if (m.type === "flat") h = lerp(m.h, h, t);
+      else if (m.type === "crater") {
+        const bowl = (1 - t) * (1 - t);
+        h = lerp(h - m.depth * bowl, h, t * t);
+        h = Math.min(h, lerp(m.h, h, t));
+      } else if (m.type === "lake") h = lerp(m.h, h, t);
+    }
+    return h;
+  }
+
+  const hCache = new Map();
+  const bCache = new Map();
+  function heightAt(x, z) {
+    const k = x + "," + z;
+    let h = hCache.get(k);
+    if (h === undefined) {
+      h = Math.floor(terrainHeight(x, z));
+      hCache.set(k, h);
+    }
+    return h;
+  }
+
+  function biomeAt(x, z) {
+    const k = x + "," + z;
+    let b = bCache.get(k);
+    if (b !== undefined) return b;
+    let t = noise2.fbm2(x * 0.0038, z * 0.0038, 4, 2.0, 0.5);
+    let m = noise2.fbm2(x * 0.0038 + 80, z * 0.0038, 4, 2.0, 0.5);
+    const d = Math.sqrt(x * x + z * z);
+    if (d < 80) { t += 0.32; m += 0.12; }
+    const h = heightAt(x, z);
+    if (h > 58) b = h > 64 ? "peak" : "mountain";
+    else if (t > 0.28 && m < 0.1) b = "desert";
+    else if (t < -0.28) b = "snow";
+    else if (m > 0.22) b = "forest";
+    else b = "plains";
+    bCache.set(k, b);
+    return b;
+  }
+
+  function protectedAt(x, z) {
+    for (let i = 0; i < MODS.length; i++) {
+      const m = MODS[i];
+      if (!m.protect) continue;
+      const dx = x - m.x, dz = z - m.z;
+      if (dx * dx + dz * dz < m.r * m.r) return true;
+    }
+    return false;
+  }
+
+  function defBlock(id, name, opts) {
+    BLOCKS[id] = Object.assign({
+      id, name,
+      solid: true, opaque: true, liquid: false,
+      emit: 0, collides: true,
+      top: 0, bottom: 0, side: 0,
+      tint: [1, 1, 1]
+    }, opts);
+  }
+
+  let rngSeed = 1337;
+  function rnd() {
+    rngSeed = (Math.imul(rngSeed, 1664525) + 1013904223) >>> 0;
+    return rngSeed / 4294967296;
+  }
+  function irnd(n) { return (rnd() * n) | 0; }
+
+  function buildAtlas() {
+    const cols = ATLAS_TILES;
+    const rows = 6;
+    const canvas = document.createElement("canvas");
+    canvas.width = cols * TILE_PX;
+    canvas.height = rows * TILE_PX;
+    const ctx = canvas.getContext("2d");
+    const atlasData = ctx.createImageData(canvas.width, canvas.height);
+    const AD = atlasData.data;
+    const W = canvas.width;
+    let tileN = 0;
+
+    function put(tx, ty, x, y, r, g, b, a) {
+      const px = tx * 16 + x, py = ty * 16 + y;
+      const i = (py * W + px) * 4;
+      AD[i] = r; AD[i + 1] = g; AD[i + 2] = b; AD[i + 3] = a == null ? 255 : a;
+    }
+
+    function addTile(name, painter) {
+      const tx = tileN % cols, ty = (tileN / cols) | 0;
+      T[name] = tileN;
+      rngSeed = hash2(tileN, 99) || 1;
+      painter(tx, ty);
+      tileN++;
+    }
+
+    function noiseFill(tx, ty, r, g, b, v, a) {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 2 * v;
+        put(tx, ty, x, y, clamp(r + k, 0, 255)|0, clamp(g + k, 0, 255)|0, clamp(b + k * 0.85, 0, 255)|0, a == null ? 255 : a);
+      }
+    }
+
+    addTile("grass_top", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 28;
+        const blade = rnd() > 0.82 ? -18 : 0;
+        put(tx, ty, x, y, clamp(72 + k, 0, 255), clamp(158 + k + blade, 0, 255), clamp(48 + k * 0.5, 0, 255));
+      }
+    });
+    addTile("grass_side", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 22;
+        if (y < 4 + ((hash2(x, 3) >> 3) & 1) + (rnd() > 0.7 ? 1 : 0)) {
+          put(tx, ty, x, y, clamp(74 + k, 0, 255), clamp(150 + k, 0, 255), clamp(46 + k * 0.4, 0, 255));
+        } else {
+          put(tx, ty, x, y, clamp(134 + k, 0, 255), clamp(96 + k * 0.6, 0, 255), clamp(58 + k * 0.4, 0, 255));
+        }
+      }
+    });
+    addTile("dirt", (tx, ty) => noiseFill(tx, ty, 134, 96, 58, 18));
+    addTile("stone", (tx, ty) => {
+      noiseFill(tx, ty, 125, 125, 125, 16);
+      for (let i = 0; i < 10; i++) {
+        const x = irnd(16), y = irnd(16);
+        put(tx, ty, x, y, 105, 105, 105);
+      }
+    });
+    addTile("cobble", (tx, ty) => {
+      noiseFill(tx, ty, 90, 90, 90, 10);
+      const pebbles = [[2,2,6,5],[8,1,6,6],[3,8,7,6],[10,8,5,6],[0,12,7,4],[8,12,7,4]];
+      pebbles.forEach((p, i) => {
+        const g = 110 + (i % 3) * 12;
+        for (let y = p[1]; y < p[1] + p[3] && y < 16; y++)
+          for (let x = p[0]; x < p[0] + p[2] && x < 16; x++) {
+            const k = (rnd() - 0.5) * 14;
+            if (x === p[0] || y === p[1] || x === p[0] + p[2] - 1 || y === p[1] + p[3] - 1)
+              put(tx, ty, x, y, 60, 60, 60);
+            else put(tx, ty, x, y, clamp(g + k, 0, 255), clamp(g + k, 0, 255), clamp(g + k, 0, 255));
+          }
+      });
+    });
+    addTile("log_side", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const ring = Math.sin(x * 0.9) * 8;
+        const k = (rnd() - 0.5) * 10 + ring;
+        const bark = x === 0 || x === 15 || x === 7 ? -25 : 0;
+        put(tx, ty, x, y, clamp(110 + k + bark, 0, 255), clamp(85 + k * 0.7 + bark, 0, 255), clamp(48 + k * 0.4, 0, 255));
+      }
+    });
+    addTile("log_top", (tx, ty) => {
+      const cx = 7.5, cy = 7.5;
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const d = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+        const ring = Math.sin(d * 2.2) * 18;
+        put(tx, ty, x, y, clamp(158 + ring, 0, 255), clamp(125 + ring * 0.8, 0, 255), clamp(70 + ring * 0.4, 0, 255));
+        if (d < 1.2) put(tx, ty, x, y, 70, 52, 28);
+        if (x === 0 || y === 0 || x === 15 || y === 15) put(tx, ty, x, y, 96, 72, 40);
+      }
+    });
+    addTile("leaves", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if (rnd() > 0.62) { put(tx, ty, x, y, 0, 0, 0, 0); continue; }
+        const k = (rnd() - 0.5) * 30;
+        put(tx, ty, x, y, clamp(42 + k, 0, 255), clamp(122 + k, 0, 255), clamp(38 + k * 0.4, 0, 255), 230);
+      }
+    });
+    addTile("sand", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 18;
+        put(tx, ty, x, y, clamp(219 + k, 0, 255), clamp(210 + k, 0, 255), clamp(158 + k, 0, 255));
+      }
+    });
+    addTile("water", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const w = Math.sin(x * 0.7 + y * 0.4) * 18;
+        put(tx, ty, x, y, clamp(28 + w, 0, 255), clamp(78 + w, 0, 255), clamp(170 + w, 0, 255), 140);
+      }
+    });
+    addTile("sandstone", (tx, ty) => {
+      noiseFill(tx, ty, 218, 206, 158, 12);
+      for (let y = 0; y < 16; y += 4)
+        for (let x = 0; x < 16; x++) put(tx, ty, x, y, 196, 180, 128);
+    });
+    addTile("sandstone_top", (tx, ty) => noiseFill(tx, ty, 223, 214, 170, 10));
+    addTile("brick", (tx, ty) => {
+      noiseFill(tx, ty, 148, 82, 66, 10);
+      for (let row = 0; row < 4; row++) {
+        const y0 = row * 4;
+        for (let x = 0; x < 16; x++) put(tx, ty, x, y0, 196, 192, 184);
+        const off = row % 2 ? 4 : 0;
+        for (let b = 0; b < 3; b++) {
+          const x0 = (off + b * 8) % 16;
+          for (let y = y0; y < y0 + 4 && y < 16; y++) put(tx, ty, x0, y, 196, 192, 184);
+        }
+      }
+    });
+    addTile("stonebrick", (tx, ty) => {
+      noiseFill(tx, ty, 122, 122, 122, 10);
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if (x === 0 || y === 0 || x === 8 || y === 8)
+          put(tx, ty, x, y, 86, 86, 86);
+      }
+      for (let i = 0; i < 8; i++) put(tx, ty, 3 + irnd(5), 3 + irnd(5), 90, 90, 90);
+    });
+    addTile("quartz", (tx, ty) => {
+      noiseFill(tx, ty, 236, 231, 223, 8);
+      for (let y = 0; y < 16; y += 8)
+        for (let x = 0; x < 16; x++) put(tx, ty, x, y, 220, 214, 206);
+    });
+    addTile("quartz_top", (tx, ty) => noiseFill(tx, ty, 242, 238, 232, 6));
+    addTile("obsidian", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 14;
+        const p = rnd() > 0.92 ? 40 : 0;
+        put(tx, ty, x, y, clamp(16 + k + p * 0.4, 0, 255), clamp(10 + k, 0, 255), clamp(26 + k + p, 0, 255));
+      }
+    });
+    addTile("gold", (tx, ty) => {
+      noiseFill(tx, ty, 250, 226, 78, 12);
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if (x < 2 || y < 2 || x > 13 || y > 13) put(tx, ty, x, y, 214, 162, 32);
+        if (x > 3 && x < 7 && y > 3 && y < 7) put(tx, ty, x, y, 255, 248, 170);
+      }
+    });
+    addTile("crystal", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const s = Math.sin((x + y) * 0.8) * 30 + (rnd() - 0.5) * 20;
+        const spark = rnd() > 0.9 ? 80 : 0;
+        put(tx, ty, x, y, clamp(140 + s + spark, 0, 255), clamp(70 + s * 0.4 + spark, 0, 255), clamp(210 + s + spark, 0, 255), 175);
+      }
+    });
+    addTile("bone", (tx, ty) => {
+      noiseFill(tx, ty, 228, 222, 198, 10);
+      for (let y = 0; y < 16; y += 5)
+        for (let x = 0; x < 16; x++) put(tx, ty, x, y, 210, 200, 170);
+    });
+    addTile("glowstone", (tx, ty) => {
+      noiseFill(tx, ty, 170, 120, 40, 20);
+      for (let i = 0; i < 22; i++) {
+        const x = irnd(16), y = irnd(16);
+        put(tx, ty, x, y, 255, 230, 110);
+        if (x + 1 < 16) put(tx, ty, x + 1, y, 240, 180, 50);
+      }
+    });
+    addTile("lava", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const w = Math.sin(x * 0.9 + y * 0.5) * 40 + (rnd() - 0.5) * 20;
+        put(tx, ty, x, y, clamp(210 + w, 0, 255), clamp(70 + w * 0.4, 0, 255), clamp(16 + w * 0.1, 0, 255), 230);
+      }
+    });
+    addTile("netherrack", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 24;
+        put(tx, ty, x, y, clamp(110 + k, 0, 255), clamp(52 + k * 0.5, 0, 255), clamp(52 + k * 0.5, 0, 255));
+      }
+    });
+    function oreTile(name, cr, cg, cb, nblob) {
+      addTile(name, (tx, ty) => {
+        noiseFill(tx, ty, 125, 125, 125, 14);
+        for (let i = 0; i < nblob; i++) {
+          const ox = irnd(14), oy = irnd(14);
+          for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++)
+            if (rnd() > 0.3) put(tx, ty, ox + x, oy + y, cr, cg, cb);
+        }
+      });
+    }
+    oreTile("coal_ore", 20, 20, 20, 6);
+    oreTile("iron_ore", 210, 180, 150, 5);
+    oreTile("gold_ore", 250, 220, 70, 5);
+    oreTile("diamond_ore", 80, 230, 230, 5);
+    addTile("snow", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 12;
+        put(tx, ty, x, y, clamp(240 + k, 0, 255), clamp(248 + k, 0, 255), clamp(248 + k, 0, 255));
+      }
+    });
+    addTile("ice", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = Math.sin((x + y) * 0.6) * 16 + (rnd() - 0.5) * 10;
+        put(tx, ty, x, y, clamp(140 + k, 0, 255), clamp(190 + k, 0, 255), clamp(230 + k, 0, 255), 160);
+      }
+    });
+    addTile("planks", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 12 + Math.sin(x * 0.4) * 6;
+        const grout = (y % 4 === 0) || (y > 3 && y < 8 && x === 8) || (y >= 8 && x === 4);
+        if (grout) put(tx, ty, x, y, 96, 70, 38);
+        else put(tx, ty, x, y, clamp(162 + k, 0, 255), clamp(128 + k, 0, 255), clamp(74 + k * 0.5, 0, 255));
+      }
+    });
+    addTile("mossy", (tx, ty) => {
+      noiseFill(tx, ty, 118, 118, 118, 10);
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if (x === 0 || y === 0 || x === 8 || y === 8) put(tx, ty, x, y, 80, 80, 80);
+        if (rnd() > 0.78) put(tx, ty, x, y, 58, 110, 42);
+      }
+    });
+    addTile("bedrock", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 40;
+        put(tx, ty, x, y, clamp(50 + k, 0, 255), clamp(50 + k, 0, 255), clamp(52 + k, 0, 255));
+      }
+    });
+    addTile("cloud", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 10;
+        put(tx, ty, x, y, clamp(245 + k, 0, 255), clamp(248 + k, 0, 255), 255, 210);
+      }
+    });
+    addTile("rune", (tx, ty) => {
+      noiseFill(tx, ty, 70, 68, 82, 10);
+      const glyph = [
+        "00111100",
+        "01000010",
+        "01011010",
+        "01011010",
+        "01000010",
+        "00100100",
+        "00100100",
+        "00011000"
+      ];
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++)
+        if (glyph[y][x] === "1") {
+          put(tx, ty, 4 + x, 4 + y, 180, 90, 255);
+          put(tx, ty, 4 + x, 3 + y, 120, 40, 200);
+        }
+    });
+    addTile("moonstone", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = Math.sin(x * 0.5 + y * 0.3) * 14 + (rnd() - 0.5) * 8;
+        put(tx, ty, x, y, clamp(200 + k, 0, 255), clamp(220 + k, 0, 255), clamp(240 + k, 0, 255));
+      }
+    });
+    function wool(name, r, g, b) {
+      addTile(name, (tx, ty) => {
+        for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+          const k = (rnd() - 0.5) * 16;
+          put(tx, ty, x, y, clamp(r + k, 0, 255), clamp(g + k, 0, 255), clamp(b + k, 0, 255));
+        }
+      });
+    }
+    wool("wool_r", 168, 42, 42);
+    wool("wool_p", 128, 52, 168);
+    wool("wool_b", 48, 72, 168);
+    wool("wool_w", 232, 232, 232);
+    wool("wool_k", 28, 28, 32);
+    addTile("glass", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const edge = x === 0 || y === 0 || x === 15 || y === 15 || x === 1 || y === 1;
+        if (edge) put(tx, ty, x, y, 210, 230, 240, 140);
+        else put(tx, ty, x, y, 180, 210, 230, 36);
+      }
+    });
+    addTile("cactus", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 14;
+        let r = 18 + k, g = 128 + k, b = 38;
+        if (x === 0 || x === 15 || x === 8) { r = 10; g = 80; b = 20; }
+        if (rnd() > 0.93) { r = 200; g = 200; b = 160; }
+        put(tx, ty, x, y, clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255));
+      }
+    });
+    addTile("cactus_top", (tx, ty) => {
+      noiseFill(tx, ty, 22, 140, 48, 10);
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++)
+        if (x === 0 || y === 0 || x === 15 || y === 15) put(tx, ty, x, y, 12, 80, 24);
+    });
+    addTile("darklog", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 10;
+        const bark = x % 5 === 0 ? -18 : 0;
+        put(tx, ty, x, y, clamp(62 + k + bark, 0, 255), clamp(42 + k + bark, 0, 255), clamp(28 + k, 0, 255));
+      }
+    });
+    addTile("darkleaf", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if (rnd() > 0.6) { put(tx, ty, x, y, 0, 0, 0, 0); continue; }
+        const k = (rnd() - 0.5) * 20;
+        put(tx, ty, x, y, clamp(28 + k, 0, 255), clamp(88 + k, 0, 255), clamp(48 + k, 0, 255), 230);
+      }
+    });
+    addTile("emerald", (tx, ty) => {
+      noiseFill(tx, ty, 40, 190, 90, 14);
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++)
+        if (x < 2 || y < 2 || x > 13 || y > 13) put(tx, ty, x, y, 16, 110, 52);
+    });
+    addTile("lapis", (tx, ty) => {
+      noiseFill(tx, ty, 28, 64, 168, 16);
+      for (let i = 0; i < 12; i++) put(tx, ty, irnd(16), irnd(16), 80, 140, 230);
+    });
+    addTile("purpur", (tx, ty) => {
+      noiseFill(tx, ty, 168, 122, 168, 12);
+      for (let y = 0; y < 16; y += 4)
+        for (let x = 0; x < 16; x++) put(tx, ty, x, y, 140, 96, 148);
+    });
+    addTile("gravel", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 36;
+        put(tx, ty, x, y, clamp(126 + k, 0, 255), clamp(124 + k, 0, 255), clamp(122 + k, 0, 255));
+      }
+    });
+    addTile("snow_side", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const k = (rnd() - 0.5) * 18;
+        if (y < 3 + (hash2(x, 9) & 1)) put(tx, ty, x, y, 240, 248, 248);
+        else put(tx, ty, x, y, clamp(134 + k, 0, 255), clamp(96 + k, 0, 255), clamp(58 + k, 0, 255));
+      }
+    });
+    addTile("scale", (tx, ty) => {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const sx = (x + (y % 4 < 2 ? 0 : 4)) % 8;
+        const sy = y % 4;
+        const k = sx < 1 || sy < 1 ? -20 : 8;
+        put(tx, ty, x, y, clamp(28 + k, 0, 255), clamp(62 + k, 0, 255), clamp(36 + k, 0, 255));
+      }
+    });
+    addTile("clay", (tx, ty) => noiseFill(tx, ty, 158, 164, 176, 10));
+
+    ctx.putImageData(atlasData, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.encoding = THREE.sRGBEncoding;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.flipY = false;
+    return { canvas, tex, cols, rows };
+  }
+
+  const atlas = buildAtlas();
+
+  defBlock(AIR, "空气", { solid: false, opaque: false, collides: false });
+  defBlock(GRASS, "草地", { top: T.grass_top, bottom: T.dirt, side: T.grass_side });
+  defBlock(DIRT, "泥土", { top: T.dirt, bottom: T.dirt, side: T.dirt });
+  defBlock(STONE, "石头", { top: T.stone, bottom: T.stone, side: T.stone });
+  defBlock(COBBLE, "圆石", { top: T.cobble, bottom: T.cobble, side: T.cobble });
+  defBlock(LOG, "橡木原木", { top: T.log_top, bottom: T.log_top, side: T.log_side });
+  defBlock(LEAVES, "橡树叶", { top: T.leaves, bottom: T.leaves, side: T.leaves, opaque: false });
+  defBlock(SAND, "沙子", { top: T.sand, bottom: T.sand, side: T.sand });
+  defBlock(WATER, "水", { top: T.water, bottom: T.water, side: T.water, solid: false, opaque: false, liquid: true, collides: false, tint: [0.7, 0.85, 1] });
+  defBlock(SANDSTONE, "砂岩", { top: T.sandstone_top, bottom: T.sandstone, side: T.sandstone });
+  defBlock(BRICK, "砖块", { top: T.brick, bottom: T.brick, side: T.brick });
+  defBlock(STONEBRICK, "石砖", { top: T.stonebrick, bottom: T.stonebrick, side: T.stonebrick });
+  defBlock(QUARTZ, "石英", { top: T.quartz_top, bottom: T.quartz, side: T.quartz });
+  defBlock(OBSIDIAN, "黑曜石", { top: T.obsidian, bottom: T.obsidian, side: T.obsidian });
+  defBlock(GOLD, "金块", { top: T.gold, bottom: T.gold, side: T.gold });
+  defBlock(CRYSTAL, "秘银水晶", { top: T.crystal, bottom: T.crystal, side: T.crystal, opaque: false, emit: 0.4, tint: [0.95, 0.8, 1] });
+  defBlock(BONE, "龙骨", { top: T.bone, bottom: T.bone, side: T.bone });
+  defBlock(GLOWSTONE, "萤石", { top: T.glowstone, bottom: T.glowstone, side: T.glowstone, emit: 1 });
+  defBlock(LAVA, "岩浆", { top: T.lava, bottom: T.lava, side: T.lava, solid: false, opaque: false, liquid: true, collides: false, emit: 0.9 });
+  defBlock(NETHERRACK, "下界岩", { top: T.netherrack, bottom: T.netherrack, side: T.netherrack });
+  defBlock(COAL, "煤矿石", { top: T.coal_ore, bottom: T.coal_ore, side: T.coal_ore });
+  defBlock(IRON, "铁矿石", { top: T.iron_ore, bottom: T.iron_ore, side: T.iron_ore });
+  defBlock(GOLDORE, "金矿石", { top: T.gold_ore, bottom: T.gold_ore, side: T.gold_ore });
+  defBlock(DIAMOND, "钻石矿", { top: T.diamond_ore, bottom: T.diamond_ore, side: T.diamond_ore });
+  defBlock(SNOW, "雪块", { top: T.snow, bottom: T.snow, side: T.snow });
+  defBlock(ICE, "冰", { top: T.ice, bottom: T.ice, side: T.ice, opaque: false });
+  defBlock(PLANKS, "橡木木板", { top: T.planks, bottom: T.planks, side: T.planks });
+  defBlock(MOSSY, "苔石砖", { top: T.mossy, bottom: T.mossy, side: T.mossy });
+  defBlock(BEDROCK, "基岩", { top: T.bedrock, bottom: T.bedrock, side: T.bedrock });
+  defBlock(CLOUD, "云絮", { top: T.cloud, bottom: T.cloud, side: T.cloud, collides: false, opaque: false });
+  defBlock(RUNE, "符文石", { top: T.rune, bottom: T.rune, side: T.rune, emit: 0.15 });
+  defBlock(MOONSTONE, "月长石", { top: T.moonstone, bottom: T.moonstone, side: T.moonstone, emit: 0.2 });
+  defBlock(WOOL_R, "红色羊毛", { top: T.wool_r, bottom: T.wool_r, side: T.wool_r });
+  defBlock(WOOL_P, "紫色羊毛", { top: T.wool_p, bottom: T.wool_p, side: T.wool_p });
+  defBlock(WOOL_B, "蓝色羊毛", { top: T.wool_b, bottom: T.wool_b, side: T.wool_b });
+  defBlock(WOOL_W, "白色羊毛", { top: T.wool_w, bottom: T.wool_w, side: T.wool_w });
+  defBlock(WOOL_K, "黑色羊毛", { top: T.wool_k, bottom: T.wool_k, side: T.wool_k });
+  defBlock(GLASS, "玻璃", { top: T.glass, bottom: T.glass, side: T.glass, opaque: false });
+  defBlock(CACTUS, "仙人掌", { top: T.cactus_top, bottom: T.cactus_top, side: T.cactus });
+  defBlock(DARKLOG, "世界树木", { top: T.log_top, bottom: T.log_top, side: T.darklog });
+  defBlock(DARKLEAF, "世界树叶", { top: T.darkleaf, bottom: T.darkleaf, side: T.darkleaf, opaque: false });
+  defBlock(EMERALD, "绿宝石块", { top: T.emerald, bottom: T.emerald, side: T.emerald });
+  defBlock(LAPIS, "青金石块", { top: T.lapis, bottom: T.lapis, side: T.lapis });
+  defBlock(PURPUR, "紫珀", { top: T.purpur, bottom: T.purpur, side: T.purpur });
+  defBlock(GRAVEL, "沙砾", { top: T.gravel, bottom: T.gravel, side: T.gravel });
+  defBlock(SNOWGRASS, "积雪草", { top: T.snow, bottom: T.dirt, side: T.snow_side });
+  defBlock(SCALE, "龙鳞", { top: T.scale, bottom: T.scale, side: T.scale });
+  defBlock(CLAY, "黏土", { top: T.clay, bottom: T.clay, side: T.clay });
+
+  function isOpaque(id) { return id > 0 && BLOCKS[id] && BLOCKS[id].opaque; }
+  function isSolid(id) { return id > 0 && BLOCKS[id] && BLOCKS[id].collides; }
+  function isLiquid(id) { return BLOCKS[id] && BLOCKS[id].liquid; }
+  function isTrans(id) { return id === AIR || (BLOCKS[id] && !BLOCKS[id].opaque); }
+
+  function treeBlock(x, y, z) {
+    for (let dx = -3; dx <= 3; dx++) {
+      for (let dz = -3; dz <= 3; dz++) {
+        const tx = x + dx, tz = z + dz;
+        const hh = hash2(tx, tz);
+        if (hh % 9 !== 0 && hh % 23 !== 0 && hh % 28 !== 0 && hh % 41 !== 0 && hh % 73 !== 0) continue;
+        if (protectedAt(tx, tz)) continue;
+        const b = biomeAt(tx, tz);
+        let kind = 0;
+        if (b === "desert") {
+          if (hh % 41 === 0) kind = 3;
+        } else if (b === "snow") {
+          if (hh % 23 === 0) kind = 2;
+        } else if (b === "forest") {
+          if (hh % 9 === 0) kind = 1;
+          else if (hh % 73 === 0) kind = 4;
+        } else if (b === "plains") {
+          if (hh % 28 === 0) kind = 1;
+        }
+        if (!kind) continue;
+        const th = heightAt(tx, tz);
+        if (th < SEA + 1) continue;
+        if (kind === 3) {
+          const ch = 2 + (hh % 3);
+          if (dx === 0 && dz === 0 && y > th && y <= th + ch) return CACTUS;
+          continue;
+        }
+        if (kind === 4) {
+          const stem = 5 + (hh % 3);
+          if (dx === 0 && dz === 0 && y > th && y <= th + stem) return WOOL_W;
+          const capY = th + stem + 1;
+          const capR = 3;
+          if (y >= capY - 1 && y <= capY + 1) {
+            const d2 = dx * dx + dz * dz + (y - capY) * (y - capY);
+            if (d2 <= capR * capR && !(dx === 0 && dz === 0 && y < capY)) return WOOL_R;
+          }
+          continue;
+        }
+        const treeH = kind === 2 ? 6 + (hh % 3) : 4 + (hh % 3);
+        const top = th + treeH;
+        if (dx === 0 && dz === 0 && y > th && y <= top) return kind === 2 ? DARKLOG : LOG;
+        if (y >= top - 2 && y <= top + 2) {
+          const ly = y - top;
+          const r = (ly === 2) ? 1 : (ly === -2 ? 1 : 2);
+          if (Math.abs(dx) <= r && Math.abs(dz) <= r) {
+            if (Math.abs(dx) === r && Math.abs(dz) === r && (hh >> (Math.abs(dx) + 3)) & 1) continue;
+            if (!(dx === 0 && dz === 0 && y <= top)) return kind === 2 ? DARKLEAF : LEAVES;
+          }
+        }
+      }
+    }
+    return AIR;
+  }
+
+  function genBlock(x, y, z) {
+    if (y < 0 || y >= HEIGHT) return AIR;
+    if (y === 0) return BEDROCK;
+    const h = heightAt(x, z);
+    const biome = biomeAt(x, z);
+
+    if (y >= 88 && y <= 91) {
+      const c = noise.fbm3(x * 0.035, y * 0.12, z * 0.035, 3, 2.0, 0.5);
+      if (c > 0.42 && (y === 89 || c > 0.5)) return CLOUD;
+    }
+
+    if (y > h) {
+      if (y <= SEA && h < SEA) return WATER;
+      if (y < h + 9) {
+        const tb = treeBlock(x, y, z);
+        if (tb) return tb;
+      }
+      return AIR;
+    }
+
+    if (!protectedAt(x, z) && y < h - 3 && y > 3) {
+      const cave = noise.fbm3(x * 0.05, y * 0.07, z * 0.05, 3, 2.0, 0.5);
+      const cave2 = noise2.fbm3(x * 0.08 + 7, y * 0.08, z * 0.08, 2, 2.1, 0.5);
+      if (cave > 0.32 && cave2 > 0.12) {
+        if (y < 8 && cave > 0.45) return LAVA;
+        return AIR;
+      }
+      const rav = noise.fbm2(x * 0.02 + 3, z * 0.02, 2, 2.0, 0.5);
+      if (Math.abs(rav) < 0.045 && y > h - 22 && y < h - 1) return AIR;
+    }
+
+    if (y === h) {
+      if (h < SEA) return h > SEA - 3 ? SAND : GRAVEL;
+      if (biome === "desert") return SAND;
+      if (biome === "snow" || biome === "peak") return h > 62 ? SNOW : SNOWGRASS;
+      if (biome === "mountain" && h > 52) return STONE;
+      return GRASS;
+    }
+    if (y >= h - 3) {
+      if (biome === "desert" || h < SEA) return y >= h - 2 ? SAND : SANDSTONE;
+      if (biome === "snow") return DIRT;
+      return DIRT;
+    }
+    if (y === 1) return STONE;
+    const hs = hash3(x, y, z);
+    if (y < 14 && hs % 160 === 0) return DIAMOND;
+    if (y < 22 && hs % 95 === 0) return GOLDORE;
+    if (y < 40 && hs % 52 === 0) return IRON;
+    if (hs % 36 === 0) return COAL;
+    if (hs % 220 === 0) return CRYSTAL;
+    if (y < 18 && hs % 180 === 0) return LAPIS;
+    if (hs % 300 === 0) return EMERALD;
+    return STONE;
+  }
+
+  function getBlock(x, y, z) {
+    x = x | 0; y = y | 0; z = z | 0;
+    if (y < 0 || y >= HEIGHT) return AIR;
+    const k = key(x, y, z);
+    if (edits.has(k)) return edits.get(k);
+    if (STR.has(k)) return STR.get(k);
+    const h = heightAt(x, z);
+    if (y > h + 8 && y < 88) return AIR;
+    if (y > 91) return AIR;
+    return genBlock(x, y, z);
+  }
+
+  function sb(x, y, z, id) {
+    if (y < 1 || y >= HEIGHT) return;
+    STR.set(key(x | 0, y | 0, z | 0), id);
+  }
+  function box(x1, y1, z1, x2, y2, z2, id) {
+    const xa = Math.min(x1, x2), xb = Math.max(x1, x2);
+    const ya = Math.min(y1, y2), yb = Math.max(y1, y2);
+    const za = Math.min(z1, z2), zb = Math.max(z1, z2);
+    for (let x = xa; x <= xb; x++)
+      for (let y = ya; y <= yb; y++)
+        for (let z = za; z <= zb; z++) sb(x, y, z, id);
+  }
+  function hollow(x1, y1, z1, x2, y2, z2, id, fill) {
+    box(x1, y1, z1, x2, y2, z2, id);
+    const ix1 = Math.min(x1, x2) + 1, ix2 = Math.max(x1, x2) - 1;
+    const iy1 = Math.min(y1, y2) + 1, iy2 = Math.max(y1, y2) - 1;
+    const iz1 = Math.min(z1, z2) + 1, iz2 = Math.max(z1, z2) - 1;
+    if (ix2 >= ix1 && iy2 >= iy1 && iz2 >= iz1) box(ix1, iy1, iz1, ix2, iy2, iz2, fill == null ? AIR : fill);
+  }
+  function sphere(cx, cy, cz, r, id, hollowR) {
+    const rr = r * r;
+    const hr = hollowR != null ? hollowR * hollowR : -1;
+    for (let x = -r; x <= r; x++)
+      for (let y = -r; y <= r; y++)
+        for (let z = -r; z <= r; z++) {
+          const d = x * x + y * y + z * z;
+          if (d <= rr && d >= hr) sb(cx + x, cy + y, cz + z, id);
+        }
+  }
+  function disk(cx, cy, cz, r, id) {
+    const rr = r * r;
+    for (let x = -r; x <= r; x++)
+      for (let z = -r; z <= r; z++)
+        if (x * x + z * z <= rr) sb(cx + x, cy, cz + z, id);
+  }
+  function col(x, y1, y2, z, id) { box(x, y1, z, x, y2, z, id); }
+  function replaceSurface(x, z, id, w) {
+    for (let dx = -w; dx <= w; dx++)
+      for (let dz = -w; dz <= w; dz++) {
+        const h = heightAt(x + dx, z + dz);
+        sb(x + dx, h, z + dz, id);
+      }
+  }
+
+  function buildPath(x1, z1, x2, z2, id, width) {
+    const dx = x2 - x1, dz = z2 - z1;
+    const steps = Math.max(Math.abs(dx), Math.abs(dz));
+    for (let i = 0; i <= steps; i++) {
+      const x = Math.round(x1 + dx * i / steps);
+      const z = Math.round(z1 + dz * i / steps);
+      for (let w = -width; w <= width; w++) {
+        const px = x + (Math.abs(dz) >= Math.abs(dx) ? w : 0);
+        const pz = z + (Math.abs(dx) > Math.abs(dz) ? w : 0);
+        const h = heightAt(px, pz);
+        if (h >= SEA) {
+          sb(px, h, pz, id);
+          if (i % 18 === 0 && w === 0) sb(px, h + 1, pz, GLOWSTONE);
+        }
+      }
+    }
+  }
+
+  function buildTemple() {
+    const cx = 18, cz = -118, y = 42;
+    box(cx - 16, y - 4, cz - 16, cx + 16, y, cz + 16, QUARTZ);
+    box(cx - 14, y, cz - 14, cx + 14, y, cz + 14, MOONSTONE);
+    disk(cx, y, cz, 6, WOOL_P);
+    disk(cx, y, cz, 3, GOLD);
+    disk(cx, y, cz, 1, CRYSTAL);
+    for (let s = 0; s < 5; s++) {
+      const o = 16 - s;
+      box(cx - o, y - 4 + s, cz - o - 1, cx + o, y - 4 + s, cz - o - 1, QUARTZ);
+      box(cx - o, y - 4 + s, cz + o + 1, cx + o, y - 4 + s, cz + o + 1, QUARTZ);
+      box(cx - o - 1, y - 4 + s, cz - o, cx - o - 1, y - 4 + s, cz + o, QUARTZ);
+      box(cx + o + 1, y - 4 + s, cz - o, cx + o + 1, y - 4 + s, cz + o, QUARTZ);
+    }
+    const cols = [-10, -5, 0, 5, 10];
+    for (const i of cols) for (const j of cols) {
+      if (Math.abs(i) !== 10 && Math.abs(j) !== 10) continue;
+      box(i + cx - 1, y + 1, j + cz - 1, i + cx + 1, y + 11, j + cz + 1, QUARTZ);
+      box(i + cx - 1, y + 12, j + cz - 1, i + cx + 1, y + 12, j + cz + 1, GOLD);
+      sb(i + cx, y + 13, j + cz, CRYSTAL);
+    }
+    hollow(cx - 7, y + 1, cz - 7, cx + 7, y + 10, cz + 7, QUARTZ, AIR);
+    box(cx - 7, y + 1, cz - 1, cx - 7, y + 4, cz + 1, AIR);
+    box(cx + 7, y + 1, cz - 1, cx + 7, y + 4, cz + 1, AIR);
+    box(cx - 1, y + 1, cz - 7, cx + 1, y + 4, cz - 7, AIR);
+    box(cx - 1, y + 1, cz + 7, cx + 1, y + 4, cz + 7, AIR);
+    box(cx - 6, y + 1, cz - 6, cx + 6, y + 1, cz + 6, WOOL_P);
+    box(cx - 1, y + 1, cz - 6, cx + 1, y + 1, cz + 6, GOLD);
+    box(cx - 6, y + 1, cz - 1, cx + 6, y + 1, cz + 1, GOLD);
+    box(cx - 2, y + 1, cz - 2, cx + 2, y + 2, cz + 2, GOLD);
+    sb(cx, y + 3, cz, CRYSTAL);
+    sb(cx, y + 4, cz, CRYSTAL);
+    sb(cx, y + 5, cz, GLOWSTONE);
+    for (let layer = 0; layer < 9; layer++) {
+      const s = 8 - layer;
+      const id = layer % 3 === 2 ? GOLD : QUARTZ;
+      box(cx - s, y + 10 + layer, cz - s, cx + s, y + 10 + layer, cz + s, id);
+    }
+    sb(cx, y + 19, cz, GLOWSTONE);
+    sb(cx, y + 20, cz, CRYSTAL);
+    for (const [dx, dz] of [[-12, -12], [12, -12], [-12, 12], [12, 12]]) {
+      box(cx + dx - 2, y + 1, cz + dz - 2, cx + dx + 2, y + 8, cz + dz + 2, QUARTZ);
+      col(cx + dx, y + 9, y + 14, cz + dz, MOONSTONE);
+      sb(cx + dx, y + 15, cz + dz, CRYSTAL);
+    }
+    hollow(cx - 5, y - 8, cz - 5, cx + 5, y - 1, cz + 5, STONEBRICK, AIR);
+    box(cx - 1, y - 4, cz + 7, cx + 1, y, cz + 7, AIR);
+    box(cx, y - 8, cz, cx, y - 1, cz, AIR);
+    box(cx - 1, y - 7, cz - 1, cx + 1, y - 7, cz + 1, GOLD);
+    box(cx - 3, y - 7, cz - 3, cx - 2, y - 7, cz - 2, DIAMOND);
+    box(cx + 2, y - 7, cz + 2, cx + 3, y - 7, cz + 3, EMERALD);
+    box(cx - 3, y - 7, cz + 2, cx - 2, y - 7, cz + 3, CRYSTAL);
+    sb(cx, y - 6, cz, GLOWSTONE);
+  }
+
+  function buildDragon() {
+    const ox = 108, oz = 22, oy = 32;
+    for (let i = 0; i < 38; i++) {
+      const t = i / 37;
+      const x = ox + i;
+      const y = oy + Math.round(Math.sin(t * Math.PI) * 7 + Math.sin(t * 6) * 1.2);
+      const z = oz + Math.round(Math.sin(t * 2.4) * 4);
+      const thick = i < 6 ? 2 : i > 30 ? 1 : 2;
+      box(x - 1, y, z - 1, x + 1, y + thick, z + 1, BONE);
+      if (i > 6 && i < 24 && i % 2 === 0) {
+        for (let r = 1; r <= 6; r++) {
+          const ry = Math.round(Math.sin((r / 6) * Math.PI) * 5);
+          sb(x, y + ry, z + r, BONE);
+          sb(x, y + ry, z - r, BONE);
+          if (r > 2 && r < 6) {
+            sb(x, y + ry - 1, z + r, SCALE);
+            sb(x, y + ry - 1, z - r, SCALE);
+          }
+        }
+      }
+    }
+    const hx = ox + 37, hy = oy + 4, hz = oz;
+    box(hx, hy, hz - 2, hx + 6, hy + 5, hz + 2, BONE);
+    box(hx + 2, hy + 1, hz - 1, hx + 5, hy + 3, hz + 1, AIR);
+    sb(hx + 5, hy + 3, hz - 2, CRYSTAL);
+    sb(hx + 5, hy + 3, hz + 2, CRYSTAL);
+    box(hx + 4, hy - 1, hz - 1, hx + 7, hy, hz + 1, BONE);
+    col(hx + 2, hy + 6, hy + 10, hz - 2, BONE);
+    col(hx + 2, hy + 6, hy + 10, hz + 2, BONE);
+    sb(hx + 2, hy + 11, hz - 2, CRYSTAL);
+    sb(hx + 2, hy + 11, hz + 2, CRYSTAL);
+    const wx = ox + 16, wy = oy + 10, wz = oz;
+    for (let w = 0; w < 14; w++) {
+      const wy2 = wy + Math.floor(w * 0.45);
+      sb(wx + Math.floor(w * 0.2), wy2, wz + 6 + w, BONE);
+      sb(wx + Math.floor(w * 0.2), wy2, wz - 6 - w, BONE);
+      for (let m = 1; m < 4; m++) {
+        if (w > 1) {
+          sb(wx, wy2 - m, wz + 5 + w, WOOL_K);
+          sb(wx, wy2 - m, wz - 5 - w, WOOL_K);
+        }
+      }
+      if (w % 3 === 0) {
+        sb(wx + 1, wy2, wz + 6 + w, BONE);
+        sb(wx + 1, wy2, wz - 6 - w, BONE);
+      }
+    }
+    for (let i = 0; i < 8; i++) {
+      const t = i / 7;
+      sb(ox - 2 - i, oy + 1 + Math.round((1 - t) * 2), oz + Math.round(Math.sin(t * 4)), BONE);
+    }
+    disk(ox + 18, oy - 1, oz, 10, NETHERRACK);
+    box(ox + 20, oy, oz - 2, ox + 24, oy, oz + 2, GOLD);
+    box(ox + 21, oy + 1, oz - 1, ox + 23, oy + 1, oz + 1, GOLD);
+    sb(ox + 22, oy + 2, oz, DIAMOND);
+    for (let i = 0; i < 18; i++) {
+      const a = hash2(i, 44);
+      sb(ox + 12 + (a % 11), oy, oz - 5 + ((a >> 4) % 10), LAVA);
+    }
+  }
+
+  function buildWorldTree() {
+    const cx = -118, cz = -36, y = 37;
+    sphere(cx, y - 1, cz, 8, DARKLOG, 6);
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2;
+      const len = 10;
+      for (let k = 0; k < len; k++) {
+        const x = cx + Math.round(Math.cos(a) * k);
+        const z = cz + Math.round(Math.sin(a) * k);
+        const yy = y - 1 - Math.floor(k * 0.3);
+        box(x, yy, z, x + 1, yy + 1, z + 1, DARKLOG);
+      }
+    }
+    for (let yy = y; yy < y + 28; yy++) {
+      const t = (yy - y) / 28;
+      const r = Math.max(1, Math.round(3.2 * (1 - t * 0.55)));
+      disk(cx, yy, cz, r, DARKLOG);
+    }
+    hollow(cx - 1, y + 1, cz - 1, cx + 1, y + 8, cz + 1, AIR);
+    sb(cx, y + 2, cz, CRYSTAL);
+    sb(cx, y + 3, cz, GLOWSTONE);
+    sb(cx - 1, y + 1, cz, AIR);
+    const branches = [
+      [12, 6, 4], [-10, 8, -6], [6, 10, -12], [-8, 7, 11],
+      [14, -4, 2], [-3, 12, 9], [8, -10, 8], [-12, -6, 5]
+    ];
+    for (const [bx, bz, lift] of branches) {
+      const by = y + 18 + lift;
+      const steps = Math.max(Math.abs(bx), Math.abs(bz), 8);
+      for (let i = 0; i <= steps; i++) {
+        const x = cx + Math.round(bx * i / steps);
+        const z = cz + Math.round(bz * i / steps);
+        const yy = y + 16 + Math.round((by - (y + 16)) * i / steps);
+        box(x, yy, z, x + (i > 4 ? 0 : 1), yy + 1, z + (i > 4 ? 0 : 1), DARKLOG);
+      }
+      const ex = cx + bx, ez = cz + bz, ey = by;
+      sphere(ex, ey + 2, ez, 6, DARKLEAF, 0);
+      if (hash2(bx, bz) % 2 === 0) sb(ex, ey + 2, ez, GLOWSTONE);
+      else sb(ex, ey + 3, ez, GOLD);
+    }
+    sphere(cx, y + 30, cz, 11, DARKLEAF, 7);
+    disk(cx, y + 32, cz, 8, DARKLEAF);
+    sb(cx, y + 28, cz, GLOWSTONE);
+    for (let i = 0; i < 10; i++) {
+      const a = i * 0.7;
+      sb(cx + Math.round(Math.cos(a) * 5), y + 26 + (i % 3), cz + Math.round(Math.sin(a) * 5), GOLD);
+    }
+  }
+
+  function buildVillage() {
+    const y = 35;
+    function house(hx, hz, w, d, h, rot) {
+      hollow(hx, y, hz, hx + w, y + h, hz + d, PLANKS, AIR);
+      box(hx, y, hz, hx + w, y, hz + d, COBBLE);
+      for (let layer = 0; layer <= Math.floor(w / 2) + 1; layer++) {
+        box(hx - 1 + layer, y + h + layer, hz - 1, hx + w + 1 - layer, y + h + layer, hz + d + 1, BRICK);
+      }
+      const dx = rot ? Math.floor(w / 2) : 0;
+      const dz = rot ? 0 : Math.floor(d / 2);
+      if (!rot) { sb(hx + dx, y + 1, hz, AIR); sb(hx + dx, y + 2, hz, AIR); }
+      else { sb(hx, y + 1, hz + dz, AIR); sb(hx, y + 2, hz + dz, AIR); }
+      sb(hx + 1, y + 2, hz + d, GLASS);
+      sb(hx + w - 1, y + 2, hz, GLASS);
+      sb(hx + w, y + 2, hz + 1, GLASS);
+      sb(hx + Math.floor(w / 2), y + h + 1, hz + Math.floor(d / 2), GLOWSTONE);
+      sb(hx + 2, y + 1, hz + 2, PLANKS);
+    }
+    house(-42, -14, 6, 6, 4, 0);
+    house(-30, -16, 7, 5, 4, 1);
+    house(-46, 2, 5, 7, 5, 0);
+    house(-28, 4, 6, 6, 4, 0);
+    house(-38, 10, 8, 6, 4, 1);
+    hollow(-36, y, -4, -32, y + 3, 0, COBBLE, AIR);
+    box(-36, y, -4, -32, y, 0, STONEBRICK);
+    disk(-34, y, -2, 2, WATER);
+    box(-35, y, -2, -33, y, -2, COBBLE);
+    sb(-34, y + 3, -2, GLOWSTONE);
+    for (let z = 6; z <= 14; z++) for (let x = -22; x <= -16; x++) {
+      const h = heightAt(x, z);
+      sb(x, h, z, DIRT);
+      if ((x + z) % 2 === 0) sb(x, h + 1, z, LEAVES);
+    }
+    box(-40, y, -8, -38, y + 1, -6, PLANKS);
+    box(-40, y + 2, -8, -38, y + 2, -6, WOOL_R);
+    col(-48, y, y + 6, -20, LOG);
+    sphere(-48, y + 8, -20, 3, LEAVES);
+    hollow(-24, y, -8, -20, y + 5, -4, STONEBRICK, AIR);
+    sb(-22, y + 1, -8, AIR); sb(-22, y + 2, -8, AIR);
+    box(-23, y + 1, -6, -21, y + 1, -5, GOLD);
+    sb(-22, y + 2, -6, CRYSTAL);
+    sb(-22, y + 4, -6, GLOWSTONE);
+  }
+
+  function buildRuins() {
+    const cx = -24, cz = 112, y = 36;
+    box(cx - 14, y, cz - 10, cx + 14, y, cz + 10, STONEBRICK);
+    for (let x = -14; x <= 14; x++) {
+      for (let z = -10; z <= 10; z++) {
+        if (x === -14 || x === 14 || z === -10 || z === 10) {
+          const hh = 4 + (hash2(x, z) % 6);
+          const gap = hash2(x * 3, z * 7) % 5 === 0;
+          if (!gap) col(cx + x, y + 1, y + hh, cz + z, hash2(x, z) % 3 === 0 ? MOSSY : STONEBRICK);
+        }
+      }
+    }
+    box(cx - 2, y + 1, cz - 10, cx + 2, y + 5, cz - 10, AIR);
+    box(cx - 2, y + 6, cz - 10, cx + 2, y + 6, cz - 10, STONEBRICK);
+    box(cx - 2, y + 6, cz - 10, cx - 2, y + 6, cz - 10, STONEBRICK);
+    hollow(cx - 5, y + 1, cz + 2, cx + 5, y + 12, cz + 9, STONEBRICK, AIR);
+    box(cx - 5, y + 8, cz + 5, cx - 2, y + 12, cz + 9, AIR);
+    box(cx - 1, y + 1, cz + 2, cx + 1, y + 4, cz + 2, AIR);
+    box(cx - 2, y + 1, cz + 6, cx + 2, y + 2, cz + 8, STONEBRICK);
+    sb(cx, y + 3, cz + 7, GOLD);
+    sb(cx, y + 4, cz + 7, WOOL_P);
+    for (let i = 0; i < 8; i++) {
+      const px = cx - 12 + i * 3, pz = cz - 6;
+      if (hash2(i, 9) % 3 !== 0) col(px, y + 1, y + 5 + (i % 3), pz, MOSSY);
+      if (i % 2 === 0) sb(px, y + 1, pz + 1, COBBLE);
+    }
+    hollow(cx - 4, y - 6, cz + 3, cx + 4, y, cz + 9, COBBLE, AIR);
+    box(cx, y - 5, cz + 5, cx, y, cz + 5, AIR);
+    box(cx - 2, y - 5, cz + 5, cx + 2, y - 5, cz + 7, GOLD);
+    sb(cx, y - 4, cz + 6, GLOWSTONE);
+    for (let i = 0; i < 12; i++) {
+      const a = hash2(i, 21);
+      sb(cx - 10 + a % 20, y + 1, cz - 8 + (a >> 4) % 16, COBBLE);
+    }
+  }
+
+  function buildSpire() {
+    const cx = 92, cz = 114, y = 34;
+    for (let r = 10; r >= 7; r--) disk(cx, y, cz, r, OBSIDIAN);
+    for (let a = 0; a < 24; a++) {
+      const ang = (a / 24) * Math.PI * 2;
+      const x = cx + Math.round(Math.cos(ang) * 9);
+      const z = cz + Math.round(Math.sin(ang) * 9);
+      sb(x, y, z, LAVA);
+      sb(cx + Math.round(Math.cos(ang) * 8), y, cz + Math.round(Math.sin(ang) * 8), LAVA);
+    }
+    box(cx - 2, y, cz - 11, cx + 2, y, cz - 8, OBSIDIAN);
+    const H = 42;
+    for (let yy = 0; yy < H; yy++) {
+      const t = yy / H;
+      const r = Math.max(2, Math.round(6 - t * 4));
+      for (let x = -r; x <= r; x++)
+        for (let z = -r; z <= r; z++) {
+          if (Math.max(Math.abs(x), Math.abs(z)) === r) sb(cx + x, y + 1 + yy, cz + z, OBSIDIAN);
+          else if (Math.abs(x) === r - 1 && Math.abs(z) === 0 && yy % 6 === 3) sb(cx + x, y + 1 + yy, cz + z, GLOWSTONE);
+          else if (Math.abs(z) === r - 1 && Math.abs(x) === 0 && yy % 6 === 3) sb(cx + x, y + 1 + yy, cz + z, LAVA);
+        }
+      const ang = yy * 0.55;
+      const sx = Math.round(Math.cos(ang) * Math.max(1, r - 2));
+      const sz = Math.round(Math.sin(ang) * Math.max(1, r - 2));
+      sb(cx + sx, y + 1 + yy, cz + sz, NETHERRACK);
+      sb(cx + sx, y + 2 + yy, cz + sz, AIR);
+    }
+    box(cx - 1, y + 1, cz - 6, cx + 1, y + 4, cz - 6, AIR);
+    disk(cx, y + H + 1, cz, 4, OBSIDIAN);
+    disk(cx, y + H + 1, cz, 2, GOLD);
+    sb(cx, y + H + 2, cz, GLOWSTONE);
+    sb(cx, y + H + 3, cz, CRYSTAL);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      col(cx + Math.round(Math.cos(a) * 4), y + H + 1, y + H + 5 + (i % 3), cz + Math.round(Math.sin(a) * 4), OBSIDIAN);
+    }
+    box(cx - 1, y + 1, cz - 1, cx + 1, y + 1, cz + 1, GOLD);
+  }
+
+  function buildCrystals() {
+    const cx = -98, cz = 70, y = 35;
+    disk(cx, y, cz, 10, MOONSTONE);
+    disk(cx, y, cz, 6, ICE);
+    sphere(cx, y + 1, cz, 8, CRYSTAL, 6);
+    const spikes = [[0,0,12],[8,4,9],[-7,3,10],[5,-6,8],[-6,-5,11],[10,1,7],[-3,8,13],[3,7,6],[-10,2,8]];
+    for (const [dx, dz, h] of spikes) {
+      for (let i = 0; i < h; i++) {
+        const r = Math.max(0, 2 - Math.floor(i / (h / 3)));
+        disk(cx + dx, y + 1 + i, cz + dz, r, i > h - 3 ? CRYSTAL : (i % 3 === 0 ? MOONSTONE : CRYSTAL));
+      }
+      sb(cx + dx, y + h + 1, cz + dz, GLOWSTONE);
+    }
+    hollow(cx - 3, y + 1, cz - 3, cx + 3, y + 4, cz + 3, ICE, AIR);
+    sb(cx, y + 1, cz - 3, AIR); sb(cx, y + 2, cz - 3, AIR);
+    sb(cx, y + 2, cz, EMERALD);
+    box(cx - 1, y + 1, cz - 1, cx + 1, y + 1, cz + 1, LAPIS);
+  }
+
+  function buildCircle() {
+    const cx = 26, cz = 22, y = 36;
+    disk(cx, y, cz, 8, MOSSY);
+    disk(cx, y, cz, 3, RUNE);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const x = cx + Math.round(Math.cos(a) * 7);
+      const z = cz + Math.round(Math.sin(a) * 7);
+      box(x - 1, y + 1, z, x, y + 6 + (i % 2), z + 1, STONEBRICK);
+      if (i % 2 === 0) {
+        const x2 = cx + Math.round(Math.cos(a + Math.PI / 8) * 7);
+        const z2 = cz + Math.round(Math.sin(a + Math.PI / 8) * 7);
+        box(x, y + 7, z, x2, y + 7, z2, STONEBRICK);
+      }
+    }
+    box(cx - 1, y + 1, cz - 1, cx + 1, y + 2, cz + 1, GOLD);
+    sb(cx, y + 3, cz, CRYSTAL);
+    sb(cx, y + 4, cz, GLOWSTONE);
+  }
+
+  function buildPalace() {
+    const cx = 32, cz = -28, y = 74;
+    for (let yy = 0; yy < 8; yy++) {
+      const r = 16 - yy * 1.6;
+      disk(cx, y - yy, cz, Math.round(r), yy < 2 ? GRASS : (yy < 5 ? STONE : CLOUD));
+    }
+    disk(cx, y, cz, 15, GRASS);
+    disk(cx + 4, y, cz + 4, 4, DIRT);
+    hollow(cx - 8, y + 1, cz - 8, cx + 8, y + 10, cz + 8, QUARTZ, AIR);
+    box(cx - 8, y + 1, cz - 8, cx + 8, y + 1, cz + 8, MOONSTONE);
+    box(cx - 1, y + 1, cz - 8, cx + 1, y + 4, cz - 8, AIR);
+    box(cx - 1, y + 5, cz - 8, cx + 1, y + 5, cz - 8, GOLD);
+    for (const [dx, dz] of [[-8, -8], [8, -8], [-8, 8], [8, 8]]) {
+      box(cx + dx - 2, y + 1, cz + dz - 2, cx + dx + 2, y + 14, cz + dz + 2, QUARTZ);
+      box(cx + dx - 2, y + 15, cz + dz - 2, cx + dx + 2, y + 15, cz + dz + 2, GOLD);
+      sb(cx + dx, y + 16, cz + dz, CRYSTAL);
+      sb(cx + dx, y + 8, cz + dz, GLOWSTONE);
+    }
+    for (let layer = 0; layer < 7; layer++) {
+      const s = 6 - layer;
+      box(cx - s, y + 10 + layer, cz - s, cx + s, y + 10 + layer, cz + s, layer === 3 ? GOLD : PURPUR);
+    }
+    sb(cx, y + 17, cz, GLOWSTONE);
+    box(cx - 2, y + 2, cz - 2, cx + 2, y + 2, cz + 2, GOLD);
+    sb(cx, y + 3, cz, WOOL_P);
+    sb(cx, y + 4, cz, GOLD);
+    box(cx - 7, y + 3, cz - 7, cx - 7, y + 5, cz - 5, GLASS);
+    box(cx + 7, y + 3, cz - 7, cx + 7, y + 5, cz + 7, GLASS);
+    disk(cx - 10, y, cz + 8, 4, ICE);
+    for (let yy = y; yy >= SEA + 1; yy--) {
+      const wob = Math.round(Math.sin(yy * 0.4) * 1);
+      sb(cx - 10 + wob, yy, cz + 10, WATER);
+      sb(cx - 11 + wob, yy, cz + 10, WATER);
+      sb(cx - 10 + wob, yy, cz + 11, WATER);
+    }
+    disk(cx - 10, SEA, cz + 12, 5, WATER);
+    function island(ix, iz, iy, r) {
+      for (let yy = 0; yy < 5; yy++) disk(ix, iy - yy, iz, Math.max(2, r - yy), yy === 0 ? GRASS : STONE);
+      if (r > 4) {
+        col(ix, iy + 1, iy + 4, iz, LOG);
+        sphere(ix, iy + 6, iz, 3, LEAVES);
+      }
+    }
+    island(cx + 22, cz - 6, y - 4, 6);
+    island(cx - 24, cz - 10, y - 6, 5);
+    island(cx + 10, cz + 24, y - 8, 7);
+    hollow(cx + 10 - 3, y - 8 + 1, cz + 24 - 3, cx + 10 + 3, y - 8 + 6, cz + 24 + 3, PURPUR, AIR);
+    sb(cx + 10, y - 7, cz + 21, AIR); sb(cx + 10, y - 6, cz + 21, AIR);
+    sb(cx + 10, y - 6, cz + 24, GLOWSTONE);
+    for (let i = 0; i < 18; i++) {
+      const yy = y - 2 - i * 2;
+      if (yy < 40) break;
+      sb(cx, yy, cz, GOLD);
+      sb(cx, yy - 1, cz, OBSIDIAN);
+    }
+    col(cx + 22, 40, y - 4, cz - 6, OBSIDIAN);
+    for (let yy = 40; yy < y - 4; yy += 3) sb(cx + 22, yy, cz - 6, GOLD);
+  }
+
+  function buildColossus() {
+    const cx = 48, cz = -48, y = 38;
+    box(cx - 3, y, cz - 2, cx + 3, y, cz + 2, QUARTZ);
+    box(cx - 2, y + 1, cz - 1, cx + 2, y + 12, cz + 1, QUARTZ);
+    box(cx - 5, y + 8, cz, cx - 3, y + 11, cz, QUARTZ);
+    box(cx + 3, y + 8, cz, cx + 6, y + 9, cz, QUARTZ);
+    box(cx + 6, y + 9, cz, cx + 6, y + 14, cz, GOLD);
+    sb(cx + 6, y + 15, cz, CRYSTAL);
+    box(cx - 2, y + 13, cz - 2, cx + 2, y + 16, cz + 2, QUARTZ);
+    sb(cx - 1, y + 15, cz - 2, CRYSTAL);
+    sb(cx + 1, y + 15, cz - 2, CRYSTAL);
+    box(cx - 1, y + 17, cz - 1, cx + 1, y + 17, cz + 1, GOLD);
+    sb(cx, y + 18, cz, GLOWSTONE);
+    box(cx - 1, y + 1, cz - 1, cx + 1, y + 1, cz + 1, GOLD);
+  }
+
+  function buildPortal() {
+    const cx = 8, cz = -22, y = heightAt(8, -22);
+    box(cx - 3, y, cz - 2, cx + 4, y, cz + 2, OBSIDIAN);
+    box(cx - 2, y + 1, cz, cx - 2, y + 5, cz, OBSIDIAN);
+    box(cx + 3, y + 1, cz, cx + 3, y + 5, cz, OBSIDIAN);
+    box(cx - 2, y + 6, cz, cx + 3, y + 6, cz, OBSIDIAN);
+    box(cx - 1, y + 1, cz, cx + 2, y + 5, cz, CRYSTAL);
+    sb(cx - 2, y + 7, cz, GOLD);
+    sb(cx + 3, y + 7, cz, GOLD);
+  }
+
+  function buildShrine() {
+    const cx = 0, cz = 0, y = 36;
+    disk(cx, y, cz, 5, STONEBRICK);
+    disk(cx, y, cz, 3, QUARTZ);
+    for (const [dx, dz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) {
+      col(cx + dx, y + 1, y + 4, cz + dz, QUARTZ);
+      sb(cx + dx, y + 5, cz + dz, GLOWSTONE);
+    }
+    sb(cx, y + 1, cz, GOLD);
+    sb(cx, y + 2, cz, CRYSTAL);
+    box(cx - 1, y + 1, cz - 5, cx + 1, y + 1, cz - 4, QUARTZ);
+  }
+
+  function addLight(x, y, z, color, dist, intens) {
+    lights.push({ x, y, z, color, dist, intens });
+  }
+
+  function buildAllStructures() {
+    buildShrine();
+    buildTemple();
+    buildDragon();
+    buildWorldTree();
+    buildVillage();
+    buildRuins();
+    buildSpire();
+    buildCrystals();
+    buildCircle();
+    buildPalace();
+    buildColossus();
+    buildPortal();
+    buildPath(0, -6, 18, -100, STONEBRICK, 1);
+    buildPath(0, 2, -28, -4, COBBLE, 1);
+    buildPath(4, 4, 26, 18, MOSSY, 1);
+    addLight(18, 48, -118, 0xffddaa, 18, 1.4);
+    addLight(18, 62, -118, 0xaaccff, 22, 1.2);
+    addLight(-118, 42, -36, 0x88ffaa, 16, 1.1);
+    addLight(92, 78, 114, 0xff6622, 20, 1.3);
+    addLight(145, 42, 22, 0xaa66ff, 12, 1.0);
+    addLight(32, 88, -28, 0xffeecc, 18, 1.2);
+    addLight(-98, 48, 70, 0xcc88ff, 14, 1.2);
+    addLight(26, 41, 22, 0xffcc66, 10, 0.9);
+    addLight(-22, 40, 119, 0xffd27a, 10, 0.8);
+  }
+
+  const FACES = [
+    { n: [0, 1, 0], v: [[0,1,0],[1,1,0],[1,1,1],[0,1,1]],
+      ao: [[[-1,1,0],[0,1,-1],[-1,1,-1]],[[1,1,0],[0,1,-1],[1,1,-1]],[[1,1,0],[0,1,1],[1,1,1]],[[-1,1,0],[0,1,1],[-1,1,1]]] },
+    { n: [0,-1,0], v: [[0,0,1],[1,0,1],[1,0,0],[0,0,0]],
+      ao: [[[-1,-1,0],[0,-1,1],[-1,-1,1]],[[1,-1,0],[0,-1,1],[1,-1,1]],[[1,-1,0],[0,-1,-1],[1,-1,-1]],[[-1,-1,0],[0,-1,-1],[-1,-1,-1]]] },
+    { n: [1,0,0], v: [[1,0,0],[1,0,1],[1,1,1],[1,1,0]],
+      ao: [[[1,-1,0],[1,0,-1],[1,-1,-1]],[[1,-1,0],[1,0,1],[1,-1,1]],[[1,1,0],[1,0,1],[1,1,1]],[[1,1,0],[1,0,-1],[1,1,-1]]] },
+    { n: [-1,0,0], v: [[0,0,1],[0,0,0],[0,1,0],[0,1,1]],
+      ao: [[[-1,-1,0],[-1,0,1],[-1,-1,1]],[[-1,-1,0],[-1,0,-1],[-1,-1,-1]],[[-1,1,0],[-1,0,-1],[-1,1,-1]],[[-1,1,0],[-1,0,1],[-1,1,1]]] },
+    { n: [0,0,1], v: [[1,0,1],[0,0,1],[0,1,1],[1,1,1]],
+      ao: [[[0,-1,1],[1,0,1],[1,-1,1]],[[0,-1,1],[-1,0,1],[-1,-1,1]],[[0,1,1],[-1,0,1],[-1,1,1]],[[0,1,1],[1,0,1],[1,1,1]]] },
+    { n: [0,0,-1], v: [[0,0,0],[1,0,0],[1,1,0],[0,1,0]],
+      ao: [[[0,-1,-1],[-1,0,-1],[-1,-1,-1]],[[0,-1,-1],[1,0,-1],[1,-1,-1]],[[0,1,-1],[1,0,-1],[1,1,-1]],[[0,1,-1],[-1,0,-1],[-1,1,-1]]] }
+  ];
+  const AO_VAL = [0.38, 0.58, 0.78, 1.0];
+
+  function tileUV(tile) {
+    const cols = ATLAS_TILES;
+    const rows = 6;
+    const tx = tile % cols, ty = (tile / cols) | 0;
+    const inset = 0.02;
+    const u0 = (tx + inset) / cols;
+    const u1 = (tx + 1 - inset) / cols;
+    const v0 = (ty + inset) / rows;
+    const v1 = (ty + 1 - inset) / rows;
+    return [u0, v0, u1, v1];
+  }
+
+  function shouldFace(id, nb) {
+    if (nb === AIR) return true;
+    if (id === nb && isTrans(id)) return false;
+    if (!isOpaque(nb) && isOpaque(id)) return true;
+    if (isTrans(id) && isOpaque(nb)) return false;
+    if (isTrans(id) && isTrans(nb) && id !== nb) return true;
+    return false;
+  }
+
+  function meshChunk(cx, cz) {
+    const ox = cx * CHUNK, oz = cz * CHUNK;
+    const BW = CHUNK + 2, BH = HEIGHT, BD = CHUNK + 2;
+    const grid = new Uint8Array(BW * BH * BD);
+    const gi = (x, y, z) => x + z * BW + y * BW * BD;
+    for (let y = 0; y < HEIGHT; y++)
+      for (let z = -1; z <= CHUNK; z++)
+        for (let x = -1; x <= CHUNK; x++)
+          grid[gi(x + 1, y, z + 1)] = getBlock(ox + x, y, oz + z);
+
+    const posA = [], nrmA = [], uvA = [], colA = [], idxA = [];
+    const posT = [], nrmT = [], uvT = [], colT = [], idxT = [];
+
+    function opaqueAt(lx, ly, lz) {
+      if (ly < 0) return 1;
+      if (ly >= HEIGHT) return 0;
+      return isOpaque(grid[gi(lx, ly, lz)]) ? 1 : 0;
+    }
+
+    function addFace(trans, x, y, z, face, tile, emit, tint) {
+      const pos = trans ? posT : posA;
+      const nrm = trans ? nrmT : nrmA;
+      const uv = trans ? uvT : uvA;
+      const col = trans ? colT : colA;
+      const idx = trans ? idxT : idxA;
+      const base = pos.length / 3;
+      const F = FACES[face];
+      const [u0, v0, u1, v1] = tileUV(tile);
+      const uvs = [[u0, v1], [u1, v1], [u1, v0], [u0, v0]];
+      const aos = [];
+      for (let i = 0; i < 4; i++) {
+        const a = F.ao[i];
+        const s1 = opaqueAt(x + a[0][0] + 1, y + a[0][1], z + a[0][2] + 1);
+        const s2 = opaqueAt(x + a[1][0] + 1, y + a[1][1], z + a[1][2] + 1);
+        const cr = opaqueAt(x + a[2][0] + 1, y + a[2][1], z + a[2][2] + 1);
+        const ao = (s1 && s2) ? 0 : 3 - (s1 + s2 + cr);
+        aos.push(ao);
+        const shade = AO_VAL[ao] * (0.72 + emit * 0.28);
+        const lit = face === 0 ? 1.05 : face === 1 ? 0.55 : (face === 2 || face === 3) ? 0.8 : 0.9;
+        const e = Math.max(shade * lit, emit * 0.85);
+        pos.push(x + ox + F.v[i][0], y + F.v[i][1], z + oz + F.v[i][2]);
+        nrm.push(F.n[0], F.n[1], F.n[2]);
+        uv.push(uvs[i][0], uvs[i][1]);
+        col.push(tint[0] * e, tint[1] * e, tint[2] * e);
+      }
+      if (aos[0] + aos[2] > aos[1] + aos[3]) idx.push(base, base + 3, base + 2, base, base + 2, base + 1);
+      else idx.push(base + 1, base + 0, base + 3, base + 1, base + 3, base + 2);
+    }
+
+    for (let y = 0; y < HEIGHT; y++) {
+      for (let z = 0; z < CHUNK; z++) {
+        for (let x = 0; x < CHUNK; x++) {
+          const id = grid[gi(x + 1, y, z + 1)];
+          if (id === AIR) continue;
+          const def = BLOCKS[id];
+          const trans = !def.opaque;
+          const nbs = [
+            y + 1 < HEIGHT ? grid[gi(x + 1, y + 1, z + 1)] : AIR,
+            y > 0 ? grid[gi(x + 1, y - 1, z + 1)] : BEDROCK,
+            grid[gi(x + 2, y, z + 1)],
+            grid[gi(x, y, z + 1)],
+            grid[gi(x + 1, y, z + 2)],
+            grid[gi(x + 1, y, z)]
+          ];
+          const tiles = [def.top, def.bottom, def.side, def.side, def.side, def.side];
+          for (let f = 0; f < 6; f++) {
+            if (shouldFace(id, nbs[f])) addFace(trans, x, y, z, f, tiles[f], def.emit, def.tint);
+          }
+        }
+      }
+    }
+
+    function make(pos, nrm, uv, col, idx) {
+      if (!idx.length) return null;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
+      g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+      g.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
+      return g;
+    }
+    return {
+      opaque: make(posA, nrmA, uvA, colA, idxA),
+      trans: make(posT, nrmT, uvT, colT, idxT)
+    };
+  }
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x7eb1d8);
+  scene.fog = new THREE.Fog(0xa8c8e0, VIEW * CHUNK * 0.62, VIEW * CHUNK * 1.05);
+
+  const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.08, 320);
+  scene.add(camera);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.domElement.className = "webgl";
+  document.body.appendChild(renderer.domElement);
+
+  const skyMat = new THREE.ShaderMaterial({
+    uniforms: {
+      topColor: { value: new THREE.Color(0x1a6fb8) },
+      bottomColor: { value: new THREE.Color(0xd7e9f8) },
+      offset: { value: 20 },
+      exponent: { value: 0.55 }
+    },
+    vertexShader: `
+      varying vec3 vW;
+      void main(){
+        vec4 wp = modelMatrix * vec4(position,1.0);
+        vW = wp.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+      }`,
+    fragmentShader: `
+      uniform vec3 topColor, bottomColor;
+      uniform float offset, exponent;
+      varying vec3 vW;
+      void main(){
+        float h = normalize(vW + vec3(0.0, offset, 0.0)).y;
+        gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h,0.0), exponent), 0.0)), 1.0);
+      }`,
+    side: THREE.BackSide, depthWrite: false
+  });
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(220, 24, 12), skyMat);
+  scene.add(sky);
+
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(6, 16, 12),
+    new THREE.MeshBasicMaterial({ color: 0xfff1c2 })
+  );
+  sun.position.set(-80, 110, 40);
+  scene.add(sun);
+  const moon = new THREE.Mesh(
+    new THREE.SphereGeometry(3.5, 12, 10),
+    new THREE.MeshBasicMaterial({ color: 0xcfdcff })
+  );
+  moon.position.set(90, 70, -60);
+  scene.add(moon);
+
+  scene.add(new THREE.HemisphereLight(0xb8d4ff, 0x6b5340, 0.55));
+  const dir = new THREE.DirectionalLight(0xffe6c0, 0.85);
+  dir.position.set(-40, 80, 30);
+  scene.add(dir);
+  scene.add(new THREE.AmbientLight(0x6a7a90, 0.22));
+
+  const matOpaque = new THREE.MeshLambertMaterial({
+    map: atlas.tex, vertexColors: true, side: THREE.FrontSide
+  });
+  const matTrans = new THREE.MeshLambertMaterial({
+    map: atlas.tex, vertexColors: true, transparent: true, alphaTest: 0.12,
+    depthWrite: true, side: THREE.FrontSide
+  });
+
+  const hl = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002, 1.002, 1.002)),
+    new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 })
+  );
+  hl.visible = false;
+  scene.add(hl);
+
+  const particles = [];
+  const pGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+
+  function spawnBits(x, y, z, id) {
+    const def = BLOCKS[id];
+    const col = new THREE.Color(def.emit ? 0xffee88 : 0xffffff);
+    for (let i = 0; i < 8; i++) {
+      const m = new THREE.Mesh(pGeo, new THREE.MeshLambertMaterial({ map: atlas.tex, color: col }));
+      m.position.set(x + 0.5 + (Math.random() - 0.5) * 0.6, y + 0.5 + (Math.random() - 0.5) * 0.6, z + 0.5 + (Math.random() - 0.5) * 0.6);
+      m.userData = {
+        vx: (Math.random() - 0.5) * 4,
+        vy: Math.random() * 4 + 1,
+        vz: (Math.random() - 0.5) * 4,
+        life: 0.5 + Math.random() * 0.3
+      };
+      scene.add(m);
+      particles.push(m);
+    }
+  }
+
+  const worldGroup = new THREE.Group();
+  scene.add(worldGroup);
+
+  function chunkKey(cx, cz) { return cx + "," + cz; }
+
+  function disposeChunk(k) {
+    const rec = chunkMeshes.get(k);
+    if (!rec) return;
+    rec.forEach(m => {
+      worldGroup.remove(m);
+      m.geometry.dispose();
+    });
+    chunkMeshes.delete(k);
+    chunks.delete(k);
+  }
+
+  function rebuildChunk(cx, cz) {
+    const k = chunkKey(cx, cz);
+    const rec = chunkMeshes.get(k);
+    if (rec) {
+      rec.forEach(m => { worldGroup.remove(m); m.geometry.dispose(); });
+      chunkMeshes.delete(k);
+    }
+    const geos = meshChunk(cx, cz);
+    const arr = [];
+    if (geos.opaque) {
+      const m = new THREE.Mesh(geos.opaque, matOpaque);
+      worldGroup.add(m); arr.push(m);
+    }
+    if (geos.trans) {
+      const m = new THREE.Mesh(geos.trans, matTrans);
+      worldGroup.add(m); arr.push(m);
+    }
+    chunkMeshes.set(k, arr);
+    chunks.set(k, 1);
+  }
+
+  const loadQ = [];
+  const loaded = new Set();
+  function requestChunk(cx, cz) {
+    const k = chunkKey(cx, cz);
+    if (loaded.has(k)) return;
+    loaded.add(k);
+    loadQ.push([cx, cz]);
+  }
+
+  function neededChunks(px, pz, dist) {
+    const ccx = Math.floor(px / CHUNK), ccz = Math.floor(pz / CHUNK);
+    const list = [];
+    for (let dz = -dist; dz <= dist; dz++)
+      for (let dx = -dist; dx <= dist; dx++) {
+        if (dx * dx + dz * dz > dist * dist + 2) continue;
+        list.push([ccx + dx, ccz + dz, dx * dx + dz * dz]);
+      }
+    list.sort((a, b) => a[2] - b[2]);
+    return list;
+  }
+
+  function syncChunks(px, pz, dist) {
+    const need = neededChunks(px, pz, dist);
+    const keep = new Set();
+    for (const [cx, cz] of need) {
+      const k = chunkKey(cx, cz);
+      keep.add(k);
+      if (!loaded.has(k)) requestChunk(cx, cz);
+    }
+    for (const k of [...chunkMeshes.keys()]) {
+      if (!keep.has(k)) {
+        disposeChunk(k);
+        loaded.delete(k);
+      }
+    }
+  }
+
+  const HOT = [GRASS, DIRT, STONE, COBBLE, PLANKS, GLASS, QUARTZ, CRYSTAL, GOLD];
+  let slot = 0;
+  let showF3 = true;
+
+  const player = {
+    x: 0.5, y: 40, z: 4.5,
+    vx: 0, vy: 0, vz: 0,
+    yaw: Math.PI, pitch: -0.18,
+    onGround: false, flying: false, inWater: false
+  };
+
+  function spawnPlayer() {
+    player.x = 0.5; player.z = 6.5;
+    player.y = heightAt(0, 6) + 2;
+    player.vx = player.vy = player.vz = 0;
+    player.yaw = Math.PI;
+    player.pitch = -0.12;
+    player.flying = false;
+  }
+
+  function blockAt(x, y, z) { return getBlock(Math.floor(x), Math.floor(y), Math.floor(z)); }
+
+  function overlaps(px, py, pz) {
+    const minX = Math.floor(px - PW), maxX = Math.floor(px + PW);
+    const minY = Math.floor(py + 1e-4), maxY = Math.floor(py + PH - 1e-4);
+    const minZ = Math.floor(pz - PW), maxZ = Math.floor(pz + PW);
+    for (let x = minX; x <= maxX; x++)
+      for (let y = minY; y <= maxY; y++)
+        for (let z = minZ; z <= maxZ; z++)
+          if (isSolid(getBlock(x, y, z))) return true;
+    return false;
+  }
+
+  function liquidAtBox(px, py, pz) {
+    const minX = Math.floor(px - PW), maxX = Math.floor(px + PW);
+    const minY = Math.floor(py + 0.2), maxY = Math.floor(py + PH * 0.6);
+    const minZ = Math.floor(pz - PW), maxZ = Math.floor(pz + PW);
+    for (let x = minX; x <= maxX; x++)
+      for (let y = minY; y <= maxY; y++)
+        for (let z = minZ; z <= maxZ; z++) {
+          const id = getBlock(x, y, z);
+          if (isLiquid(id)) return id;
+        }
+    return 0;
+  }
+
+  const keys = Object.create(null);
+  let pointerLocked = false;
+  let state = "load";
+  let lastSpace = 0;
+
+  function raycast(maxd) {
+    const ox = camera.position.x, oy = camera.position.y, oz = camera.position.z;
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
+    const sx = dir.x > 0 ? 1 : -1, sy = dir.y > 0 ? 1 : -1, sz = dir.z > 0 ? 1 : -1;
+    const ax = Math.abs(dir.x), ay = Math.abs(dir.y), az = Math.abs(dir.z);
+    const tdx = ax < 1e-8 ? 1e8 : 1 / ax;
+    const tdy = ay < 1e-8 ? 1e8 : 1 / ay;
+    const tdz = az < 1e-8 ? 1e8 : 1 / az;
+    let tx = ((sx > 0 ? (x + 1 - ox) : (ox - x)) * tdx);
+    let ty = ((sy > 0 ? (y + 1 - oy) : (oy - y)) * tdy);
+    let tz = ((sz > 0 ? (z + 1 - oz) : (oz - z)) * tdz);
+    let nx = 0, ny = 0, nz = 0, dist = 0;
+    for (let i = 0; i < 96; i++) {
+      const id = getBlock(x, y, z);
+      if (id !== AIR && id !== CLOUD && !isLiquid(id)) {
+        return { x, y, z, nx, ny, nz, id, dist };
+      }
+      if (tx < ty && tx < tz) { dist = tx; tx += tdx; x += sx; nx = -sx; ny = 0; nz = 0; }
+      else if (ty < tz) { dist = ty; ty += tdy; y += sy; nx = 0; ny = -sy; nz = 0; }
+      else { dist = tz; tz += tdz; z += sz; nx = 0; ny = 0; nz = -sz; }
+      if (dist > maxd) break;
+    }
+    return null;
+  }
+
+  function setBlockWorld(x, y, z, id) {
+    if (y < 1 || y >= HEIGHT - 1) return;
+    if (id === AIR && getBlock(x, y, z) === BEDROCK) return;
+    edits.set(key(x, y, z), id);
+    const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+    const dirty = (x, z) => {
+      const k = chunkKey(x, z);
+      if (loaded.has(k) || chunkMeshes.has(k)) rebuildChunk(x, z);
+    };
+    dirty(cx, cz);
+    const lx = ((x % CHUNK) + CHUNK) % CHUNK;
+    const lz = ((z % CHUNK) + CHUNK) % CHUNK;
+    if (lx === 0) dirty(cx - 1, cz);
+    if (lx === CHUNK - 1) dirty(cx + 1, cz);
+    if (lz === 0) dirty(cx, cz - 1);
+    if (lz === CHUNK - 1) dirty(cx, cz + 1);
+  }
+
+  function playerIntersectsBlock(bx, by, bz) {
+    const minX = player.x - PW, maxX = player.x + PW;
+    const minY = player.y, maxY = player.y + PH;
+    const minZ = player.z - PW, maxZ = player.z + PW;
+    return maxX > bx && minX < bx + 1 && maxY > by && minY < by + 1 && maxZ > bz && minZ < bz + 1;
+  }
+
+  let breakHold = 0, placeHold = 0, punching = 0;
+  let lookHit = null;
+  const mouse = { left: false, right: false };
+
+  function tryBreak() {
+    const hit = raycast(8);
+    if (!hit) return;
+    spawnBits(hit.x, hit.y, hit.z, hit.id);
+    setBlockWorld(hit.x, hit.y, hit.z, AIR);
+    punching = 1;
+  }
+  function tryPlace() {
+    const hit = raycast(8);
+    if (!hit) return;
+    const id = HOT[slot];
+    const x = hit.x + hit.nx, y = hit.y + hit.ny, z = hit.z + hit.nz;
+    if (y < 1 || y >= HEIGHT - 1) return;
+    if (playerIntersectsBlock(x, y, z)) return;
+    if (getBlock(x, y, z) !== AIR && !isLiquid(getBlock(x, y, z))) return;
+    setBlockWorld(x, y, z, id);
+    punching = 1;
+  }
+
+  function makeItemIcon(id) {
+    const c = document.createElement("canvas");
+    c.width = 48; c.height = 48;
+    const g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    const def = BLOCKS[id];
+    const src = atlas.canvas;
+    const cols = ATLAS_TILES, rows = 6;
+    function blit(tile, dx, dy, dw, dh) {
+      const tx = tile % cols, ty = (tile / cols) | 0;
+      g.drawImage(src, tx * 16, ty * 16, 16, 16, dx, dy, dw, dh);
+    }
+    g.fillStyle = "#000";
+    blit(def.side, 6, 18, 22, 24);
+    g.globalAlpha = 0.95;
+    blit(def.side, 22, 14, 20, 24);
+    g.globalAlpha = 1;
+    blit(def.top, 8, 6, 32, 16);
+    return c;
+  }
+
+  const hotEl = document.getElementById("hotbar");
+  const slotsEls = [];
+  HOT.forEach((id, i) => {
+    const d = document.createElement("div");
+    d.className = "slot" + (i === 0 ? " sel" : "");
+    d.appendChild(makeItemIcon(id));
+    const n = document.createElement("div");
+    n.className = "n"; n.textContent = String(i + 1);
+    d.appendChild(n);
+    hotEl.appendChild(d);
+    slotsEls.push(d);
+  });
+  const bnameEl = document.getElementById("bname");
+  let bnameT = 0;
+  function selectSlot(i) {
+    slot = (i + HOT.length) % HOT.length;
+    slotsEls.forEach((e, k) => e.classList.toggle("sel", k === slot));
+    bnameEl.textContent = BLOCKS[HOT[slot]].name;
+    bnameEl.style.opacity = "1";
+    bnameT = 1.4;
+    updateHand();
+  }
+
+  function makeHandMesh(id) {
+    const def = BLOCKS[id];
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const uv = geo.attributes.uv;
+    const facesTiles = [def.side, def.side, def.top, def.bottom, def.side, def.side];
+    const cols = ATLAS_TILES, rows = 6;
+    for (let f = 0; f < 6; f++) {
+      const tile = facesTiles[f];
+      const tx = tile % cols, ty = (tile / cols) | 0;
+      const u0 = tx / cols, u1 = (tx + 1) / cols;
+      const v0 = ty / rows, v1 = (ty + 1) / rows;
+      const o = f * 8;
+      const arr = [u0, v1, u1, v1, u0, v0, u1, v0];
+      for (let i = 0; i < 8; i++) uv.array[o + i] = arr[i];
+    }
+    uv.needsUpdate = true;
+    const m = new THREE.Mesh(geo, matOpaque);
+    m.scale.set(0.28, 0.28, 0.28);
+    return m;
+  }
+  let hand = makeHandMesh(HOT[0]);
+  hand.position.set(0.38, -0.3, -0.6);
+  hand.rotation.set(0.15, 0.5, 0.12);
+  camera.add(hand);
+  function updateHand() {
+    camera.remove(hand);
+    if (hand.geometry) hand.geometry.dispose();
+    hand = makeHandMesh(HOT[slot]);
+    hand.position.set(0.38, -0.3, -0.6);
+    hand.rotation.set(0.15, 0.5, 0.12);
+    camera.add(hand);
+  }
+
+  const infoEl = document.getElementById("info");
+  const lookEl = document.getElementById("look");
+  const compassEl = document.getElementById("compass");
+  const overlay = document.getElementById("overlay");
+  const pauseEl = document.getElementById("pause");
+  const hud = document.getElementById("hud");
+  const loadEl = document.getElementById("load");
+  const barfill = document.getElementById("barfill");
+  const loadhint = document.getElementById("loadhint");
+
+  let walkTime = 0, fps = 60, fpsAcc = 0, fpsN = 0, fpsT = 0;
+
+  function applyCamera(dt) {
+    const bob = player.onGround && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD) && !player.flying
+      ? Math.sin(walkTime * 11) * 0.045 : 0;
+    camera.position.set(player.x, player.y + EYE + bob, player.z);
+    camera.rotation.order = "YXZ";
+    camera.rotation.y = player.yaw;
+    camera.rotation.x = player.pitch;
+    punching = Math.max(0, punching - dt * 6);
+    const p = punching * punching;
+    hand.position.set(0.38 - p * 0.12, -0.3 - p * 0.05, -0.6 - p * 0.2);
+    hand.rotation.set(0.15 + p * 0.8, 0.5, 0.12 - p * 0.3);
+    if (!player.flying && player.onGround && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD)) {
+      hand.position.y += Math.sin(walkTime * 11) * 0.02;
+    }
+  }
+
+  function physics(dt) {
+    const speed = player.flying ? (keys.ShiftLeft || keys.ShiftRight ? 18 : 11)
+      : (keys.ShiftLeft || keys.ShiftRight ? 6.4 : 4.4);
+    const fwdX = -Math.sin(player.yaw), fwdZ = -Math.cos(player.yaw);
+    const rgtX = Math.cos(player.yaw), rgtZ = -Math.sin(player.yaw);
+    let ix = 0, iz = 0;
+    if (keys.KeyW) { ix += fwdX; iz += fwdZ; }
+    if (keys.KeyS) { ix -= fwdX; iz -= fwdZ; }
+    if (keys.KeyA) { ix -= rgtX; iz -= rgtZ; }
+    if (keys.KeyD) { ix += rgtX; iz += rgtZ; }
+    const len = Math.hypot(ix, iz);
+    if (len > 0) { ix /= len; iz /= len; }
+    if (len > 0) walkTime += dt; else walkTime = 0;
+
+    const liq = liquidAtBox(player.x, player.y, player.z);
+    player.inWater = !!liq;
+
+    if (player.flying) {
+      player.vx = ix * speed;
+      player.vz = iz * speed;
+      player.vy = 0;
+      if (keys.Space) player.vy += speed;
+      if (keys.ShiftLeft || keys.ShiftRight) player.vy -= speed;
+    } else if (player.inWater) {
+      player.vx = ix * speed * 0.5;
+      player.vz = iz * speed * 0.5;
+      player.vy += dt * (liq === LAVA ? -6 : -4);
+      player.vy *= 0.92;
+      if (keys.Space) player.vy += dt * 18;
+      if (keys.ShiftLeft) player.vy -= dt * 10;
+      player.vy = clamp(player.vy, -8, 6);
+    } else {
+      player.vx = ix * speed;
+      player.vz = iz * speed;
+      player.vy -= 28 * dt;
+      if (player.vy < -40) player.vy = -40;
+    }
+
+    const steps = Math.max(1, Math.ceil(dt * 60));
+    const sdt = dt / steps;
+    player.onGround = false;
+    for (let s = 0; s < steps; s++) {
+      player.y += player.vy * sdt;
+      if (overlaps(player.x, player.y, player.z)) {
+        if (player.vy < 0) player.onGround = true;
+        const diry = Math.sign(player.vy) || -1;
+        for (let g = 0; g < 60 && overlaps(player.x, player.y, player.z); g++) player.y -= diry * 0.02;
+        player.vy = 0;
+      }
+      player.x += player.vx * sdt;
+      if (overlaps(player.x, player.y, player.z)) {
+        const dir = Math.sign(player.vx) || 1;
+        for (let g = 0; g < 40 && overlaps(player.x, player.y, player.z); g++) player.x -= dir * 0.02;
+        player.vx = 0;
+      }
+      player.z += player.vz * sdt;
+      if (overlaps(player.x, player.y, player.z)) {
+        const dir = Math.sign(player.vz) || 1;
+        for (let g = 0; g < 40 && overlaps(player.x, player.y, player.z); g++) player.z -= dir * 0.02;
+        player.vz = 0;
+      }
+    }
+    if (player.y < 1.1) { player.y = 1.1; player.vy = 0; }
+    if (player.y > HEIGHT - 3) { player.y = HEIGHT - 3; player.vy = 0; }
+  }
+
+  function updateFog() {
+    const id = blockAt(camera.position.x, camera.position.y, camera.position.z);
+    if (id === WATER) {
+      scene.fog.color.set(0x1a4a78);
+      scene.fog.near = 2; scene.fog.far = 18;
+      scene.background.set(0x1a4a78);
+    } else if (id === LAVA) {
+      scene.fog.color.set(0x6a1808);
+      scene.fog.near = 1; scene.fog.far = 10;
+      scene.background.set(0x6a1808);
+    } else {
+      scene.fog.color.set(0xa8c8e0);
+      scene.fog.near = VIEW * CHUNK * 0.62;
+      scene.fog.far = VIEW * CHUNK * 1.05;
+      scene.background.set(0x7eb1d8);
+    }
+  }
+
+  function updateHUD() {
+    const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    let a = -player.yaw * 180 / Math.PI;
+    a = ((a % 360) + 360) % 360;
+    compassEl.textContent = dirs[Math.round(a / 45) % 8];
+    if (showF3) {
+      const b = biomeAt(Math.floor(player.x), Math.floor(player.z));
+      const biomes = { plains: "平原", forest: "森林", desert: "沙漠", snow: "雪原", mountain: "山地", peak: "雪峰" };
+      infoEl.textContent =
+        `AETHERION  ${fps|0} FPS\n` +
+        `X ${player.x.toFixed(1)}  Y ${player.y.toFixed(1)}  Z ${player.z.toFixed(1)}\n` +
+        `区块 ${Math.floor(player.x/CHUNK)}, ${Math.floor(player.z/CHUNK)}   生物群系 ${biomes[b]||b}\n` +
+        (player.flying ? "飞行中" : player.onGround ? "站立" : "下落") +
+        (player.inWater ? "  · 水中" : "");
+    } else infoEl.textContent = "";
+    if (lookHit) lookEl.textContent = BLOCKS[lookHit.id] ? BLOCKS[lookHit.id].name : "";
+    else lookEl.textContent = "";
+    if (bnameT > 0) {
+      bnameT -= 0.016;
+      if (bnameT <= 0) bnameEl.style.opacity = "0";
+    }
+  }
+
+  let titleT = 0;
+  function titleCam(t) {
+    const r = 18;
+    camera.position.set(Math.sin(t * 0.15) * r, 46 + Math.sin(t * 0.2) * 2, 18 + Math.cos(t * 0.15) * r);
+    camera.lookAt(18, 50, -90);
+    camera.rotation.order = "YXZ";
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    fpsAcc += 1 / dt; fpsN++; fpsT += dt;
+    if (fpsT > 0.4) { fps = fpsAcc / fpsN; fpsAcc = 0; fpsN = 0; fpsT = 0; }
+
+    if (state === "load") {
+      let n = 0;
+      while (loadQ.length && n < 2) {
+        const [cx, cz] = loadQ.shift();
+        rebuildChunk(cx, cz);
+        n++;
+      }
+      const total = (VIEW * 2 + 1) * (VIEW * 2 + 1);
+      const done = chunkMeshes.size;
+      barfill.style.width = Math.min(100, (done / Math.max(1, total)) * 100) + "%";
+      loadhint.textContent = "正在雕刻大地  " + done + " / " + total;
+      if (loadQ.length === 0 && done > 8) {
+        loadEl.classList.add("hidden");
+        overlay.classList.remove("hidden");
+        state = "title";
+        titleT = 0;
+      }
+    } else if (state === "title") {
+      titleT += dt;
+      titleCam(titleT);
+      sky.position.copy(camera.position);
+    } else if (state === "play") {
+      if (mouse.left) {
+        breakHold -= dt;
+        if (breakHold <= 0) { tryBreak(); breakHold = 0.18; }
+      } else breakHold = 0;
+      if (mouse.right) {
+        placeHold -= dt;
+        if (placeHold <= 0) { tryPlace(); placeHold = 0.22; }
+      } else placeHold = 0;
+
+      physics(dt);
+      applyCamera(dt);
+      lookHit = raycast(8);
+      if (lookHit) {
+        hl.visible = true;
+        hl.position.set(lookHit.x + 0.5, lookHit.y + 0.5, lookHit.z + 0.5);
+      } else hl.visible = false;
+
+      syncChunks(player.x, player.z, VIEW);
+      let built = 0;
+      while (loadQ.length && built < 1) {
+        const [cx, cz] = loadQ.shift();
+        rebuildChunk(cx, cz);
+        built++;
+      }
+      updateFog();
+      updateHUD();
+      sky.position.copy(camera.position);
+      sun.position.copy(camera.position).add(new THREE.Vector3(-80, 110, 40));
+      moon.position.copy(camera.position).add(new THREE.Vector3(90, 70, -60));
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.userData.life -= dt;
+      p.userData.vy -= 18 * dt;
+      p.position.x += p.userData.vx * dt;
+      p.position.y += p.userData.vy * dt;
+      p.position.z += p.userData.vz * dt;
+      p.rotation.x += dt * 4; p.rotation.y += dt * 5;
+      if (p.userData.life <= 0) {
+        scene.remove(p);
+        p.material.dispose();
+        particles.splice(i, 1);
+      }
+    }
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  }
+
+  function startPlay() {
+    overlay.classList.add("hidden");
+    pauseEl.style.display = "none";
+    hud.classList.remove("hidden");
+    state = "play";
+    spawnPlayer();
+    renderer.domElement.requestPointerLock();
+  }
+
+  overlay.addEventListener("click", startPlay);
+  pauseEl.addEventListener("click", () => {
+    pauseEl.style.display = "none";
+    renderer.domElement.requestPointerLock();
+  });
+
+  document.addEventListener("pointerlockchange", () => {
+    pointerLocked = document.pointerLockElement === renderer.domElement;
+    if (state === "play" && !pointerLocked) pauseEl.style.display = "flex";
+    else if (pointerLocked) pauseEl.style.display = "none";
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!pointerLocked || state !== "play") return;
+    player.yaw -= e.movementX * 0.0022;
+    player.pitch -= e.movementY * 0.0022;
+    player.pitch = clamp(player.pitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
+  });
+
+  document.addEventListener("mousedown", (e) => {
+    if (state !== "play" || !pointerLocked) return;
+    if (e.button === 0) { mouse.left = true; breakHold = 0; }
+    if (e.button === 2) { mouse.right = true; placeHold = 0; }
+  });
+  document.addEventListener("mouseup", (e) => {
+    if (e.button === 0) mouse.left = false;
+    if (e.button === 2) mouse.right = false;
+  });
+  document.addEventListener("contextmenu", (e) => e.preventDefault());
+  document.addEventListener("wheel", (e) => {
+    if (state !== "play") return;
+    e.preventDefault();
+    selectSlot(slot + (e.deltaY > 0 ? 1 : -1));
+  }, { passive: false });
+
+  document.addEventListener("keydown", (e) => {
+    keys[e.code] = true;
+    if (e.code === "Space") e.preventDefault();
+    if (e.code >= "Digit1" && e.code <= "Digit9") selectSlot(e.code.charCodeAt(5) - 49);
+    if (e.code === "KeyF") player.flying = !player.flying;
+    if (e.code === "KeyR" && state === "play") spawnPlayer();
+    if (e.code === "F3") { showF3 = !showF3; e.preventDefault(); }
+    if (e.code === "Space") {
+      const t = performance.now();
+      if (t - lastSpace < 280) player.flying = !player.flying;
+      lastSpace = t;
+      if (state === "play" && player.onGround && !player.flying) player.vy = 9.2;
+    }
+    if (e.code === "Escape" && state === "play" && pointerLocked) document.exitPointerLock();
+  });
+  document.addEventListener("keyup", (e) => { keys[e.code] = false; });
+
+  window.addEventListener("resize", () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  buildAllStructures();
+  lights.forEach(L => {
+    const p = new THREE.PointLight(L.color, L.intens, L.dist);
+    p.position.set(L.x, L.y, L.z);
+    scene.add(p);
+  });
+
+  spawnPlayer();
+  syncChunks(player.x, player.z, VIEW);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
