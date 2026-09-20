@@ -85,7 +85,7 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | Inkling-Small | Thinking Machines Lab | Tinker Web · xHigh | 03 |
 | Qoder Ultimate | Alibaba | Qoder · Default<br>Qoder · Max | 05 |
 | Qwen 3.8 27B | Alibaba | OMP · Default | 01（仅展示 01） |
-| GPT-6 Astra | OpenAI | Codex CLI · xhigh | 02 |
+| GPT-6 Astra | OpenAI | Codex CLI · xhigh | 03 |
 <!-- registry:end -->
 
 ## Arena 盲评与社区榜单

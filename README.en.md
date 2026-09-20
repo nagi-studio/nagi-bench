@@ -85,7 +85,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Inkling-Small | Thinking Machines Lab | Tinker Web · xHigh | 03 |
 | Qoder Ultimate | Alibaba | Qoder · Default<br>Qoder · Max | 05 |
 | Qwen 3.8 27B | Alibaba | OMP · Default | 01 (showcase 01) |
-| GPT-6 Astra | OpenAI | Codex CLI · xhigh | 02 |
+| GPT-6 Astra | OpenAI | Codex CLI · xhigh | 03 |
 <!-- registry:end -->
 
 ## Arena blind battles & community board
