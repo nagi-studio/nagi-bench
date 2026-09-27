@@ -160,3 +160,8 @@ bun scripts/update-registry.ts # 可选：本地预览 Registry 表；合并到 
 - 新组合的 `harness`（运行环境）与 `effort`（思考配额）请如实填写：站点会据此在测评页生成「运行环境 / 思考配额」metadata 徽章，并自动为模型、厂商、Harness 匹配品牌 icon（来自 [lobe-icons](https://github.com/lobehub/lobe-icons)），贡献者无需处理任何图标。
 
 提 PR 后 CI 自动校验数据；合入 `main` 后站点自动重建（通常即时，最长 6 小时）。
+
+## 许可 / License
+
+- 代码（`scripts/` 等）：[MIT](./LICENSE)
+- 测评数据与作品（`cases.json`、`models/`、`outputs/`）：[CC BY 4.0](./LICENSE-DATA)，转载或使用请注明出处「NAGI BENCH（https://bench.nagi.fun/）」

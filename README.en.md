@@ -132,3 +132,8 @@ Contributions are data-only — no code changes needed:
 CI-enforced rules: dash-only lowercase `agent-id`s as stable identities; without `artifactDir`, artifacts default to `outputs/<agent-id>/`; with `artifactDir`, use one or two lowercase dash-case path segments, preferably `<base-model>/<harness-effort>`. A bilingual provenance `note` is required per run (which harness, what effort, one-shot or fixed); every declared run must have its artifact; multiple versions of the same combination x case go in an array with distinct `file` names (e.g. `pelican-cycling-2.svg`). Set `contributor` to your GitHub username — the site shows your avatar linked to your profile next to the run. Skill/plugin/non-standard outputs require maintainer approval plus `"evaluation": "showcase"`, must disclose the setup in both notes, and stay permanently excluded from blind voting and rankings. Fill in `harness` and `effort` truthfully for new combinations: the case page renders Harness / Effort metadata chips from these fields and auto-matches brand icons for the model, vendor and harness (via [lobe-icons](https://github.com/lobehub/lobe-icons)) — contributors never touch icons.
 
 PRs get data validation from CI; merges to `main` rebuild the site automatically (usually instant, at most 6 hours).
+
+## License
+
+- Code (`scripts/` and other code files): [MIT](./LICENSE)
+- Benchmark data and artifacts (`cases.json`, `models/`, `outputs/`): [CC BY 4.0](./LICENSE-DATA). Please credit "NAGI BENCH (https://bench.nagi.fun/)".
