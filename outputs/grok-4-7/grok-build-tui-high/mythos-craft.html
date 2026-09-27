@@ -1,0 +1,2721 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>神话纪元</title>
+<style>
+  :root {
+    --gold: #e7c98a;
+    --ink: #f4efe4;
+    --dim: #b7c3ce;
+    --panel: rgba(8, 10, 16, 0.72);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #07090e; color: var(--ink); }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background: radial-gradient(ellipse at center, transparent 48%, rgba(0,0,0,.42) 100%);
+  }
+  #veil { position: fixed; inset: 0; pointer-events: none; z-index: 2; opacity: 0; }
+  #errmsg {
+    position: fixed; left: 12px; bottom: 12px; z-index: 50; color: #ffb4b4;
+    font: 13px/1.4 "Noto Sans Mono CJK SC", ui-monospace, monospace; white-space: pre-wrap; max-width: 70vw;
+  }
+  #screen, #pause, #inv {
+    position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
+  }
+  #screen { padding-left: 7vw; background: #07090e; transition: background .7s ease; }
+  #screen.ready {
+    background: linear-gradient(90deg, rgba(7,9,14,.84) 0%, rgba(7,9,14,.28) 26%, rgba(7,9,14,0) 52%);
+  }
+  #screen.hidden, #pause.hidden, #inv.hidden { display: none; }
+  .card {
+    width: min(460px, 92vw); padding: 28px 30px 24px;
+    background: var(--panel); border: 1px solid rgba(231,201,138,.35);
+    border-radius: 18px; backdrop-filter: blur(8px);
+    box-shadow: 0 20px 80px rgba(0,0,0,.45);
+    font-family: "Noto Serif CJK SC", "Songti SC", serif;
+  }
+  .card h1 { margin: 0 0 4px; font-size: 46px; font-weight: 700; letter-spacing: .12em; color: var(--gold); }
+  .card .sub { margin: 0 0 16px; color: var(--dim); letter-spacing: .08em; }
+  .lore { margin: 0 0 14px; line-height: 1.65; font-size: 15px; }
+  .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin: 10px 0 16px; font-size: 13.5px; color: var(--dim); }
+  .keys b { color: var(--ink); font-weight: 600; }
+  button.enter, button.ghost {
+    font-family: inherit; cursor: pointer; border-radius: 999px; padding: 10px 22px; font-size: 16px;
+  }
+  button.enter {
+    background: linear-gradient(180deg, #f0d7a2, #c79a4a); color: #2a2112; border: 0; font-weight: 700;
+  }
+  button.enter:disabled { opacity: .55; cursor: default; }
+  button.ghost { background: transparent; color: var(--gold); border: 1px solid rgba(231,201,138,.45); margin-left: 8px; }
+  .bar { height: 6px; border-radius: 99px; background: rgba(255,255,255,.08); margin: 12px 0; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #8fd0ff, #e7c98a); }
+  #pause { justify-content: center; background: rgba(0,0,0,.28); }
+  #inv { justify-content: center; background: rgba(0,0,0,.45); }
+  #inv .card { width: min(760px, 94vw); }
+  #grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px;
+    max-height: 52vh; overflow: auto; margin-top: 8px;
+  }
+  #grid button {
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+    color: var(--ink); border-radius: 10px; padding: 6px; cursor: pointer;
+    font-family: "Noto Sans Mono CJK SC", sans-serif; font-size: 12px;
+  }
+  #grid button:hover { border-color: var(--gold); }
+  #grid canvas { width: 42px; height: 42px; image-rendering: pixelated; display: block; margin: 0 auto 4px; }
+  #hud { position: fixed; inset: 0; z-index: 4; pointer-events: none; display: none; }
+  #hud.show { display: block; }
+  #cross {
+    position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%,-50%);
+  }
+  #cross::before, #cross::after {
+    content: ""; position: absolute; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.55);
+  }
+  #cross::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #cross::after { top: 8px; left: 0; height: 2px; width: 18px; }
+  #compass {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    width: min(420px, 46vw); height: 28px; overflow: hidden;
+    border-bottom: 1px solid rgba(231,201,138,.35);
+    font-family: "Noto Serif CJK SC", serif; color: var(--gold); font-size: 14px;
+  }
+  #compass i {
+    position: absolute; top: 2px; transform: translateX(-50%); white-space: nowrap; opacity: .9;
+  }
+  #compass .tick { position: absolute; top: 22px; width: 1px; height: 6px; background: rgba(231,201,138,.7); }
+  #left {
+    position: absolute; top: 16px; left: 16px; font: 13px/1.55 "Noto Sans Mono CJK SC", monospace;
+    text-shadow: 0 1px 2px #000;
+  }
+  #left .title { font-family: "Noto Serif CJK SC", serif; color: var(--gold); font-size: 18px; letter-spacing: .14em; }
+  #marks {
+    position: absolute; top: 132px; left: 16px; width: 230px;
+    background: rgba(8,10,16,.45); border: 1px solid rgba(231,201,138,.2); border-radius: 12px; padding: 8px 10px;
+    font: 12.5px/1.45 "Noto Sans Mono CJK SC", monospace;
+  }
+  #marks b { font-weight: 600; }
+  .mk { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .mk s { text-decoration: none; color: var(--gold); display: inline-block; width: 1.2em; }
+  #mapwrap {
+    position: absolute; top: 16px; right: 16px; width: 168px; height: 168px; border-radius: 50%;
+    border: 2px solid rgba(231,201,138,.65); box-shadow: 0 8px 30px rgba(0,0,0,.4); overflow: hidden;
+  }
+  #map { width: 100%; height: 100%; display: block; }
+  #hotbar {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    display: flex; gap: 6px;
+  }
+  .slot {
+    width: 54px; height: 54px; border-radius: 8px; position: relative;
+    background: rgba(12,14,20,.72); border: 2px solid rgba(255,255,255,.16);
+  }
+  .slot.on { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(231,201,138,.4); }
+  .slot canvas { width: 40px; height: 40px; image-rendering: pixelated; position: absolute; left: 5px; top: 5px; }
+  .slot i {
+    position: absolute; left: 4px; top: 1px; font-style: normal; font-size: 11px;
+    font-family: "Noto Sans Mono CJK SC", monospace; text-shadow: 0 1px 2px #000;
+  }
+  #hand {
+    position: absolute; left: 50%; bottom: 78px; transform: translateX(-50%);
+    font: 13px/1.4 "Noto Serif CJK SC", serif; color: var(--ink); text-shadow: 0 1px 2px #000;
+  }
+  #hearts { position: absolute; left: 16px; bottom: 18px; display: flex; gap: 3px; font-size: 18px; }
+  #hearts span { color: #6a3030; text-shadow: 0 1px 1px #000; }
+  #hearts span.full { color: #e23b3b; }
+  #hearts span.half { color: #e23b3b; opacity: .55; }
+  #banner, #toast {
+    position: absolute; left: 50%; top: 18%; transform: translateX(-50%);
+    text-align: center; font-family: "Noto Serif CJK SC", serif; pointer-events: none;
+    opacity: 0; transition: opacity .4s;
+  }
+  #banner.show, #toast.show { opacity: 1; }
+  #banner .n { font-size: 28px; color: var(--gold); letter-spacing: .2em; }
+  #banner .d, #toast { color: var(--ink); text-shadow: 0 2px 8px #000; }
+  #hint {
+    position: absolute; left: 50%; bottom: 86px; transform: translateX(-50%);
+    color: rgba(244,239,228,.8); font: 13px/1.4 "Noto Sans Mono CJK SC", monospace;
+    text-shadow: 0 1px 2px #000; transition: opacity 1s;
+  }
+  @media (max-width: 720px) {
+    #marks, #mapwrap { display: none; }
+    .card h1 { font-size: 34px; }
+    .slot { width: 40px; height: 40px; }
+    .slot canvas { width: 30px; height: 30px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="vignette"></div>
+<div id="veil"></div>
+<div id="errmsg"></div>
+<div id="screen">
+  <div class="card">
+    <h1>神话纪元</h1>
+    <p class="sub">一方被故事填满的方块大陆</p>
+    <p class="lore">星辉广场的罗盘仍在转动。向东是不灭的太阳神殿，向北是精灵王城，熔岩里睡着龙的遗骨，云上挂着群岛与瀑布。挖开土地，或把它们重新砌起来。</p>
+    <div class="keys">
+      <div><b>WASD</b> 移动</div><div><b>鼠标</b> 环视</div>
+      <div><b>空格</b> 跳跃 / 双击飞行</div><div><b>Shift</b> 潜行 / 下降</div>
+      <div><b>Ctrl</b> 疾跑</div><div><b>F</b> 飞行 · <b>V</b> 穿墙</div>
+      <div><b>左键</b> 破坏</div><div><b>右键</b> 放置</div>
+      <div><b>滚轮 / 1-0</b> 选方块</div><div><b>中键</b> 吸取方块</div>
+      <div><b>E</b> 物品栏</div><div><b>R</b> 回到广场</div>
+      <div><b>T</b> 快进昼夜</div><div><b>[ ]</b> 视距 · <b>H</b> 界面</div>
+      <div><b>M</b> 静音</div><div><b>Esc</b> 暂停</div>
+    </div>
+    <div class="bar"><i id="prog"></i></div>
+    <button class="enter" id="play" disabled>世界正在苏醒…</button>
+  </div>
+</div>
+<div id="pause" class="hidden">
+  <div class="card">
+    <h1 style="font-size:32px">暂停</h1>
+    <p class="lore">鼠标已释放。回到大陆后，左键破坏、右键放置。双击空格或按 F 可以飞向浮岛。</p>
+    <button class="enter" id="resume">继续探索</button>
+  </div>
+</div>
+<div id="inv" class="hidden">
+  <div class="card">
+    <h1 style="font-size:28px">物品栏</h1>
+    <p class="sub">点选方块，放进当前快捷栏。</p>
+    <div id="grid"></div>
+  </div>
+</div>
+<div id="hud">
+  <div id="cross"></div>
+  <div id="compass"></div>
+  <div id="left">
+    <div class="title">神话纪元</div>
+    <div id="stat"></div>
+  </div>
+  <div id="marks"></div>
+  <div id="mapwrap"><canvas id="map" width="168" height="168"></canvas></div>
+  <div id="banner"><div class="n"></div><div class="d"></div></div>
+  <div id="toast"></div>
+  <div id="hint">WASD 移动 · 鼠标环视 · 左键破坏 · 右键放置 · E 物品栏 · F 飞行</div>
+  <div id="hand"></div>
+  <div id="hotbar"></div>
+  <div id="hearts"></div>
+</div>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const CHUNK = 16;
+const HEIGHT = 208;
+const SEA = 62;
+const ATLAS_N = 16;
+const TILE = 16;
+
+const AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, LOG = 5, LEAVES = 6, COBBLE = 7, PLANKS = 8;
+const WATER = 9, OBSIDIAN = 10, GOLD = 11, CRYSTAL = 12, MARBLE = 13, MOSS = 14, SANDSTONE = 15, LAVA = 16;
+const SNOW = 17, ICE = 18, DARKLOG = 19, GLOW = 20, BOOK = 21, BRICK = 22, BONE = 23, ARCANE = 24, BLOSSOM = 25;
+const DEEPSLATE = 26, CACTUS = 27, MUSHRED = 28, MUSHSTEM = 29, FLOWER = 30, TALLGRASS = 31, BLUEFLOWER = 32;
+const DEADBUSH = 33, GRAVEL = 34, DARKLEAVES = 35, BEDROCK = 36, WOOLR = 37, WOOLB = 38, WOOLP = 39, GLASS = 40;
+const LANTERN = 41, RUNESTONE = 42, PRISMARINE = 43, WOOLW = 44, MUSHSMALL = 45;
+
+const BIO_PLAINS = 0, BIO_FOREST = 1, BIO_DARK = 2, BIO_BLOSSOM = 3, BIO_DESERT = 4, BIO_SNOW = 5;
+const BIO_OCEAN = 6, BIO_BEACH = 7, BIO_MUSH = 8, BIO_CRYSTAL = 9, BIO_RIVER = 10, BIO_MOUNT = 11, BIO_SWAMP = 12;
+const BIOME_NAMES = ['平原','森林','暗林','绯樱林','沙漠','雪原','海洋','海滩','菌光地','晶脉荒原','河谷','山脉','沼泽'];
+const BIO_COLOR = ['#86c456','#3f8f3c','#1c4c34','#e7a4c6','#e4d08a','#eef4f8','#2d6fbe','#ead9a4','#6d4b78','#8fd4ea','#4e90c4','#8d9298','#3e6848'];
+const GRASS_TINT = [
+  [1, 1, 1], [0.72, 1.02, 0.7], [0.52, 0.72, 0.52], [1.05, 0.9, 0.98],
+  [1, 1, 1], [0.9, 0.98, 0.95], [1, 1, 1], [1, 1, 1],
+  [0.7, 0.86, 0.62], [0.72, 0.92, 1.08], [0.82, 1.02, 0.82], [0.78, 0.84, 0.72], [0.64, 0.86, 0.58]
+];
+
+const SKY_X = 116, SKY_Z = 176;
+
+const SITES = [
+  { id:'plaza', name:'星辉广场', x:0, z:0, r:36, blurb:'旅者启程之处，星芒铺地。' },
+  { id:'sun', name:'太阳神殿', x:128, z:0, r:54, blurb:'七层砂岩圣坛，祭火不熄。' },
+  { id:'moon', name:'月井遗迹', x:-96, z:-88, r:32, blurb:'破碎拱廊环绕一池奥术。' },
+  { id:'tree', name:'世界树', x:16, z:-168, r:40, blurb:'中空巨木，螺旋梯通向天冠。' },
+  { id:'dragon', name:'龙骸火山', x:176, z:-120, r:52, blurb:'熔岩湖上横亘着古龙遗骨。' },
+  { id:'elven', name:'精灵王城', x:-156, z:120, r:50, blurb:'白石双垣、尖塔与城心书库。' },
+  { id:'sky', name:'天空群岛', x:SKY_X, z:SKY_Z, r:62, blurb:'浮岛、石桥与落入圣湖的瀑布。' },
+  { id:'library', name:'古代学宫', x:-176, z:-16, r:42, blurb:'柱廊图书馆与地下墓室。' },
+  { id:'barrow', name:'泰坦坟冢', x:36, z:252, r:40, blurb:'草丘、石环与金饰石棺。' },
+];
+
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smoothstep(e0, e1, x) {
+  const t = clamp((x - e0) / (e1 - e0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+function hash2(x, z) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(z | 0, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function hash3(x, y, z) { return hash2(x ^ Math.imul(y | 0, 0x85ebca6b), z); }
+function IDX(x, y, z) { return x + z * CHUNK + y * CHUNK * CHUNK; }
+function keyOf(cx, cz) { return cx + ',' + cz; }
+
+const P = new Uint8Array(512);
+(() => {
+  const p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  let s = 1337;
+  for (let i = 255; i > 0; i--) {
+    s = (Math.imul(s, 16807) + 11) >>> 0;
+    const j = s % (i + 1);
+    const t = p[i]; p[i] = p[j]; p[j] = t;
+  }
+  for (let i = 0; i < 512; i++) P[i] = p[i & 255];
+})();
+function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+function grad(h, x, y, z) {
+  const hh = h & 15;
+  const u = hh < 8 ? x : y;
+  const v = hh < 4 ? y : (hh === 12 || hh === 14 ? x : z);
+  return ((hh & 1) === 0 ? u : -u) + ((hh & 2) === 0 ? v : -v);
+}
+function perlin3(x, y, z) {
+  const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+  x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+  const u = fade(x), v = fade(y), w = fade(z);
+  const A = P[X] + Y, AA = P[A] + Z, AB = P[A + 1] + Z;
+  const B = P[X + 1] + Y, BA = P[B] + Z, BB = P[B + 1] + Z;
+  return lerp(
+    lerp(lerp(grad(P[AA], x, y, z), grad(P[BA], x - 1, y, z), u),
+         lerp(grad(P[AB], x, y - 1, z), grad(P[BB], x - 1, y - 1, z), u), v),
+    lerp(lerp(grad(P[AA + 1], x, y, z - 1), grad(P[BA + 1], x - 1, y, z - 1), u),
+         lerp(grad(P[AB + 1], x, y - 1, z - 1), grad(P[BB + 1], x - 1, y - 1, z - 1), u), v),
+    w);
+}
+function perlin2(x, z) { return perlin3(x, 0.37, z); }
+function fbm(x, z, oct) {
+  let sum = 0, amp = 1, freq = 1, norm = 0;
+  for (let i = 0; i < oct; i++) {
+    sum += amp * perlin2(x * freq, z * freq);
+    norm += amp; amp *= 0.5; freq *= 2.02;
+  }
+  return sum / norm;
+}
+
+function def(name, top, a, b, c) {
+  let side = top, bottom = top, opt = {};
+  if (a && typeof a === 'object') opt = a;
+  else if (a != null) {
+    side = a;
+    if (b && typeof b === 'object') opt = b;
+    else if (b != null) {
+      bottom = b;
+      if (c && typeof c === 'object') opt = c;
+    }
+  }
+  return Object.assign({
+    name, top, side, bottom,
+    solid: true, cull: true, fluid: false, plant: false, group: 'opaque',
+    color: [180, 180, 180], vary: false, inset: 0
+  }, opt);
+}
+const T = {
+  grassTop:0, grassSide:1, dirt:2, stone:3, sand:4, logSide:5, logTop:6, leaves:7, cobble:8, planks:9,
+  water:10, obsidian:11, gold:12, crystal:13, marble:14, moss:15, sandstone:16, lava:17, snow:18, ice:19,
+  darkSide:20, darkTop:21, glow:22, book:23, brick:24, bone:25, arcane:26, blossom:27, deep:28, cacSide:29,
+  cacTop:30, mush:31, stemSide:32, flower:33, flowerB:34, grass:35, dead:36, gravel:37, darkLeaf:38, bedrock:39,
+  woolR:40, woolB:41, woolP:42, woolW:43, glass:44, lantern:45, rune:46, pris:47, sandTop:48, stemTop:49, mushSmall:50
+};
+const DEFS = [];
+DEFS[AIR] = def('空气', 0, 0, 0, { solid:false, cull:false, group:'opaque', color:[0,0,0] });
+DEFS[GRASS] = def('草方块', T.grassTop, T.grassSide, T.dirt, { color:[106,170,72], vary:true });
+DEFS[DIRT] = def('泥土', T.dirt, { color:[134,96,66], vary:true });
+DEFS[STONE] = def('石头', T.stone, { color:[128,128,128], vary:true });
+DEFS[SAND] = def('沙子', T.sand, { color:[216,206,150], vary:true });
+DEFS[LOG] = def('橡木', T.logTop, T.logSide, T.logTop, { color:[102,81,51] });
+DEFS[LEAVES] = def('树叶', T.leaves, { solid:false, group:'cutout', color:[63,130,55], vary:true });
+DEFS[COBBLE] = def('圆石', T.cobble, { color:[122,122,122] });
+DEFS[PLANKS] = def('木板', T.planks, { color:[176,144,88] });
+DEFS[WATER] = def('水', T.water, { solid:false, cull:false, fluid:true, group:'water', color:[55,110,190] });
+DEFS[OBSIDIAN] = def('黑曜石', T.obsidian, { color:[32,22,48] });
+DEFS[GOLD] = def('金块', T.gold, { color:[240,196,64] });
+DEFS[CRYSTAL] = def('晶簇', T.crystal, { group:'emissive', color:[150,230,255] });
+DEFS[MARBLE] = def('大理石', T.marble, { color:[236,232,224] });
+DEFS[MOSS] = def('苔石', T.moss, { color:[78,120,64], vary:true });
+DEFS[SANDSTONE] = def('砂岩', T.sandTop, T.sandstone, T.sandTop, { color:[210,190,130] });
+DEFS[LAVA] = def('熔岩', T.lava, { solid:false, cull:false, fluid:true, group:'emissive', color:[255,120,30] });
+DEFS[SNOW] = def('雪块', T.snow, { color:[240,246,250], vary:true });
+DEFS[ICE] = def('冰', T.ice, { color:[160,200,230] });
+DEFS[DARKLOG] = def('暗木', T.darkTop, T.darkSide, T.darkTop, { color:[58,44,34] });
+DEFS[GLOW] = def('星辉', T.glow, { group:'emissive', color:[180,245,255] });
+DEFS[BOOK] = def('书架', T.book, { color:[140,100,60] });
+DEFS[BRICK] = def('砖块', T.brick, { color:[168,86,70] });
+DEFS[BONE] = def('骨块', T.bone, { color:[226,220,200] });
+DEFS[ARCANE] = def('奥术之水', T.arcane, { solid:false, cull:false, fluid:true, group:'arcane', color:[140,90,255] });
+DEFS[BLOSSOM] = def('绯樱叶', T.blossom, { solid:false, group:'cutout', color:[230,150,186], vary:true });
+DEFS[DEEPSLATE] = def('深板岩', T.deep, { color:[70,70,78], vary:true });
+DEFS[CACTUS] = def('仙人掌', T.cacTop, T.cacSide, T.cacTop, { cull:false, inset:1/16, color:[50,140,50] });
+DEFS[MUSHRED] = def('红菇方块', T.mush, { color:[190,50,48] });
+DEFS[MUSHSTEM] = def('菌柄', T.stemTop, T.stemSide, T.stemTop, { color:[206,196,176] });
+DEFS[FLOWER] = def('红花', T.flower, { solid:false, cull:false, plant:true, group:'cutout', color:[220,60,70] });
+DEFS[TALLGRASS] = def('草丛', T.grass, { solid:false, cull:false, plant:true, group:'cutout', color:[90,160,60] });
+DEFS[BLUEFLOWER] = def('兰花', T.flowerB, { solid:false, cull:false, plant:true, group:'cutout', color:[80,110,220] });
+DEFS[DEADBUSH] = def('枯灌', T.dead, { solid:false, cull:false, plant:true, group:'cutout', color:[120,90,50] });
+DEFS[GRAVEL] = def('砂砾', T.gravel, { color:[138,132,126], vary:true });
+DEFS[DARKLEAVES] = def('暗叶', T.darkLeaf, { solid:false, group:'cutout', color:[30,70,46], vary:true });
+DEFS[BEDROCK] = def('基岩', T.bedrock, { color:[40,40,40] });
+DEFS[WOOLR] = def('红绒', T.woolR, { color:[180,50,50] });
+DEFS[WOOLB] = def('蓝绒', T.woolB, { color:[50,80,170] });
+DEFS[WOOLP] = def('紫绒', T.woolP, { color:[120,60,160] });
+DEFS[GLASS] = def('玻璃', T.glass, { solid:true, cull:false, group:'glass', color:[200,220,230] });
+DEFS[LANTERN] = def('灯笼', T.lantern, { group:'emissive', color:[255,190,80] });
+DEFS[RUNESTONE] = def('符文石', T.rune, { group:'emissive', color:[80,200,190] });
+DEFS[PRISMARINE] = def('海晶石', T.pris, { color:[70,150,140] });
+DEFS[WOOLW] = def('白绒', T.woolW, { color:[230,230,230] });
+DEFS[MUSHSMALL] = def('小红菇', T.mushSmall, { solid:false, cull:false, plant:true, group:'cutout', color:[200,60,60] });
+
+const SOFT = new Uint8Array(DEFS.length);
+[AIR, LEAVES, BLOSSOM, DARKLEAVES, FLOWER, TALLGRASS, BLUEFLOWER, DEADBUSH, MUSHSMALL].forEach(id => SOFT[id] = 1);
+
+const atlasCanvas = document.createElement('canvas');
+atlasCanvas.width = atlasCanvas.height = ATLAS_N * TILE;
+const actx2 = atlasCanvas.getContext('2d', { willReadFrequently: true });
+const img = actx2.createImageData(atlasCanvas.width, atlasCanvas.height);
+const pix = img.data;
+function setPx(id, x, y, r, g, b, a = 255) {
+  const col = id % ATLAS_N, row = (id / ATLAS_N) | 0;
+  const i = ((row * TILE + y) * atlasCanvas.width + col * TILE + x) * 4;
+  pix[i] = r; pix[i + 1] = g; pix[i + 2] = b; pix[i + 3] = a;
+}
+function shade(n, v) { return clamp((n + v) | 0, 0, 255); }
+function noiseTex(id, base, vary, paint) {
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const n = hash2(x + id * 19, y + id * 7);
+    let r = base[0] + (n - 0.5) * vary, g = base[1] + (n - 0.5) * vary, b = base[2] + (n - 0.5) * vary;
+    if (paint) { const p = paint(x, y, n, r, g, b); if (p) { r = p[0]; g = p[1]; b = p[2]; } }
+    setPx(id, x, y, shade(r, 0), shade(g, 0), shade(b, 0), paint && paint.a ? paint.a(x, y, n) : 255);
+  }
+}
+function buildTextures() {
+  noiseTex(T.grassTop, [112, 174, 68], 28, (x, y, n) => {
+    if ((hash2(x * 3, y) > 0.72 && y % 2 === 0)) return [78, 140, 48];
+    if (n > 0.86) return [156, 206, 92];
+    return null;
+  });
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const n = hash2(x + 4, y + 9);
+    const dirt = [134 + (n - 0.5) * 24, 96 + (n - 0.5) * 18, 62 + (n - 0.5) * 14];
+    const drip = y < 3 || (y < 6 && hash2(x, y * 2) > 0.55) || (y < 8 && hash2(x + 2, y) > 0.82);
+    if (drip) {
+      const g = y < 3 ? [106, 168, 64] : [90, 150, 58];
+      setPx(T.grassSide, x, y, shade(g[0] + (n - 0.5) * 20, 0), shade(g[1], 0), shade(g[2], 0));
+    } else setPx(T.grassSide, x, y, shade(dirt[0], 0), shade(dirt[1], 0), shade(dirt[2], 0));
+  }
+  noiseTex(T.dirt, [134, 96, 64], 22, (x, y, n) => n > 0.9 ? [110, 76, 48] : (n < 0.08 ? [92, 64, 42] : null));
+  noiseTex(T.stone, [128, 128, 128], 18, (x, y, n) => {
+    if (n < 0.06 && (x + y) % 5 === 0) return [90, 90, 90];
+    if ((y === 7 || x === 11) && hash2(x, y) > 0.7) return [100, 100, 102];
+    return null;
+  });
+  noiseTex(T.sand, [214, 204, 148], 16, (x, y, n) => n > 0.92 ? [230, 220, 170] : null);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const stripe = (x % 4 === 0) ? -28 : (hash2(x, y) - 0.5) * 18;
+    setPx(T.logSide, x, y, shade(112 + stripe, 0), shade(86 + stripe * 0.7, 0), shade(52 + stripe * 0.4, 0));
+    const d = Math.hypot(x - 7.5, y - 7.5);
+    const ring = Math.sin(d * 1.7);
+    const c = 92 + ring * 28 + (hash2(x, y) - 0.5) * 10;
+    setPx(T.logTop, x, y, shade(c + 24, 0), shade(c, 0), shade(c - 28, 0));
+    const ds = (x % 5 === 0) ? -20 : (hash2(x + 8, y) - 0.5) * 12;
+    setPx(T.darkSide, x, y, shade(62 + ds, 0), shade(46 + ds, 0), shade(34 + ds, 0));
+    const cd = 48 + Math.sin(d * 1.8) * 16;
+    setPx(T.darkTop, x, y, shade(cd + 10, 0), shade(cd, 0), shade(cd - 8, 0));
+  }
+  const leafPaint = (id, base) => {
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const edge = x === 0 || y === 0 || x === 15 || y === 15;
+      const hole = edge && hash2(x, y) > 0.35 || hash2(x + id, y * 3) > 0.93;
+      const n = hash2(x + 2, y + id);
+      if (hole) setPx(id, x, y, 0, 0, 0, 0);
+      else setPx(id, x, y, shade(base[0] + (n - 0.5) * 30, 0), shade(base[1] + (n - 0.5) * 26, 0), shade(base[2] + (n - 0.5) * 20, 0));
+    }
+  };
+  leafPaint(T.leaves, [92, 176, 68]);
+  leafPaint(T.blossom, [232, 156, 196]);
+  leafPaint(T.darkLeaf, [54, 122, 70]);
+  noiseTex(T.cobble, [108, 108, 108], 8, (x, y) => {
+    const cell = hash2((x / 4) | 0, (y / 4) | 0);
+    const edge = x % 4 === 0 || y % 4 === 0;
+    const g = edge ? 78 : 118 + cell * 40;
+    return [g, g, g - 2];
+  });
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const band = (y % 4 === 3) ? -30 : 0;
+    const n = (hash2(x, y) - 0.5) * 14;
+    setPx(T.planks, x, y, shade(186 + band + n, 0), shade(148 + band + n, 0), shade(86 + band * 0.4 + n, 0));
+    const mortar = y % 4 === 3 || (x + ((y / 4) | 0) * 4) % 8 === 7;
+    if (mortar) setPx(T.brick, x, y, 150, 140, 136);
+    else setPx(T.brick, x, y, shade(176 + n, 0), shade(84 + n * 0.4, 0), shade(70, 0));
+  }
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const w = Math.sin(x * 0.8 + y) * 10;
+    setPx(T.water, x, y, shade(48 + w, 0), shade(110 + w, 0), shade(196, 0));
+    const l = hash2(x * 2, y * 2);
+    const hot = l > 0.72;
+    setPx(T.lava, x, y, hot ? 255 : 230, hot ? 210 : 90 + (l * 40), hot ? 60 : 16);
+    const a = hash2(x, y);
+    setPx(T.arcane, x, y, shade(90 + a * 40, 0), shade(50 + Math.sin((x + y) * 0.7) * 20, 0), shade(210, 0));
+  }
+  noiseTex(T.obsidian, [22, 16, 32], 10, (x, y, n) => (n > 0.88 ? [80, 50, 120] : (hash2(x, y + 3) > 0.96 ? [160, 120, 220] : null)));
+  noiseTex(T.gold, [230, 180, 40], 20, (x, y, n) => n > 0.9 ? [255, 230, 120] : (n < 0.1 ? [190, 140, 30] : null));
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const f = (x + y * 2) % 5;
+    const pal = [[180, 240, 255], [120, 80, 200], [230, 250, 255], [80, 180, 220], [200, 140, 255]];
+    const c = pal[f];
+    setPx(T.crystal, x, y, c[0], c[1], c[2]);
+    const vein = Math.sin(x * 0.6 + y * 0.35) > 0.72;
+    setPx(T.marble, x, y, vein ? 190 : 240, vein ? 190 : 238, vein ? 186 : 232);
+    const band = y % 5 === 0 ? -18 : (hash2(x, y) - 0.5) * 12;
+    setPx(T.sandstone, x, y, shade(214 + band, 0), shade(190 + band, 0), shade(130 + band * 0.5, 0));
+    setPx(T.sandTop, x, y, shade(224 + (hash2(x, y) - 0.5) * 10, 0), shade(206, 0), shade(150, 0));
+  }
+  noiseTex(T.moss, [90, 110, 70], 16, (x, y, n) => {
+    if (x % 4 === 0 || y % 4 === 0) return [60, 70, 48];
+    if (n > 0.8) return [120, 150, 70];
+    return null;
+  });
+  noiseTex(T.snow, [236, 242, 246], 8, (x, y, n) => n > 0.95 ? [210, 224, 230] : null);
+  noiseTex(T.ice, [170, 210, 230], 12, (x, y, n) => (x === y || n > 0.96) ? [210, 236, 250] : null);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const d = Math.hypot(x - 7.5, y - 7.5);
+    const core = d < 4 ? 255 : d < 7 ? 180 : 40;
+    setPx(T.glow, x, y, shade(120 + core * 0.4, 0), shade(220, 0), 255);
+    const frame = x < 2 || y < 2 || x > 13 || y > 13;
+    setPx(T.lantern, x, y, frame ? 120 : 255, frame ? 84 : 196, frame ? 30 : 70);
+  }
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const shelf = y % 5 === 4;
+    if (shelf) setPx(T.book, x, y, 120, 90, 50);
+    else {
+      const col = (x / 2) | 0;
+      const pal = [[160, 40, 40], [40, 70, 150], [40, 120, 60], [180, 140, 40], [90, 50, 30], [150, 80, 140], [70, 90, 110]];
+      const c = pal[col % pal.length];
+      setPx(T.book, x, y, c[0], c[1], c[2]);
+    }
+    const n = hash2(x, y);
+    setPx(T.bone, x, y, shade(230 - (n > 0.85 ? 40 : 0), 0), shade(224 - (n > 0.85 ? 30 : 0), 0), shade(204, 0));
+  }
+  noiseTex(T.deep, [62, 62, 70], 12, (x, y, n) => (y % 4 === 0 || n < 0.05) ? [40, 40, 48] : null);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const rib = x % 4 === 0 || x % 4 === 3;
+    setPx(T.cacSide, x, y, rib ? 30 : 46, rib ? 110 : 150, rib ? 36 : 48);
+    setPx(T.cacTop, x, y, 40, 130 + (hash2(x, y) * 20), 42);
+    const spot = hash2(x, y) > 0.82;
+    setPx(T.mush, x, y, spot ? 240 : 186, spot ? 230 : 48, spot ? 230 : 46);
+    const st = hash2(x, y);
+    setPx(T.stemSide, x, y, shade(210 + (x % 3 === 0 ? -30 : 0), 0), shade(200, 0), shade(176, 0));
+    setPx(T.stemTop, x, y, shade(220 + (st - 0.5) * 10, 0), 210, 190);
+    setPx(T.mushSmall, x, y, 0, 0, 0, 0);
+  }
+  // plants
+  const clearTile = (id) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) setPx(id, x, y, 0, 0, 0, 0); };
+  clearTile(T.flower); clearTile(T.flowerB); clearTile(T.grass); clearTile(T.dead);
+  for (let y = 6; y < 15; y++) { setPx(T.flower, 8, y, 40, 120, 40); setPx(T.flowerB, 8, y, 50, 130, 60); }
+  [[7,4],[8,3],[9,4],[8,5],[6,5],[10,5]].forEach(([x, y]) => setPx(T.flower, x, y, 210, 50, 60));
+  [[7,4],[8,3],[9,4],[8,5]].forEach(([x, y]) => setPx(T.flowerB, x, y, 90, 120, 230));
+  for (let i = 0; i < 5; i++) {
+    const x = 3 + i * 3;
+    for (let y = 4 + (i % 3); y < 16; y++) setPx(T.grass, x, y, 70 + i * 8, 150, 60);
+  }
+  for (let y = 6; y < 15; y++) {
+    setPx(T.dead, 6, y, 120, 86, 48); setPx(T.dead, 10, y, 110, 80, 40);
+    if (y < 10) setPx(T.dead, 8, y, 130, 96, 54);
+  }
+  [[8,5],[7,6],[9,6],[8,7],[8,8]].forEach(([x, y]) => setPx(T.mushSmall, x, y, 200, 40, 40));
+  setPx(T.mushSmall, 8, 9, 230, 220, 200); setPx(T.mushSmall, 8, 10, 220, 210, 190); setPx(T.mushSmall, 8, 11, 200, 190, 170);
+  noiseTex(T.gravel, [140, 136, 130], 20, (x, y, n) => n > 0.8 ? [110, 108, 104] : null);
+  noiseTex(T.bedrock, [30, 30, 30], 20, (x, y, n) => n > 0.85 ? [70, 70, 70] : null);
+  const wool = (id, c) => noiseTex(id, c, 14, () => null);
+  wool(T.woolR, [176, 52, 52]); wool(T.woolB, [52, 86, 176]); wool(T.woolP, [130, 70, 176]); wool(T.woolW, [230, 230, 228]);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const edge = x === 0 || y === 0 || x === 15 || y === 15 || x === 1 || y === 1 || x === 14 || y === 14;
+    setPx(T.glass, x, y, edge ? 220 : 200, edge ? 236 : 220, edge ? 245 : 230, edge ? 200 : 50);
+    const rune = (x + y) % 7 === 0 || (x === 4 && y > 3 && y < 12) || (y === 8 && x > 3 && x < 12);
+    setPx(T.rune, x, y, rune ? 80 : 50, rune ? 230 : 70, rune ? 210 : 80);
+    const p = (x + y) % 3 === 0;
+    setPx(T.pris, x, y, p ? 50 : 70, p ? 130 : 160, p ? 120 : 140);
+  }
+  actx2.putImageData(img, 0, 0);
+}
+buildTextures();
+
+const colCache = new Map();
+function columnInfo(x, z) {
+  const k = x + ',' + z;
+  const hit = colCache.get(k);
+  if (hit) return hit;
+  const temp = fbm(x * 0.00115 + 20, z * 0.00115, 4);
+  const moist = fbm(x * 0.00115 + 220, z * 0.00115 - 80, 4);
+  const myth = fbm(x * 0.0014 + 520, z * 0.0014 + 90, 3);
+  const cont = fbm(x * 0.00105 + 12, z * 0.00105 - 40, 4);
+  const hill = fbm(x * 0.0048, z * 0.0048, 4);
+  const mMask = smoothstep(0.08, 0.62, fbm(x * 0.0017 + 70, z * 0.0017 - 25, 3) * 0.5 + 0.5);
+  const ridge = 1 - Math.abs(fbm(x * 0.0036 + 5, z * 0.0036, 4));
+  const peak = Math.pow(Math.max(0, ridge), 1.7);
+  const detail = fbm(x * 0.016, z * 0.016, 2);
+  let h = SEA + 3 + hill * 9 + mMask * peak * 62 + mMask * hill * 7 + detail * (2.4 + mMask * 5);
+  const ocean = smoothstep(0.08, -0.42, cont);
+  h = lerp(h, SEA - 6 - ocean * 12, ocean);
+  const hotDry = temp > 0.22 && moist < 0.02 && mMask < 0.45 && cont > -0.12 && ocean < 0.35;
+  if (hotDry) {
+    const dune = Math.abs(fbm(x * 0.011 + 9, z * 0.011, 4));
+    h = SEA + 3 + dune * 11 + fbm(x * 0.028, z * 0.028, 2) * 2.2;
+  }
+  const bank0 = h;
+  let river = smoothstep(0.06, 0.0, Math.abs(fbm(x * 0.0025 + 333, z * 0.0025 - 17, 3)));
+  if (mMask > 0.62) river *= 0.15;
+  const od = Math.hypot(x, z);
+  if (od < 110) river *= smoothstep(42, 110, od);
+  const skyD = Math.hypot(x - SKY_X, z - SKY_Z);
+  if (skyD < 70) river *= smoothstep(30, 70, skyD);
+  if (river > 0.04) h = bank0 - river * (bank0 > SEA + 10 ? 5.5 : 4);
+  if (od < 100) h = lerp(h, SEA + 6, (1 - smoothstep(34, 100, od)) * 0.93);
+  let forceLake = false;
+  if (skyD < 64) {
+    h = lerp(h, SEA + 1, 1 - smoothstep(22, 64, skyD));
+    if (skyD < 22) { h = Math.min(h, SEA - 4); forceLake = true; }
+  }
+  let sacred = false;
+  for (const lm of SITES) {
+    if (lm.id === 'sky') continue;
+    const d = Math.hypot(x - lm.x, z - lm.z);
+    const rad = (lm.r || 30) + 22;
+    if (d >= rad) continue;
+    const t = 1 - smoothstep(rad * 0.42, rad, d);
+    const target = lm.id === 'dragon' ? SEA + 16 : SEA + 7;
+    h = lerp(h, target, t * 0.92);
+    if (t > 0.35) sacred = true;
+  }
+  h = Math.round(clamp(h, 3, 136));
+  const bank = Math.round(bank0);
+  let waterTop = -1;
+  if (!sacred && (h < SEA || forceLake)) waterTop = SEA;
+  if (!sacred && river > 0.42 && mMask < 0.7 && h >= SEA - 1 && od > 100 && skyD > 64) {
+    let wt = Math.min(bank, Math.max(h + 1, bank - 1));
+    if (wt > h) waterTop = Math.max(waterTop, wt);
+  }
+  let biome;
+  if ((h < SEA - 1 && waterTop >= SEA) || forceLake) biome = BIO_OCEAN;
+  else if (h <= SEA + 2 && h >= SEA - 1 && temp > -0.25 && !hotDry) biome = BIO_BEACH;
+  else if (hotDry && h < 100) biome = BIO_DESERT;
+  else if (h > 100 || (h > 84 && temp < 0.05) || temp < -0.46) biome = BIO_SNOW;
+  else if (mMask > 0.68 && h > SEA + 24) biome = BIO_MOUNT;
+  else if (myth > 0.38 && h > SEA + 2 && h < 96 && temp > -0.2) biome = BIO_CRYSTAL;
+  else if (moist > 0.18 && h >= SEA && h < SEA + 5 && temp > -0.05 && temp < 0.4) biome = BIO_SWAMP;
+  else if (myth < -0.4 && moist > -0.1 && h < 92) biome = BIO_MUSH;
+  else if (moist > 0.22 && temp < 0.05 && temp > -0.35) biome = BIO_DARK;
+  else if (moist > 0.12 && temp > 0.18) biome = BIO_BLOSSOM;
+  else if (waterTop > h && h >= SEA) biome = BIO_RIVER;
+  else if (moist > 0.0) biome = BIO_FOREST;
+  else biome = BIO_PLAINS;
+  const out = { h, biome, waterTop };
+  colCache.set(k, out);
+  return out;
+}
+
+for (const lm of SITES) {
+  const c = columnInfo(lm.x, lm.z);
+  if (lm.id === 'sky') lm.h = SEA;
+  else if (lm.id === 'dragon') lm.h = clamp(Math.max(c.h, SEA + 6), SEA + 6, 90);
+  else lm.h = clamp(Math.max(c.h, SEA + 3), SEA + 3, 108);
+  lm.discovered = false;
+}
+
+function surfaceFor(biome, slope, h, wx, wz) {
+  const r = hash2(wx, wz);
+  if (biome === BIO_OCEAN) return [SAND, SAND, 3];
+  if (biome === BIO_BEACH) return [SAND, SANDSTONE, 3];
+  if (biome === BIO_DESERT) return [SAND, SANDSTONE, 4];
+  if (biome === BIO_SNOW) return slope >= 3 ? [STONE, STONE, 0] : [SNOW, h > 96 ? STONE : DIRT, h > 96 ? 0 : 3];
+  if (biome === BIO_MOUNT || slope >= 3) return [r > 0.72 ? GRAVEL : STONE, STONE, 0];
+  if (biome === BIO_CRYSTAL) return [r > 0.55 ? MARBLE : GRASS, STONE, 2];
+  if (biome === BIO_DARK || biome === BIO_MUSH || biome === BIO_SWAMP) return [MOSS, DIRT, 3];
+  if (biome === BIO_RIVER) return [r > 0.55 ? SAND : GRASS, DIRT, 3];
+  return [GRASS, DIRT, 3];
+}
+function caveAt(x, y, z, h) {
+  if (y <= 2 || y >= h - 3) return false;
+  const n1 = perlin3(x * 0.045, y * 0.07, z * 0.045);
+  const n2 = perlin3(x * 0.045 + 80, y * 0.07, z * 0.045 + 80);
+  if (n1 > 0.34 && Math.abs(n2) < 0.085) return true;
+  if (y < 24 && perlin3(x * 0.03, y * 0.03, z * 0.03) > 0.5) return true;
+  return false;
+}
+function buriedRoom(x, y, z, surfaceH) {
+  const cell = 20;
+  const cx = Math.floor(x / cell), cy = Math.floor(y / cell), cz = Math.floor(z / cell);
+  if (cy < 1 || cy > 5) return -1;
+  const oy = cy * cell + 6;
+  if (oy > surfaceH - 6) return -1;
+  if (hash3(cx + 3, cy * 17, cz - 5) < 0.994) return -1;
+  const ox = cx * cell + 10, oz = cz * cell + 10;
+  const dx = x - ox, dy = y - oy, dz = z - oz;
+  if (Math.abs(dx) > 3 || Math.abs(dz) > 3 || dy < 0 || dy > 4) return -1;
+  if (dy === 0 || dy === 4 || Math.abs(dx) === 3 || Math.abs(dz) === 3) return dy === 0 ? RUNESTONE : BRICK;
+  if (dx === 0 && dz === 0 && dy === 1) return GLOW;
+  if (Math.abs(dx) === 2 && Math.abs(dz) === 2 && dy === 1) return GOLD;
+  return AIR;
+}
+
+const chunks = new Map();
+const edits = new Map();
+let RD = 5;
+
+function makeBrush(blocks, cx, cz, sample) {
+  const X0 = cx * CHUNK, Z0 = cz * CHUNK, X1 = X0 + CHUNK - 1, Z1 = Z0 + CHUNK - 1;
+  function set(x, y, z, id) {
+    x = Math.floor(x); y = Math.floor(y); z = Math.floor(z);
+    if (y < 1 || y >= HEIGHT - 1 || x < X0 || x > X1 || z < Z0 || z > Z1) return;
+    blocks[IDX(x - X0, y, z - Z0)] = id;
+  }
+  function fillRect(x0, y0, z0, x1, y1, z1, id) {
+    if (x0 > x1) { const t = x0; x0 = x1; x1 = t; }
+    if (y0 > y1) { const t = y0; y0 = y1; y1 = t; }
+    if (z0 > z1) { const t = z0; z0 = z1; z1 = t; }
+    x0 = Math.floor(x0); x1 = Math.floor(x1); y0 = Math.floor(y0); y1 = Math.floor(y1); z0 = Math.floor(z0); z1 = Math.floor(z1);
+    const xa = Math.max(x0, X0), xb = Math.min(x1, X1);
+    const ya = Math.max(y0, 1), yb = Math.min(y1, HEIGHT - 2);
+    const za = Math.max(z0, Z0), zb = Math.min(z1, Z1);
+    if (xa > xb || ya > yb || za > zb) return;
+    for (let y = ya; y <= yb; y++)
+      for (let z = za; z <= zb; z++)
+        for (let x = xa; x <= xb; x++) blocks[IDX(x - X0, y, z - Z0)] = id;
+  }
+  function fillDisk(cx0, y, cz0, rx, rz, id) {
+    const xa = Math.max(Math.floor(cx0 - rx), X0), xb = Math.min(Math.ceil(cx0 + rx), X1);
+    const za = Math.max(Math.floor(cz0 - rz), Z0), zb = Math.min(Math.ceil(cz0 + rz), Z1);
+    for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+      const dx = (x + 0.5 - cx0) / rx, dz = (z + 0.5 - cz0) / rz;
+      if (dx * dx + dz * dz <= 1) set(x, y, z, id);
+    }
+  }
+  function fillCyl(cx0, cz0, r, y0, y1, id, inner) {
+    const xa = Math.max(Math.floor(cx0 - r - 1), X0), xb = Math.min(Math.ceil(cx0 + r + 1), X1);
+    const za = Math.max(Math.floor(cz0 - r - 1), Z0), zb = Math.min(Math.ceil(cz0 + r + 1), Z1);
+    const ya = Math.max(Math.floor(y0), 1), yb = Math.min(Math.floor(y1), HEIGHT - 2);
+    for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+      const d = Math.hypot(x + 0.5 - cx0, z + 0.5 - cz0);
+      if (d <= r && d >= (inner || 0)) for (let y = ya; y <= yb; y++) blocks[IDX(x - X0, y, z - Z0)] = id;
+    }
+  }
+  function fillSphere(cx0, cy, cz0, r, id, inner) {
+    const xa = Math.max(Math.floor(cx0 - r), X0), xb = Math.min(Math.ceil(cx0 + r), X1);
+    const za = Math.max(Math.floor(cz0 - r), Z0), zb = Math.min(Math.ceil(cz0 + r), Z1);
+    const ya = Math.max(Math.floor(cy - r), 1), yb = Math.min(Math.ceil(cy + r), HEIGHT - 2);
+    const r2 = r * r, i2 = inner ? inner * inner : -1;
+    for (let z = za; z <= zb; z++) for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) {
+      const dx = x + 0.5 - cx0, dy = y + 0.5 - cy, dz = z + 0.5 - cz0;
+      const d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 <= r2 && d2 >= i2) blocks[IDX(x - X0, y, z - Z0)] = id;
+    }
+  }
+  function line(x0, y0, z0, x1, y1, z1, id) {
+    const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0), Math.abs(z1 - z0)) | 0;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      set(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t), Math.round(z0 + (z1 - z0) * t), id);
+    }
+  }
+  function flattenColumn(x, z, top, floorId, fillId, clearH) {
+    const inf = sample(x, z);
+    const ground = inf ? inf.h : top;
+    const from = Math.min(ground, top - 1);
+    for (let y = from; y <= top - 1; y++) if (y >= 1) set(x, y, z, fillId);
+    set(x, top, z, floorId);
+    const up = Math.min(HEIGHT - 2, top + clearH);
+    for (let y = top + 1; y <= up; y++) set(x, y, z, AIR);
+  }
+  function flattenDisk(cx0, cz0, r, top, floorId, fillId, clearH) {
+    const xa = Math.max(Math.floor(cx0 - r), X0), xb = Math.min(Math.ceil(cx0 + r), X1);
+    const za = Math.max(Math.floor(cz0 - r), Z0), zb = Math.min(Math.ceil(cz0 + r), Z1);
+    const r2 = r * r;
+    for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+      const dx = x + 0.5 - cx0, dz = z + 0.5 - cz0;
+      if (dx * dx + dz * dz <= r2) flattenColumn(x, z, top, floorId, fillId, clearH);
+    }
+  }
+  function flattenRect(x0, z0, x1, z1, top, floorId, fillId, clearH) {
+    if (x0 > x1) { const t = x0; x0 = x1; x1 = t; }
+    if (z0 > z1) { const t = z0; z0 = z1; z1 = t; }
+    const xa = Math.max(Math.floor(x0), X0), xb = Math.min(Math.floor(x1), X1);
+    const za = Math.max(Math.floor(z0), Z0), zb = Math.min(Math.floor(z1), Z1);
+    for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) flattenColumn(x, z, top, floorId, fillId, clearH);
+  }
+  return { set, fillRect, fillDisk, fillCyl, fillSphere, line, flattenDisk, flattenRect, flattenColumn, X0, X1, Z0, Z1, sample };
+}
+
+function onGrid(x, z, n, px, pz) {
+  const mx = ((x % n) + n) % n, mz = ((z % n) + n) % n;
+  return mx === px && mz === pz;
+}
+function stampOak(set, wx, wy, wz, wood, leaf, rnd, tall) {
+  const th = (tall ? 7 : 4) + ((rnd * (tall ? 4 : 3)) | 0);
+  for (let i = 1; i <= th; i++) set(wx, wy + i, wz, wood);
+  const top = wy + th;
+  const rad = tall ? 3 : 2;
+  for (let y = top - (tall ? 3 : 2); y <= top + 1; y++) {
+    const r = y >= top ? 1 : (y === top - (tall ? 3 : 2) ? rad - 1 : rad);
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.abs(dx) === r && Math.abs(dz) === r && y < top) continue;
+      if (dx === 0 && dz === 0 && y <= top) continue;
+      set(wx + dx, y, wz + dz, leaf);
+      if (tall && y < top && hash3(wx + dx, y, wz + dz) > 0.82) set(wx + dx, y - 1, wz + dz, leaf);
+    }
+  }
+}
+function stampMush(set, wx, wy, wz, rnd) {
+  const th = 5 + ((rnd * 3) | 0);
+  for (let i = 1; i <= th; i++) set(wx, wy + i, wz, MUSHSTEM);
+  const y = wy + th + 1;
+  for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
+    const d = Math.hypot(dx, dz);
+    if (d <= 3.15) set(wx + dx, y, wz + dz, MUSHRED);
+    if (d <= 2.2) set(wx + dx, y + 1, wz + dz, MUSHRED);
+    if (d > 1.2 && d < 2.6 && hash2(wx + dx, wz + dz) > 0.7) set(wx + dx, y, wz + dz, GLOW);
+  }
+}
+function stampCactus(set, wx, wy, wz, rnd) {
+  const th = 2 + ((rnd * 3) | 0);
+  for (let i = 1; i <= th; i++) set(wx, wy + i, wz, CACTUS);
+}
+function stampSpike(set, wx, wy, wz, rnd) {
+  const th = 3 + ((rnd * 5) | 0);
+  for (let i = 1; i <= th; i++) set(wx, wy + i, wz, CRYSTAL);
+  if (rnd > 0.45) set(wx, wy + th + 1, wz, GLOW);
+  if (rnd > 0.6) { set(wx + 1, wy + 1, wz, CRYSTAL); set(wx, wy + 2, wz - 1, CRYSTAL); }
+}
+function stampDead(set, wx, wy, wz, rnd) {
+  const th = 4 + ((rnd * 4) | 0);
+  for (let i = 1; i <= th; i++) set(wx, wy + i, wz, DARKLOG);
+  set(wx + 1, wy + th - 1, wz, DARKLOG);
+  set(wx + 2, wy + th - 1, wz, DARKLOG);
+  set(wx - 1, wy + th - 2, wz + 1, DARKLOG);
+}
+function stampBoulder(set, wx, wy, wz, rnd) {
+  const id = rnd > 0.55 ? COBBLE : STONE;
+  set(wx, wy + 1, wz, id);
+  if (rnd > 0.4) set(wx + 1, wy + 1, wz, rnd > 0.7 ? MOSS : id);
+  if (rnd > 0.5) set(wx, wy + 1, wz - 1, id);
+  if (rnd > 0.45) set(wx, wy + 2, wz, id);
+}
+
+function vegPass(blocks, cx, cz, grid, W, M) {
+  const X0 = cx * CHUNK, Z0 = cz * CHUNK;
+  function setSoft(wx, wy, wz, id) {
+    if (wy < 1 || wy >= HEIGHT - 1) return;
+    const lx = wx - X0, lz = wz - Z0;
+    if (lx < 0 || lz < 0 || lx >= CHUNK || lz >= CHUNK) return;
+    const i = IDX(lx, wy, lz);
+    if (SOFT[blocks[i]]) blocks[i] = id;
+  }
+  for (let iz = 0; iz < W; iz++) for (let ix = 0; ix < W; ix++) {
+    const wx = X0 - M + ix, wz = Z0 - M + iz;
+    const h = grid.h[iz * W + ix];
+    const biome = grid.b[iz * W + ix];
+    const water = grid.w[iz * W + ix];
+    const slope = grid.s[iz * W + ix];
+    if (water >= h + 1 || slope >= 3) continue;
+    if (biome === BIO_OCEAN || biome === BIO_BEACH) {
+      if (biome === BIO_OCEAN && h < SEA - 2 && hash2(wx, wz) > 0.985) setSoft(wx, h, wz, PRISMARINE);
+      continue;
+    }
+    const rnd = hash2(wx, wz);
+    if (biome === BIO_DESERT && onGrid(wx, wz, 7, 2, 4) && rnd < 0.55) stampCactus(setSoft, wx, h, wz, rnd);
+    else if (biome === BIO_MUSH && onGrid(wx, wz, 6, 2, 2) && rnd < 0.75) stampMush(setSoft, wx, h, wz, rnd);
+    else if (biome === BIO_CRYSTAL && rnd > 0.965) stampSpike(setSoft, wx, h, wz, rnd);
+    else if (biome === BIO_SNOW && onGrid(wx, wz, 9, 3, 3) && rnd < 0.4) stampDead(setSoft, wx, h, wz, rnd);
+    else if (biome === BIO_DARK && onGrid(wx, wz, 6, 2, 3) && rnd < 0.62) stampOak(setSoft, wx, h, wz, DARKLOG, DARKLEAVES, rnd, true);
+    else if (biome === BIO_SWAMP && onGrid(wx, wz, 6, 1, 4) && rnd < 0.55) {
+      if (rnd < 0.3) stampDead(setSoft, wx, h, wz, rnd); else stampOak(setSoft, wx, h, wz, DARKLOG, DARKLEAVES, rnd, true);
+    } else if (biome === BIO_BLOSSOM && onGrid(wx, wz, 6, 1, 2) && rnd < 0.6) stampOak(setSoft, wx, h, wz, LOG, BLOSSOM, rnd, false);
+    else if (biome === BIO_FOREST && onGrid(wx, wz, 6, 2, 4) && rnd < 0.62) stampOak(setSoft, wx, h, wz, LOG, LEAVES, rnd, false);
+    else if ((biome === BIO_PLAINS || biome === BIO_RIVER) && onGrid(wx, wz, 8, 3, 5) && rnd < 0.55) stampOak(setSoft, wx, h, wz, LOG, LEAVES, rnd, false);
+    else if (biome === BIO_CRYSTAL && onGrid(wx, wz, 8, 2, 6) && rnd < 0.5) stampOak(setSoft, wx, h, wz, LOG, BLOSSOM, rnd, false);
+    if (rnd > 0.992 && biome !== BIO_DESERT) stampBoulder(setSoft, wx, h, wz, hash2(wx + 5, wz - 2));
+  }
+  for (let lz = 0; lz < CHUNK; lz++) for (let lx = 0; lx < CHUNK; lx++) {
+    const wx = X0 + lx, wz = Z0 + lz;
+    const ix = lx + M, iz = lz + M;
+    const h = grid.h[iz * W + ix];
+    const biome = grid.b[iz * W + ix];
+    const water = grid.w[iz * W + ix];
+    const slope = grid.s[iz * W + ix];
+    if (water >= h || slope >= 3) continue;
+    if (blocks[IDX(lx, h + 1, lz)] !== AIR) continue;
+    const r = hash2(wx + 19, wz - 3);
+    if (biome === BIO_DESERT) { if (r > 0.93) setSoft(wx, h + 1, wz, DEADBUSH); continue; }
+    if (biome === BIO_SNOW || biome === BIO_OCEAN || biome === BIO_BEACH || biome === BIO_MOUNT) continue;
+    if (biome === BIO_MUSH && r > 0.7) { setSoft(wx, h + 1, wz, MUSHSMALL); continue; }
+    if (biome === BIO_CRYSTAL && r > 0.94) { setSoft(wx, h + 1, wz, BLUEFLOWER); continue; }
+    if (r > 0.97) setSoft(wx, h + 1, wz, biome === BIO_BLOSSOM ? FLOWER : BLUEFLOWER);
+    else if (r > 0.93) setSoft(wx, h + 1, wz, FLOWER);
+    else if (r > 0.62 && (biome === BIO_PLAINS || biome === BIO_FOREST || biome === BIO_BLOSSOM || biome === BIO_RIVER || biome === BIO_SWAMP))
+      setSoft(wx, h + 1, wz, TALLGRASS);
+  }
+}
+
+function nearLandmark(x, z, extra) {
+  for (const lm of SITES) if (Math.hypot(x - lm.x, z - lm.z) < lm.r + extra) return true;
+  return false;
+}
+function overlapsSite(lm, cx, cz) {
+  const x0 = cx * CHUNK, z0 = cz * CHUNK, x1 = x0 + CHUNK - 1, z1 = z0 + CHUNK - 1;
+  return !(x1 < lm.x - lm.r || x0 > lm.x + lm.r || z1 < lm.z - lm.r || z0 > lm.z + lm.r);
+}
+
+function genChunk(cx, cz) {
+  const t0 = performance.now();
+  const blocks = new Uint8Array(CHUNK * CHUNK * HEIGHT);
+  const biomeA = new Uint8Array(CHUNK * CHUNK);
+  const M = 8, W = CHUNK + M * 2;
+  const grid = { h: new Int16Array(W * W), b: new Uint8Array(W * W), w: new Int16Array(W * W), s: new Uint8Array(W * W) };
+  const baseX = cx * CHUNK - M, baseZ = cz * CHUNK - M;
+  for (let iz = 0; iz < W; iz++) for (let ix = 0; ix < W; ix++) {
+    const info = columnInfo(baseX + ix, baseZ + iz);
+    const i = iz * W + ix;
+    grid.h[i] = info.h; grid.b[i] = info.biome; grid.w[i] = info.waterTop;
+  }
+  for (let iz = 0; iz < W; iz++) for (let ix = 0; ix < W; ix++) {
+    const i = iz * W + ix, h = grid.h[i];
+    let s = 0;
+    if (ix > 0) s = Math.max(s, Math.abs(h - grid.h[i - 1]));
+    if (ix + 1 < W) s = Math.max(s, Math.abs(h - grid.h[i + 1]));
+    if (iz > 0) s = Math.max(s, Math.abs(h - grid.h[i - W]));
+    if (iz + 1 < W) s = Math.max(s, Math.abs(h - grid.h[i + W]));
+    grid.s[i] = Math.min(255, s);
+  }
+  function sample(wx, wz) {
+    const ix = wx - baseX, iz = wz - baseZ;
+    if (ix >= 0 && iz >= 0 && ix < W && iz < W) {
+      const i = iz * W + ix;
+      return { h: grid.h[i], biome: grid.b[i], waterTop: grid.w[i] };
+    }
+    return columnInfo(wx, wz);
+  }
+  const X0 = cx * CHUNK, Z0 = cz * CHUNK;
+  for (let lz = 0; lz < CHUNK; lz++) for (let lx = 0; lx < CHUNK; lx++) {
+    const wx = X0 + lx, wz = Z0 + lz;
+    const gi = (lz + M) * W + (lx + M);
+    const h = grid.h[gi], biome = grid.b[gi], waterTop = grid.w[gi], slope = grid.s[gi];
+    biomeA[lx + lz * CHUNK] = biome;
+    let [surface, filler, depth] = surfaceFor(biome, slope, h, wx, wz);
+    const puddle = biome === BIO_SWAMP && slope < 2 && hash2(wx + 3, wz - 7) > 0.8;
+    const solidH = puddle ? h - 1 : h;
+    const deepLine = 12 + ((perlin2(wx * 0.08, wz * 0.08) * 0.5 + 0.5) * 6) | 0;
+    for (let y = 0; y < HEIGHT; y++) {
+      let id = AIR;
+      if (y === 0) id = BEDROCK;
+      else if (y > solidH && y <= Math.max(waterTop, puddle ? h : -1)) id = WATER;
+      else if (y <= solidH) {
+        if (y === solidH) id = puddle ? DIRT : surface;
+        else if (depth && y >= solidH - depth) id = filler;
+        else if (caveAt(wx, y, wz, solidH)) id = (y < 7 && hash3(wx, y, wz) > 0.55) ? LAVA : AIR;
+        else if (y < deepLine) id = DEEPSLATE;
+        else id = STONE;
+        if ((id === STONE || id === DEEPSLATE) && y < solidH - 4) {
+          const n = perlin3(wx * 0.15, y * 0.15, wz * 0.15);
+          if (n > 0.8) id = GOLD;
+          else if (n < -0.82) id = CRYSTAL;
+          else if (hash3(wx, y, wz) > 0.985) id = GRAVEL;
+        }
+        const room = buriedRoom(wx, y, wz, solidH);
+        if (room !== -1) id = room;
+      }
+      blocks[IDX(lx, y, lz)] = id;
+    }
+  }
+  vegPass(blocks, cx, cz, grid, W, M);
+  const brush = makeBrush(blocks, cx, cz, sample);
+  for (const lm of SITES) if (overlapsSite(lm, cx, cz)) STAMPS[lm.id](brush, lm);
+  stampProc(brush, cx, cz, sample);
+  const em = edits.get(keyOf(cx, cz));
+  if (em) for (const [s, id] of em) {
+    const [x, y, z] = s.split(',').map(Number);
+    blocks[IDX(x - X0, y, z - Z0)] = id;
+  }
+  const top = new Int16Array(CHUNK * CHUNK);
+  for (let lz = 0; lz < CHUNK; lz++) for (let lx = 0; lx < CHUNK; lx++) {
+    for (let y = HEIGHT - 2; y >= 1; y--) {
+      const id = blocks[IDX(lx, y, lz)];
+      if (id !== AIR && !DEFS[id].plant) { top[lx + lz * CHUNK] = y; break; }
+    }
+  }
+  return { cx, cz, blocks, biome: biomeA, top, group: null, dirty: true, genMs: performance.now() - t0 };
+}
+
+function lamp(b, x, y, z) {
+  b.set(x, y + 1, z, MARBLE); b.set(x, y + 2, z, MARBLE); b.set(x, y + 3, z, LANTERN);
+}
+function miniTree(b, x, y, z, leaf) {
+  b.set(x, y + 1, z, LOG); b.set(x, y + 2, z, LOG); b.set(x, y + 3, z, LOG);
+  for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (Math.hypot(dx, dz) <= 2.2) {
+    b.set(x + dx, y + 4, z + dz, leaf);
+    if (Math.hypot(dx, dz) <= 1.4) b.set(x + dx, y + 5, z + dz, leaf);
+  }
+}
+function statue(b, x, y, z, mat) {
+  b.set(x, y, z, mat); b.set(x, y + 1, z, mat); b.set(x, y + 2, z, mat); b.set(x, y + 3, z, mat);
+  b.set(x, y + 4, z, mat); b.set(x - 1, y + 3, z, mat); b.set(x + 1, y + 3, z, mat);
+}
+
+function stampPlaza(b, lm) {
+  const { x: ox, z: oz, h } = lm;
+  b.flattenDisk(ox, oz, 18, h, MARBLE, STONE, 70);
+  b.flattenRect(ox - 2, oz - 34, ox + 2, oz + 34, h, COBBLE, STONE, 40);
+  b.flattenRect(ox - 34, oz - 2, ox + 34, oz + 2, h, COBBLE, STONE, 40);
+  b.fillDisk(ox, h, oz, 16, 16, MARBLE);
+  b.fillDisk(ox, h, oz, 8, 8, COBBLE);
+  b.fillDisk(ox, h, oz, 3, 3, GOLD);
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2;
+    b.line(Math.round(ox + Math.cos(a) * 3), h, Math.round(oz + Math.sin(a) * 3),
+           Math.round(ox + Math.cos(a) * 15), h, Math.round(oz + Math.sin(a) * 15), GOLD);
+  }
+  b.fillDisk(ox, h, oz, 14.2, 14.2, MARBLE);
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2;
+    b.line(ox + Math.cos(a) * 4, h, oz + Math.sin(a) * 4, ox + Math.cos(a) * 13, h, oz + Math.sin(a) * 13, i % 2 ? GOLD : RUNESTONE);
+  }
+  b.fillRect(ox - 1, h + 1, oz - 1, ox + 1, h + 8, oz + 1, MARBLE);
+  b.fillRect(ox, h + 6, oz, ox, h + 18, oz, GLOW);
+  b.set(ox, h + 19, oz, GOLD); b.set(ox, h + 20, oz, LANTERN);
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2;
+    const x = Math.round(ox + Math.cos(a) * 11), z = Math.round(oz + Math.sin(a) * 11);
+    b.fillRect(x, h + 1, z, x, h + 4, z, MARBLE);
+    if (i % 2 === 0) b.set(x, h + 5, z, LANTERN);
+  }
+  for (let i = 8; i <= 30; i += 7) {
+    lamp(b, ox + i, h, oz + 3); lamp(b, ox + i, h, oz - 3);
+    lamp(b, ox - i, h, oz + 3); lamp(b, ox - 3, h, oz + i);
+  }
+  statue(b, ox + 6, h + 1, oz - 6, MARBLE);
+  statue(b, ox - 6, h + 1, oz - 6, MARBLE);
+  b.fillRect(ox + 6, h + 5, oz - 6, ox + 6, h + 6, oz - 6, GOLD);
+  b.set(ox + 14, h + 1, oz + 14, WOOLR); b.set(ox + 14, h + 2, oz + 14, WOOLR); b.set(ox + 14, h + 3, oz + 14, GOLD);
+  b.set(ox - 14, h + 1, oz + 14, WOOLB); b.set(ox - 14, h + 2, oz + 14, WOOLB); b.set(ox - 14, h + 3, oz + 14, GOLD);
+  b.set(ox + 14, h + 1, oz - 14, WOOLP); b.set(ox + 14, h + 2, oz - 14, WOOLP); b.set(ox + 14, h + 3, oz - 14, GLOW);
+  b.set(ox - 14, h + 1, oz - 14, WOOLW); b.set(ox - 14, h + 2, oz - 14, WOOLW); b.set(ox - 14, h + 3, oz - 14, LANTERN);
+}
+
+function stampSun(b, lm) {
+  const ox = lm.x, oz = lm.z, h = lm.h;
+  b.flattenDisk(ox, oz, 30, h, SANDSTONE, SANDSTONE, 80);
+  b.flattenRect(ox - 16, oz + 18, ox + 16, oz + 44, h, SANDSTONE, SANDSTONE, 50);
+  for (let i = 0; i < 7; i++) {
+    const m = 20 - i * 2;
+    const y0 = h + i * 3;
+    b.fillRect(ox - m, y0, oz - m, ox + m, y0 + 2, oz + m, SANDSTONE);
+    const yt = y0 + 2;
+    b.fillRect(ox - m, yt, oz - m, ox + m, yt, oz - m, GOLD);
+    b.fillRect(ox - m, yt, oz + m, ox + m, yt, oz + m, GOLD);
+    b.fillRect(ox - m, yt, oz - m, ox - m, yt, oz + m, GOLD);
+    b.fillRect(ox + m, yt, oz - m, ox + m, yt, oz + m, GOLD);
+  }
+  for (let i = 0; i <= 22; i++) {
+    const z = oz + 8 + i, y = h + i;
+    if (y > h + 22) break;
+    b.fillRect(ox - 3, y + 1, z, ox + 3, y + 4, z, AIR);
+    b.fillRect(ox - 3, y, z, ox + 3, y, z, SANDSTONE);
+    b.set(ox - 3, y, z, GOLD); b.set(ox + 3, y, z, GOLD);
+    if (y > h) b.fillRect(ox - 2, h, z, ox + 2, y - 1, z, SANDSTONE);
+  }
+  b.fillRect(ox - 6, h + 1, oz - 6, ox + 6, h + 7, oz + 6, AIR);
+  b.fillRect(ox - 6, h, oz - 6, ox + 6, h, oz + 6, GOLD);
+  b.fillRect(ox - 1, h + 1, oz + 5, ox + 1, h + 4, oz + 12, AIR);
+  for (const [px, pz] of [[-4, -4], [-4, 4], [4, -4], [4, 4]]) {
+    b.fillRect(ox + px, h + 1, oz + pz, ox + px, h + 6, oz + pz, MARBLE);
+  }
+  b.fillRect(ox - 5, h + 1, oz - 6, ox + 5, h + 3, oz - 6, BOOK);
+  b.fillRect(ox - 1, h + 1, oz - 1, ox + 1, h + 1, oz + 1, GOLD);
+  b.set(ox, h + 2, oz, GLOW); b.set(ox, h + 3, oz, LANTERN);
+  b.fillRect(ox - 5, h + 21, oz - 5, ox + 5, h + 21, oz + 5, GOLD);
+  b.fillRect(ox - 1, h + 22, oz - 1, ox + 1, h + 22, oz + 1, MARBLE);
+  b.set(ox, h + 23, oz, LAVA);
+  b.set(ox, h + 24, oz, GOLD);
+  for (const s of [-1, 1]) for (const t of [-1, 1]) {
+    b.fillRect(ox + s * 4, h + 22, oz + t * 4, ox + s * 4, h + 26, oz + t * 4, CRYSTAL);
+    b.set(ox + s * 4, h + 27, oz + t * 4, GLOW);
+  }
+  for (let y = h + 24; y <= h + 48; y++) b.set(ox, y, oz, GLOW);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const px = ox + sx * 26, pz = oz + sz * 26;
+    b.fillRect(px - 1, h, pz - 1, px + 1, h, pz + 1, SANDSTONE);
+    b.fillRect(px, h + 1, pz, px + 1, h + 16, pz + 1, SANDSTONE);
+    b.fillRect(px, h + 4, pz, px + 1, h + 4, pz + 1, GOLD);
+    b.fillRect(px, h + 9, pz, px + 1, h + 9, pz + 1, GOLD);
+    b.fillRect(px, h + 14, pz, px + 1, h + 14, pz + 1, GOLD);
+    b.fillRect(px, h + 17, pz, px + 1, h + 19, pz + 1, GOLD);
+    b.set(px, h + 20, pz, GLOW); b.set(px + 1, h + 20, pz + 1, GLOW);
+  }
+  b.fillRect(ox - 10, h - 1, oz + 30, ox + 10, h - 1, oz + 42, SANDSTONE);
+  b.fillRect(ox - 8, h, oz + 32, ox + 8, h, oz + 40, WATER);
+  b.fillRect(ox - 10, h, oz + 30, ox + 10, h, oz + 31, GOLD);
+  b.fillRect(ox - 10, h, oz + 41, ox + 10, h, oz + 42, GOLD);
+  for (const x of [ox - 16, ox - 12, ox - 8, ox + 8, ox + 12, ox + 16]) {
+    b.fillRect(x, h + 1, oz + 26, x, h + 7, oz + 26, MARBLE);
+    b.set(x, h + 8, oz + 26, LANTERN);
+  }
+  b.fillRect(ox - 16, h + 8, oz + 26, ox + 16, h + 9, oz + 26, SANDSTONE);
+  // sphinxes
+  for (const side of [-1, 1]) {
+    const x = ox + side * 10;
+    for (let i = 0; i < 6; i++) {
+      b.set(x, h + 1, oz + 18 + i, SANDSTONE);
+      b.set(x + side, h + 1, oz + 18 + i, SANDSTONE);
+      if (i < 4) { b.set(x, h + 2, oz + 18 + i, SANDSTONE); b.set(x + side, h + 2, oz + 18 + i, SANDSTONE); }
+    }
+    b.set(x, h + 1, oz + 24, SANDSTONE); b.set(x + side, h + 1, oz + 24, SANDSTONE);
+    b.set(x, h + 2, oz + 24, SANDSTONE); b.set(x + side, h + 2, oz + 24, SANDSTONE);
+    b.set(x, h + 3, oz + 24, SANDSTONE); b.set(x + side, h + 3, oz + 24, GOLD);
+    b.set(x, h + 4, oz + 24, GOLD);
+  }
+}
+
+function stampMoon(b, lm) {
+  const ox = lm.x, oz = lm.z, h = lm.h;
+  b.flattenDisk(ox, oz, 16, h, MARBLE, STONE, 50);
+  const xa = Math.max(ox - 15, b.X0), xb = Math.min(ox + 15, b.X1);
+  const za = Math.max(oz - 15, b.Z0), zb = Math.min(oz + 15, b.Z1);
+  for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+    const dx = x + 0.5 - ox, dz = z + 0.5 - oz, d = Math.hypot(dx, dz);
+    if (d > 14) continue;
+    const a = Math.atan2(dz, dx);
+    let id = MARBLE;
+    if (d < 4.3) id = PRISMARINE;
+    else if (Math.abs(d - 7) < 0.75 || Math.abs(d - 11.5) < 0.75) id = GOLD;
+    else if (((Math.floor((a + Math.PI) * 6) + Math.floor(d)) & 1) === 0) id = RUNESTONE;
+    b.set(x, h, z, id);
+  }
+  b.fillDisk(ox, h, oz, 4.1, 4.1, ARCANE);
+  b.fillDisk(ox, h - 1, oz, 4.1, 4.1, PRISMARINE);
+  b.set(ox, h - 1, oz, GLOW);
+  const heights = [];
+  for (let k = 0; k < 10; k++) heights.push(2 + Math.floor(hash2(k + 3, k * 5) * 7));
+  for (let k = 0; k < 10; k++) {
+    const a = k / 10 * Math.PI * 2;
+    const x = Math.round(ox + Math.cos(a) * 11), z = Math.round(oz + Math.sin(a) * 11);
+    const ht = heights[k];
+    for (let i = 1; i <= ht; i++) b.set(x, h + i, z, ht > 6 ? MARBLE : STONE);
+    if (ht >= 7) b.set(x, h + ht + 1, z, CRYSTAL);
+    if (ht <= 2) b.set(x + 1, h + 1, z, COBBLE);
+    const k2 = (k + 1) % 10;
+    if (heights[k] >= 6 && heights[k2] >= 6) {
+      const a2 = k2 / 10 * Math.PI * 2;
+      const x0 = ox + Math.cos(a) * 11, z0 = oz + Math.sin(a) * 11;
+      const x1 = ox + Math.cos(a2) * 11, z1 = oz + Math.sin(a2) * 11;
+      for (let i = 0; i <= 8; i++) {
+        const t = i / 8;
+        const px = Math.round(lerp(x0, x1, t)), pz = Math.round(lerp(z0, z1, t));
+        const py = Math.round(h + Math.min(heights[k], heights[k2]) + Math.sin(t * Math.PI) * 2.4);
+        b.set(px, py, pz, MARBLE);
+      }
+    }
+  }
+  b.line(ox + 5, h + 1, oz + 5, ox + 12, h + 1, oz + 9, MARBLE);
+  for (let k = 0; k < 5; k++) {
+    const a = k / 5 * Math.PI * 2 - Math.PI / 2;
+    b.line(ox + Math.cos(a) * 5, h, oz + Math.sin(a) * 5, ox + Math.cos(a) * 8, h, oz + Math.sin(a) * 8, RUNESTONE);
+    b.set(Math.round(ox + Math.cos(a) * 8), h + 1, Math.round(oz + Math.sin(a) * 8), GLOW);
+  }
+  b.set(ox, h + 1, oz + 8, LANTERN);
+}
+
+function stampTree(b, lm) {
+  const ox = lm.x, oz = lm.z, h = lm.h;
+  b.flattenDisk(ox, oz, 8, h, MOSS, DIRT, 24);
+  b.fillSphere(ox, h + 38, oz, 16, AIR, 0);
+  b.fillCyl(ox, oz, 5, h, h + 36, DARKLOG, 0);
+  b.fillCyl(ox, oz, 2.3, h + 1, h + 32, AIR, 0);
+  b.fillRect(ox + 2, h + 1, oz - 1, ox + 6, h + 3, oz + 1, AIR);
+  b.fillRect(ox + 3, h, oz - 1, ox + 6, h, oz + 1, MOSS);
+  let prev = null;
+  for (let y = h + 1; y <= h + 31; y++) {
+    const a = (y - h) * 1.15;
+    const sx = Math.round(ox + Math.cos(a) * 1.55);
+    const sz = Math.round(oz + Math.sin(a) * 1.55);
+    if (prev && prev[0] === sx && prev[1] === sz) continue;
+    b.set(sx, y, sz, PLANKS);
+    if (y % 5 === 0) b.set(sx, y + 1, sz, LANTERN);
+    prev = [sx, sz];
+  }
+  const branches = [[0.4, 14, 7], [1.7, 13, 6], [2.9, 15, 7], [4.2, 12, 5], [5.4, 13, 6]];
+  for (const [ang, len, rise] of branches) {
+    const y0 = h + 18;
+    b.line(ox + Math.cos(ang) * 4, y0, oz + Math.sin(ang) * 4,
+           ox + Math.cos(ang) * (4 + len), y0 + rise, oz + Math.sin(ang) * (4 + len), DARKLOG);
+    const ex = ox + Math.cos(ang) * (4 + len), ey = y0 + rise, ez = oz + Math.sin(ang) * (4 + len);
+    b.fillDisk(ex, ey, ez, 2.4, 2.4, PLANKS);
+    b.set(ex, ey + 1, ez, GLOW);
+  }
+  const xa = Math.max(Math.floor(ox - 16), b.X0), xb = Math.min(Math.ceil(ox + 16), b.X1);
+  const za = Math.max(Math.floor(oz - 16), b.Z0), zb = Math.min(Math.ceil(oz + 16), b.Z1);
+  for (let z = za; z <= zb; z++) for (let y = h + 22; y <= h + 54 && y < HEIGHT - 1; y++) for (let x = xa; x <= xb; x++) {
+    const dx = x + 0.5 - ox, dy = y + 0.5 - (h + 38), dz = z + 0.5 - oz;
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (d > 16 || d < 11) continue;
+    const n = perlin3(x * 0.18, y * 0.18, z * 0.18);
+    if (n < -0.25) continue;
+    b.set(x, y, z, n > 0.55 ? BLOSSOM : DARKLEAVES);
+    if (hash3(x, y, z) > 0.96) b.set(x, y, z, GLOW);
+  }
+  for (let k = 0; k < 6; k++) {
+    const a = k / 6 * Math.PI * 2;
+    b.line(ox + Math.cos(a) * 3, h + 2, oz + Math.sin(a) * 3, ox + Math.cos(a) * 15, h - 5, oz + Math.sin(a) * 15, DARKLOG);
+    b.line(ox + Math.cos(a) * 3, h + 3, oz + Math.sin(a) * 3 + 1, ox + Math.cos(a) * 12, h - 3, oz + Math.sin(a) * 12, DARKLOG);
+  }
+  for (let k = 0; k < 8; k++) {
+    const a = hash2(k, 4) * Math.PI * 2, rad = 9 + hash2(k, 8) * 6;
+    const mx = Math.round(ox + Math.cos(a) * rad), mz = Math.round(oz + Math.sin(a) * rad);
+    if (mx < b.X0 || mx > b.X1 || mz < b.Z0 || mz > b.Z1) continue;
+    const gh = b.sample(mx, mz).h;
+    b.set(mx, gh + 1, mz, MUSHSTEM);
+    b.fillDisk(mx, gh + 3, mz, 2, 2, MUSHRED);
+    b.set(mx, gh + 4, mz, MUSHRED);
+  }
+  b.fillCyl(ox, oz, 1.2, h + 33, h + 60, GLOW, 0);
+}
+
+function stampDragon(b, lm) {
+  const ox = lm.x, oz = lm.z, h = lm.h;
+  const xa = Math.max(ox - 42, b.X0), xb = Math.min(ox + 42, b.X1);
+  const za = Math.max(oz - 42, b.Z0), zb = Math.min(oz + 42, b.Z1);
+  for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+    const dx = x + 0.5 - ox, dz = z + 0.5 - oz, dist = Math.hypot(dx, dz);
+    if (dist > 40) continue;
+    let surface;
+    if (dist < 10) surface = h + 4;
+    else if (dist < 24) surface = h + 4 + (dist - 10) / 14 * 18;
+    else surface = h + 22 - (dist - 24) / 16 * 22;
+    surface = Math.round(surface);
+    const ground = b.sample(x, z).h;
+    const from = Math.min(ground - 2, surface);
+    for (let y = Math.max(1, from); y <= surface; y++) {
+      let id = y < surface - 4 ? DEEPSLATE : STONE;
+      if (dist < 10 && y >= surface - 1) id = y === surface ? LAVA : OBSIDIAN;
+      else if (dist < 13 && y >= surface - 2) id = OBSIDIAN;
+      else if (Math.abs(dist - 24) < 1.6 && y >= surface - 1) id = OBSIDIAN;
+      else if (y === surface && hash2(x, z) > 0.82) id = GRAVEL;
+      b.set(x, y, z, id);
+    }
+    for (let y = surface + 1; y <= h + 46 && y < HEIGHT - 1; y++) b.set(x, y, z, AIR);
+    if (dist < 6) {
+      const pile = Math.round((1 - dist / 6) * 4);
+      for (let dy = 0; dy <= pile; dy++) {
+        if (hash3(x, dy, z) > 0.25 || dy === 0) b.set(x, h + 4 + dy, z, GOLD);
+      }
+    }
+  }
+  for (let x = ox + 12; x <= ox + 36; x++) {
+    for (let z = oz - 2; z <= oz + 2; z++) {
+      for (let y = h + 7; y <= h + 11; y++) b.set(x, y, z, AIR);
+      b.set(x, h + 6, z, OBSIDIAN);
+    }
+  }
+  for (let z = oz - 3; z <= oz + 3; z++) for (let y = h + 6; y <= h + 12; y++) {
+    if (Math.abs(z - oz) === 3 || y === h + 12) b.set(ox + 35, y, z, OBSIDIAN);
+  }
+  for (const rx of [-8, -4, 0, 4, 8, 12]) {
+    for (let i = 2; i <= 16; i++) {
+      const a = Math.PI * (i / 18);
+      const y = Math.round(h + 6 + Math.sin(a) * 18);
+      const z = Math.round(oz + Math.cos(a) * 15);
+      b.set(ox + rx, y, z, BONE);
+      b.set(ox + rx, y, z + 1, BONE);
+    }
+  }
+  for (let x = ox - 8; x <= ox + 16; x++) {
+    b.set(x, h + 24, oz, BONE); b.set(x, h + 25, oz, BONE); b.set(x, h + 24, oz + 1, BONE);
+  }
+  b.fillSphere(ox + 20, h + 24, oz, 4.2, BONE, 0);
+  b.fillRect(ox + 18, h + 21, oz - 2, ox + 24, h + 23, oz + 2, AIR);
+  for (let z = oz - 2; z <= oz + 2; z += 1) {
+    b.set(ox + 23, h + 23, z, BONE);
+    b.set(ox + 23, h + 21, z, BONE);
+  }
+  b.set(ox + 22, h + 26, oz - 1, GLOW); b.set(ox + 22, h + 26, oz + 1, GLOW);
+  b.line(ox + 17, h + 27, oz - 2, ox + 10, h + 34, oz - 7, BONE);
+  b.line(ox + 17, h + 27, oz + 2, ox + 10, h + 34, oz + 7, BONE);
+  b.line(ox + 4, h + 25, oz, ox - 8, h + 32, oz - 16, BONE);
+  b.line(ox + 4, h + 25, oz, ox - 8, h + 32, oz + 16, BONE);
+  b.set(ox, h + 8, oz, LANTERN);
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2;
+    const x = Math.round(ox + Math.cos(a) * 23), z = Math.round(oz + Math.sin(a) * 23);
+    b.set(x, h + 23, z, LAVA);
+  }
+}
+
+function stampElven(b, lm) {
+  const ox = lm.x, oz = lm.z, h = lm.h;
+  b.flattenDisk(ox, oz, 38, h, GRASS, STONE, 80);
+  const xa = Math.max(ox - 38, b.X0), xb = Math.min(ox + 38, b.X1);
+  const za = Math.max(oz - 38, b.Z0), zb = Math.min(oz + 38, b.Z1);
+  for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+    const dx = x + 0.5 - ox, dz = z + 0.5 - oz, dist = Math.hypot(dx, dz);
+    if (dist >= 31 && dist <= 35.4) {
+      const bridge = dx > 26 && Math.abs(dz) < 2.6;
+      if (bridge) {
+        b.set(x, h, z, MARBLE);
+        for (let y = h - 4; y < h; y++) b.set(x, y, z, STONE);
+        for (let y = h + 1; y <= h + 8; y++) b.set(x, y, z, AIR);
+      } else {
+        for (let y = h - 3; y <= h - 1; y++) b.set(x, y, z, WATER);
+        b.set(x, h - 4, z, SANDSTONE);
+        for (let y = h; y <= h + 10; y++) b.set(x, y, z, AIR);
+      }
+    }
+    if (dist >= 27 && dist <= 29.3 && !(dx > 24 && Math.abs(dz) <= 2.2)) {
+      for (let y = h + 1; y <= h + 8; y++) b.set(x, y, z, (y === h + 4 && hash2(x, z) > 0.72) ? CRYSTAL : MARBLE);
+      const ang = Math.atan2(dz, dx);
+      if (((Math.floor((ang + Math.PI) * 10) & 1) === 0)) b.set(x, h + 9, z, MARBLE);
+    }
+  }
+  b.fillRect(ox + 27, h, oz - 2, ox + 38, h, oz + 2, MARBLE);
+  const towers = [[22, 22], [22, -22], [-22, 22], [-22, -22]];
+  for (const [tx, tz] of towers) {
+    const cx0 = ox + tx, cz0 = oz + tz;
+    b.fillCyl(cx0, cz0, 3.5, h + 1, h + 26, MARBLE, 2.15);
+    b.fillCyl(cx0, cz0, 2.1, h + 1, h + 25, AIR, 0);
+    b.fillDisk(cx0, h + 8, cz0, 2, 2, PLANKS);
+    b.fillDisk(cx0, h + 16, cz0, 2, 2, PLANKS);
+    b.fillDisk(cx0, h + 24, cz0, 2, 2, PLANKS);
+    for (const y of [h + 5, h + 12, h + 20]) {
+      b.set(cx0 + 3, y, cz0, CRYSTAL); b.set(cx0 - 3, y, cz0, CRYSTAL);
+      b.set(cx0, y, cz0 + 3, CRYSTAL); b.set(cx0, y, cz0 - 3, CRYSTAL);
+    }
+    for (let i = 0; i < 6; i++) b.fillCyl(cx0, cz0, Math.max(0.6, 3.4 - i * 0.55), h + 26 + i, h + 26 + i, i > 3 ? CRYSTAL : MARBLE, 0);
+    b.set(cx0, h + 33, cz0, GLOW); b.set(cx0, h + 34, cz0, GLOW);
+    b.fillRect(cx0 + 2, h + 1, cz0 - 1, cx0 + 4, h + 3, cz0, AIR);
+  }
+  b.fillRect(ox - 9, h + 1, oz - 9, ox + 9, h + 15, oz + 9, MARBLE);
+  b.fillRect(ox - 8, h + 1, oz - 8, ox + 8, h + 14, oz + 8, AIR);
+  b.fillRect(ox - 8, h + 6, oz - 8, ox + 8, h + 6, oz + 8, PLANKS);
+  b.fillRect(ox - 8, h + 11, oz - 8, ox + 8, h + 11, oz + 8, PLANKS);
+  b.fillRect(ox - 3, h + 6, oz - 3, ox + 3, h + 6, oz + 3, AIR);
+  b.fillRect(ox - 2, h + 11, oz - 2, ox + 2, h + 11, oz + 2, AIR);
+  b.fillRect(ox + 8, h + 1, oz - 1, ox + 12, h + 4, oz + 1, AIR);
+  for (let i = -6; i <= 6; i += 3) {
+    for (const y of [h + 3, h + 8, h + 12]) {
+      b.set(ox - 9, y, oz + i, CRYSTAL); b.set(ox + 9, y, oz + i, CRYSTAL);
+      if (Math.abs(i) > 1) { b.set(ox + i, y, oz - 9, CRYSTAL); b.set(ox + i, y, oz + 9, CRYSTAL); }
+    }
+  }
+  b.fillRect(ox - 8, h + 1, oz - 8, ox - 8, h + 3, oz + 6, BOOK);
+  b.fillRect(ox - 6, h + 1, oz - 8, ox + 6, h + 3, oz - 8, BOOK);
+  b.fillRect(ox - 6, h + 1, oz + 8, ox + 6, h + 3, oz + 8, BOOK);
+  b.fillRect(ox - 9, h + 15, oz - 9, ox + 9, h + 15, oz + 9, MARBLE);
+  for (let i = 1; i <= 7; i++) b.fillRect(ox - 9 + i, h + 15 + i, oz - 9 + i, ox + 9 - i, h + 15 + i, oz + 9 - i, i > 5 ? CRYSTAL : MARBLE);
+  b.fillRect(ox - 1, h + 23, oz - 1, ox + 1, h + 30, oz + 1, MARBLE);
+  b.set(ox, h + 31, oz, CRYSTAL); b.set(ox, h + 32, oz, GLOW); b.set(ox, h + 33, oz, GLOW);
+  b.fillRect(ox - 1, h + 1, oz - 1, ox + 1, h + 1, oz + 1, GOLD);
+  b.set(ox, h + 2, oz, GLOW);
+  b.set(ox - 6, h + 2, oz - 6, LANTERN); b.set(ox + 6, h + 2, oz + 6, LANTERN);
+  b.set(ox - 6, h + 7, oz + 6, LANTERN); b.set(ox + 6, h + 7, oz - 6, LANTERN);
+  b.fillDisk(ox + 18, h, oz, 3.2, 3.2, MARBLE);
+  b.fillDisk(ox + 18, h, oz, 1.7, 1.7, WATER);
+  b.set(ox + 18, h + 1, oz, MARBLE); b.set(ox + 18, h + 2, oz, MARBLE); b.set(ox + 18, h + 3, oz, GLOW);
+  for (let k = 0; k < 12; k++) {
+    const a = k / 12 * Math.PI * 2;
+    const x = Math.round(ox + Math.cos(a) * 15), z = Math.round(oz + Math.sin(a) * 15);
+    if (x > ox + 6 && Math.abs(z - oz) < 3) continue;
+    for (let y = h + 1; y <= h + 4; y++) b.set(x, y, z, MARBLE);
+    if (k % 2 === 0) b.set(x, h + 5, z, LANTERN);
+  }
+  miniTree(b, ox - 16, h, oz + 12, BLOSSOM);
+  miniTree(b, ox - 18, h, oz - 8, BLOSSOM);
+  miniTree(b, ox + 14, h, oz - 14, LEAVES);
+  miniTree(b, ox - 8, h, oz + 16, BLOSSOM);
+  for (const [dx, dz, id] of [[-12, 4, FLOWER], [-13, 6, BLUEFLOWER], [-20, 2, TALLGRASS], [8, 16, FLOWER], [16, -8, BLUEFLOWER], [-4, -16, FLOWER]])
+    b.set(ox + dx, h + 1, oz + dz, id);
+  b.set(ox + 32, h + 1, oz - 4, WOOLP); b.set(ox + 32, h + 2, oz - 4, WOOLP); b.set(ox + 32, h + 3, oz - 4, GOLD);
+  b.set(ox + 32, h + 1, oz + 4, WOOLB); b.set(ox + 32, h + 2, oz + 4, WOOLB); b.set(ox + 32, h + 3, oz + 4, GOLD);
+  for (let y = h + 16; y <= h + 46; y++) b.set(ox, y > h + 33 ? y : h + 33, oz, GLOW);
+}
+
+function islandAt(b, ix, iy, iz, r) {
+  const xa = Math.max(Math.floor(ix - r), b.X0), xb = Math.min(Math.ceil(ix + r), b.X1);
+  const za = Math.max(Math.floor(iz - r), b.Z0), zb = Math.min(Math.ceil(iz + r), b.Z1);
+  for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+    const dx = x + 0.5 - ix, dz = z + 0.5 - iz, d = Math.hypot(dx, dz);
+    if (d > r) continue;
+    const depth = 2 + Math.round((1 - d / r) * 4);
+    for (let k = 0; k <= depth; k++) {
+      const y = iy - k;
+      const allow = d <= r * (1 - k * 0.12);
+      if (!allow) continue;
+      b.set(x, y, z, k === 0 ? GRASS : k < 3 ? DIRT : STONE);
+    }
+    if (d > r - 1.2 && hash2(x, z) > 0.55) {
+      const len = 2 + ((hash2(x, z + 1) * 5) | 0);
+      for (let i = 1; i <= len; i++) b.set(x, iy - i, z, hash2(x, i) > 0.5 ? LEAVES : BLOSSOM);
+    }
+  }
+}
+function bridge(b, a, c) {
+  const steps = Math.max(1, Math.round(Math.hypot(c.x - a.x, c.z - a.z)));
+  const dx = c.x - a.x, dz = c.z - a.z, len = Math.hypot(dx, dz) || 1;
+  const px = -dz / len, pz = dx / len;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = a.x + dx * t, z = a.z + dz * t, y = Math.round(a.y + (c.y - a.y) * t);
+    b.set(Math.round(x), y, Math.round(z), MARBLE);
+    b.set(Math.round(x + px), y, Math.round(z + pz), MARBLE);
+    if (i % 3 === 0) {
+      b.set(Math.round(x + px * 1.8), y + 1, Math.round(z + pz * 1.8), MARBLE);
+      b.set(Math.round(x - px * 1.8), y + 1, Math.round(z - pz * 1.8), MARBLE);
+      if (i % 6 === 0) b.set(Math.round(x + px * 1.8), y + 2, Math.round(z + pz * 1.8), LANTERN);
+    }
+  }
+}
+function stampSky(b, lm) {
+  const isles = [
+    { x: SKY_X, y: 158, z: SKY_Z, r: 13 },
+    { x: SKY_X + 20, y: 166, z: SKY_Z + 16, r: 8 },
+    { x: SKY_X - 18, y: 164, z: SKY_Z + 18, r: 9 },
+    { x: SKY_X + 8, y: 174, z: SKY_Z + 30, r: 6 },
+    { x: SKY_X - 12, y: 154, z: SKY_Z - 16, r: 7 },
+  ];
+  for (const s of isles) islandAt(b, s.x, s.y, s.z, s.r);
+  bridge(b, { x: isles[0].x, y: isles[0].y, z: isles[0].z }, isles[1]);
+  bridge(b, isles[0], isles[2]);
+  bridge(b, isles[1], isles[3]);
+  bridge(b, isles[2], isles[4]);
+  const main = isles[0];
+  miniTree(b, main.x - 4, main.y, main.z - 2, BLOSSOM);
+  miniTree(b, main.x + 5, main.y, main.z + 3, LEAVES);
+  miniTree(b, main.x + 1, main.y, main.z - 5, BLOSSOM);
+  for (let i = 0; i < 4; i++) {
+    const x = main.x + 3 + i, z = main.z + 5;
+    b.set(x, main.y + 1, z, CRYSTAL);
+    if (i % 2 === 0) b.set(x, main.y + 2, z, CRYSTAL);
+  }
+  b.set(main.x + 4, main.y + 3, main.z + 5, GLOW);
+  // shrine
+  for (const [dx, dz] of [[-2, 2], [2, 2], [-2, -2], [2, -2]]) {
+    b.fillRect(main.x + dx, main.y + 1, main.z + dz, main.x + dx, main.y + 4, main.z + dz, MARBLE);
+  }
+  b.fillRect(main.x - 3, main.y + 5, main.z - 3, main.x + 3, main.y + 5, main.z + 3, MARBLE);
+  b.fillRect(main.x - 2, main.y + 6, main.z - 2, main.x + 2, main.y + 6, main.z + 2, GOLD);
+  b.set(main.x, main.y + 1, main.z, GOLD); b.set(main.x, main.y + 2, main.z, GLOW);
+  // waterfall into the sacred lake
+  const wx = SKY_X - 8, wz = SKY_Z - 10;
+  for (let y = SEA; y <= 153; y++) { b.set(wx, y, wz, WATER); b.set(wx + 1, y, wz, WATER); }
+  b.set(isles[4].x, isles[4].y + 1, isles[4].z, LANTERN);
+  for (let i = 0; i < 5; i++) b.set(isles[3].x, isles[3].y + 1 + i, isles[3].z, i === 4 ? GLOW : CRYSTAL);
+}
+
+function stampLibrary(b, lm) {
+  const ox = lm.x, oz = lm.z, h = lm.h;
+  const x0 = ox - 16, x1 = ox + 16, z0 = oz - 10, z1 = oz + 10;
+  b.flattenRect(x0 - 3, z0 - 3, x1 + 3, z1 + 6, h, MARBLE, STONE, 60);
+  for (let i = 0; i < 3; i++) b.fillRect(x0 - 2 + i, h + i, z0 - 2 + i, x1 + 2 - i, h + i, z1 + 2 - i, MARBLE);
+  const fy = h + 2;
+  b.fillRect(x0, fy + 1, z0, x1, fy + 16, z1, AIR);
+  for (let x = x0 + 1; x <= x1 - 1; x += 3) {
+    b.fillRect(x, fy + 1, z1, x, fy + 8, z1, MARBLE);
+    b.fillRect(x, fy + 1, z0, x, fy + 8, z0, MARBLE);
+  }
+  for (let z = z0 + 3; z <= z1 - 3; z += 3) {
+    b.fillRect(x0, fy + 1, z, x0, fy + 8, z, MARBLE);
+    b.fillRect(x1, fy + 1, z, x1, fy + 8, z, MARBLE);
+  }
+  b.fillRect(x0, fy + 9, z0, x1, fy + 10, z1, SANDSTONE);
+  for (let i = 0; i <= 8; i++) {
+    const y = fy + 11 + i, inset = i;
+    b.fillRect(x0, y, z0 + inset, x1, y, z0 + inset, MARBLE);
+    b.fillRect(x0, y, z1 - inset, x1, y, z1 - inset, MARBLE);
+    b.fillRect(x0 + inset, y, z0 + inset, x0 + inset, y, z1 - inset, MARBLE);
+    b.fillRect(x1 - inset, y, z0 + inset, x1 - inset, y, z1 - inset, MARBLE);
+  }
+  b.fillRect(ox - 2, fy + 19, oz - 1, ox + 2, fy + 20, oz + 1, AIR);
+  b.set(ox, fy + 21, oz, CRYSTAL); b.set(ox, fy + 22, oz, GLOW);
+  b.fillRect(x0 + 3, fy + 1, z0 + 3, x1 - 3, fy + 8, z1 - 3, MARBLE);
+  b.fillRect(x0 + 4, fy + 1, z0 + 4, x1 - 4, fy + 7, z1 - 4, AIR);
+  b.fillRect(ox - 2, fy + 1, z1 - 4, ox + 2, fy + 4, z1 + 1, AIR);
+  for (let z = oz - 5; z <= oz + 4; z += 3) {
+    b.fillRect(ox - 12, fy + 1, z, ox - 10, fy + 4, z, BOOK);
+    b.fillRect(ox + 10, fy + 1, z, ox + 12, fy + 4, z, BOOK);
+    if (Math.abs(z - oz) > 1) {
+      b.fillRect(ox - 5, fy + 1, z, ox - 4, fy + 3, z, BOOK);
+      b.fillRect(ox + 4, fy + 1, z, ox + 5, fy + 3, z, BOOK);
+    }
+  }
+  b.fillRect(x0 + 4, fy + 5, z0 + 4, x1 - 4, fy + 5, z1 - 4, PLANKS);
+  b.fillRect(ox - 4, fy + 5, oz - 3, ox + 4, fy + 5, oz + 3, AIR);
+  b.set(ox - 8, fy + 2, oz, LANTERN); b.set(ox + 8, fy + 2, oz, LANTERN);
+  b.set(ox, fy + 2, oz - 6, GLOW); b.set(ox, fy + 6, oz, LANTERN);
+  statue(b, ox, fy + 1, oz - 2, MARBLE);
+  b.set(ox, fy + 6, oz - 2, GOLD);
+  // crypt
+  for (let i = 0; i < 8; i++) {
+    const y = fy - i, z = oz - 6 - i;
+    b.fillRect(ox - 1, y, z, ox + 1, y, z, MARBLE);
+    b.fillRect(ox - 1, y + 1, z, ox + 1, y + 3, z, AIR);
+  }
+  const cy = h - 6;
+  b.fillRect(ox - 7, cy, oz - 20, ox + 7, cy + 5, oz - 12, AIR);
+  b.fillRect(ox - 7, cy - 1, oz - 20, ox + 7, cy - 1, oz - 12, RUNESTONE);
+  b.fillRect(ox - 7, cy, oz - 20, ox - 7, cy + 4, oz - 12, BRICK);
+  b.fillRect(ox + 7, cy, oz - 20, ox + 7, cy + 4, oz - 12, BRICK);
+  b.fillRect(ox - 7, cy, oz - 20, ox + 7, cy + 4, oz - 20, BRICK);
+  b.fillRect(ox - 7, cy + 5, oz - 20, ox + 7, cy + 5, oz - 12, STONE);
+  b.fillRect(ox - 1, cy, oz - 17, ox + 1, cy + 1, oz - 14, BONE);
+  b.set(ox, cy + 2, oz - 15, GOLD);
+  b.set(ox - 5, cy, oz - 16, GLOW); b.set(ox + 5, cy, oz - 16, GLOW);
+  b.set(ox - 5, cy + 1, oz - 16, LANTERN); b.set(ox + 5, cy + 1, oz - 16, LANTERN);
+  b.fillRect(ox - 1, cy, oz - 13, ox + 1, cy + 3, oz - 12, AIR);
+}
+
+function stampBarrow(b, lm) {
+  const ox = lm.x, oz = lm.z, h = lm.h;
+  const xa = Math.max(ox - 24, b.X0), xb = Math.min(ox + 24, b.X1);
+  const za = Math.max(oz - 14, b.Z0), zb = Math.min(oz + 18, b.Z1);
+  for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+    const dx = (x + 0.5 - ox) / 22, dz = (z + 0.5 - oz) / 11;
+    const e = dx * dx + dz * dz;
+    if (e > 1) continue;
+    const mh = h + Math.round(8 * Math.sqrt(Math.max(0, 1 - e)));
+    const ground = b.sample(x, z).h;
+    for (let y = Math.min(ground, h); y <= mh; y++) {
+      let id = STONE;
+      if (y === mh) id = GRASS;
+      else if (y > mh - 3) id = DIRT;
+      b.set(x, y, z, id);
+    }
+    for (let y = mh + 1; y <= h + 20 && y < HEIGHT - 1; y++) b.set(x, y, z, AIR);
+  }
+  b.fillRect(ox - 1, h + 1, oz + 2, ox + 1, h + 3, oz + 16, AIR);
+  b.fillRect(ox - 1, h, oz + 2, ox + 1, h, oz + 14, MOSS);
+  b.fillRect(ox - 3, h + 1, oz - 6, ox + 3, h + 4, oz + 2, AIR);
+  b.fillRect(ox - 3, h, oz - 6, ox + 3, h, oz + 2, RUNESTONE);
+  b.fillRect(ox - 1, h + 1, oz - 4, ox + 1, h + 2, oz - 1, BONE);
+  b.set(ox, h + 2, oz - 2, GOLD); b.set(ox, h + 3, oz - 2, GLOW);
+  b.set(ox - 2, h + 1, oz - 4, GOLD); b.set(ox + 2, h + 1, oz - 4, GOLD);
+  b.set(ox - 2, h + 1, oz + 14, STONE); b.set(ox - 2, h + 2, oz + 14, STONE); b.set(ox - 2, h + 3, oz + 14, STONE);
+  b.set(ox + 2, h + 1, oz + 14, STONE); b.set(ox + 2, h + 2, oz + 14, STONE); b.set(ox + 2, h + 3, oz + 14, STONE);
+  b.fillRect(ox - 2, h + 4, oz + 14, ox + 2, h + 4, oz + 14, STONE);
+  b.set(ox, h + 1, oz + 16, LANTERN);
+  for (let k = 0; k < 12; k++) {
+    const a = k / 12 * Math.PI * 2;
+    const sx = Math.round(ox + Math.cos(a) * 18), sz = Math.round(oz + Math.sin(a) * 18);
+    if (sx < b.X0 || sx > b.X1 || sz < b.Z0 || sz > b.Z1) continue;
+    const gh = b.sample(sx, sz).h;
+    const ht = 3 + (k % 3);
+    for (let i = 1; i <= ht; i++) b.set(sx, gh + i, sz, k % 4 === 0 ? RUNESTONE : STONE);
+    if (k % 4 === 0) b.set(sx, gh + ht + 1, sz, GLOW);
+  }
+}
+
+function stampProc(b, cx, cz, sample) {
+  const hv = Math.floor(hash2(cx + 1000, cz - 777) * 1000000);
+  if (hv % 11 !== 2) return;
+  const ox = cx * CHUNK + 8, oz = cz * CHUNK + 8;
+  if (nearLandmark(ox, oz, 10)) return;
+  const info = sample(ox, oz);
+  const h = info.h, biome = info.biome;
+  if (biome === BIO_OCEAN && h < SEA - 1) {
+    const y = SEA;
+    b.fillRect(ox - 4, y, oz - 1, ox + 4, y, oz + 1, PLANKS);
+    b.set(ox + 1, y, oz, AIR);
+    b.fillRect(ox, y + 1, oz, ox, y + 5, oz, LOG);
+    b.fillRect(ox, y + 3, oz, ox, y + 5, oz + 2, WOOLW);
+    b.set(ox - 3, y + 1, oz, GOLD);
+    b.set(ox + 3, y, oz - 1, PRISMARINE);
+    b.set(ox - 2, y + 1, oz + 1, BOOK);
+    return;
+  }
+  if (info.waterTop >= h) return;
+  if (biome === BIO_DESERT) {
+    for (let i = 0; i < 5; i++) {
+      const m = 4 - i;
+      b.fillRect(ox - m, h + 1 + i, oz - m, ox + m, h + 1 + i, oz + m, i === 4 ? GOLD : SANDSTONE);
+    }
+    b.fillRect(ox - 1, h + 1, oz - 1, ox + 1, h + 2, oz + 1, AIR);
+    b.set(ox, h + 1, oz, GOLD); b.set(ox, h + 2, oz, GLOW);
+    return;
+  }
+  if (biome === BIO_SNOW) {
+    b.fillSphere(ox, h + 3, oz, 4.2, SNOW, 0);
+    b.fillSphere(ox, h + 3.2, oz, 2.6, AIR, 0);
+    b.fillRect(ox + 1, h + 1, oz - 1, ox + 4, h + 3, oz + 1, AIR);
+    b.set(ox, h + 1, oz, LANTERN);
+    b.set(ox - 1, h + 2, oz, ICE); b.set(ox, h + 2, oz - 2, ICE);
+    return;
+  }
+  if (biome === BIO_CRYSTAL) {
+    for (let i = 0; i < 6; i++) {
+      const dx = ((hash2(i, cx) * 5) | 0) - 2, dz = ((hash2(cz, i) * 5) | 0) - 2;
+      const th = 2 + ((hash2(i, i + 3) * 5) | 0);
+      for (let y = 1; y <= th; y++) b.set(ox + dx, h + y, oz + dz, CRYSTAL);
+      b.set(ox + dx, h + th + 1, oz + dz, GLOW);
+    }
+    b.fillDisk(ox, h, oz, 3, 3, MARBLE);
+    return;
+  }
+  const type = hv % 7;
+  if (type === 0) {
+    const ht = 8 + (hv % 6);
+    for (let y = h + 1; y <= h + ht; y++) {
+      const broken = y > h + 3 && hash3(ox, y, oz) > 0.72;
+      for (const [dx, dz] of [[-2, -2], [-2, 2], [2, -2], [2, 2]]) b.set(ox + dx, y, oz + dz, COBBLE);
+      if (!broken) {
+        if ((y & 1) === 0) {
+          b.fillRect(ox - 2, y, oz - 2, ox + 2, y, oz - 2, STONE);
+          b.fillRect(ox - 2, y, oz + 2, ox + 2, y, oz + 2, STONE);
+        }
+      }
+    }
+    b.fillRect(ox + 2, h + 1, oz - 1, ox + 3, h + 3, oz, AIR);
+    b.set(ox, h + ht + 1, oz, GLOW);
+    for (let y = h + 1; y <= h + ht; y += 2) b.set(ox, y, oz, PLANKS);
+  } else if (type === 1) {
+    b.fillDisk(ox, h, oz, 5.2, 5.2, MOSS);
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * Math.PI * 2;
+      const x = Math.round(ox + Math.cos(a) * 4.5), z = Math.round(oz + Math.sin(a) * 4.5);
+      const ht = 3 + (k % 3);
+      for (let i = 1; i <= ht; i++) b.set(x, h + i, z, k % 2 ? RUNESTONE : STONE);
+    }
+    b.set(ox, h + 1, oz, GLOW);
+  } else if (type === 2) {
+    b.fillRect(ox - 3, h, oz - 3, ox + 3, h, oz + 3, MARBLE);
+    for (const [dx, dz] of [[-2, -2], [-2, 2], [2, -2], [2, 2]]) {
+      b.fillRect(ox + dx, h + 1, oz + dz, ox + dx, h + 4, oz + dz, MARBLE);
+      b.set(ox + dx, h + 5, oz + dz, LANTERN);
+    }
+    b.fillRect(ox - 3, h + 5, oz - 3, ox + 3, h + 5, oz + 3, MARBLE);
+    b.set(ox, h + 1, oz, GOLD); b.set(ox, h + 2, oz, GLOW);
+    b.set(ox - 4, h + 1, oz, FLOWER); b.set(ox + 4, h + 1, oz, BLUEFLOWER);
+  } else if (type === 3) {
+    b.fillCyl(ox, oz, 3.2, h + 1, h + 15, MARBLE, 2.05);
+    b.fillCyl(ox, oz, 2, h + 1, h + 14, AIR, 0);
+    b.fillDisk(ox, h + 6, oz, 1.9, 1.9, PLANKS);
+    b.fillDisk(ox, h + 11, oz, 1.9, 1.9, PLANKS);
+    b.fillRect(ox + 2, h + 1, oz - 1, ox + 4, h + 3, oz, AIR);
+    for (const y of [h + 4, h + 8, h + 12]) {
+      b.set(ox + 3, y, oz, CRYSTAL); b.set(ox - 3, y, oz, CRYSTAL);
+      b.set(ox, y, oz + 3, CRYSTAL); b.set(ox, y, oz - 3, CRYSTAL);
+    }
+    for (let i = 0; i < 4; i++) b.fillCyl(ox, oz, Math.max(0.5, 3 - i * 0.7), h + 15 + i, h + 15 + i, i > 2 ? CRYSTAL : MARBLE, 0);
+    b.set(ox, h + 19, oz, GLOW);
+    b.set(ox, h + 2, oz, LANTERN);
+  } else if (type === 4) {
+    for (let i = 1; i <= 7; i++) b.set(ox, h + i, oz, MUSHSTEM);
+    b.fillDisk(ox, h + 8, oz, 3.2, 3.2, MUSHRED);
+    b.fillDisk(ox, h + 9, oz, 2.2, 2.2, MUSHRED);
+  } else if (type === 5) {
+    b.fillSphere(ox, h - 5, oz, 4.2, STONE, 0);
+    b.fillSphere(ox, h - 5, oz, 2.8, CRYSTAL, 0);
+    b.fillSphere(ox, h - 5, oz, 1.3, AIR, 0);
+    b.set(ox, h - 5, oz, GLOW);
+  } else {
+    b.fillRect(ox - 1, h + 1, oz - 4, ox - 1, h + 5, oz - 4, STONE);
+    b.fillRect(ox - 1, h + 1, oz + 4, ox - 1, h + 5, oz + 4, STONE);
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8;
+      const z = Math.round(oz - 4 + 8 * t);
+      const y = h + 5 + Math.round(Math.sin(t * Math.PI) * 3);
+      b.set(ox - 1, y, z, STONE);
+    }
+    b.set(ox + 1, h + 1, oz, COBBLE); b.set(ox + 2, h + 1, oz + 1, COBBLE);
+    b.set(ox, h + 1, oz + 2, GOLD);
+    b.set(ox - 1, h + 6, oz, LANTERN);
+  }
+}
+
+const STAMPS = {
+  plaza: stampPlaza, sun: stampSun, moon: stampMoon, tree: stampTree,
+  dragon: stampDragon, elven: stampElven, sky: stampSky, library: stampLibrary, barrow: stampBarrow
+};
+
+function ensureData(cx, cz) {
+  const k = keyOf(cx, cz);
+  let c = chunks.get(k);
+  if (!c) { c = genChunk(cx, cz); chunks.set(k, c); }
+  return c;
+}
+function getBlock(x, y, z) {
+  if (y < 0 || y >= HEIGHT) return y < 0 ? BEDROCK : AIR;
+  const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+  const c = ensureData(cx, cz);
+  const lx = x - cx * CHUNK, lz = z - cz * CHUNK;
+  return c.blocks[IDX(lx, y, lz)];
+}
+function writeBlock(x, y, z, id) {
+  if (y <= 0 || y >= HEIGHT - 1) return false;
+  const prev = getBlock(x, y, z);
+  if (prev === BEDROCK) return false;
+  const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+  const c = ensureData(cx, cz);
+  c.blocks[IDX(x - cx * CHUNK, y, z - cz * CHUNK)] = id;
+  // refresh top
+  let top = 0;
+  for (let yy = HEIGHT - 2; yy >= 1; yy--) {
+    const bid = c.blocks[IDX(x - cx * CHUNK, yy, z - cz * CHUNK)];
+    if (bid !== AIR && !DEFS[bid].plant) { top = yy; break; }
+  }
+  c.top[(x - cx * CHUNK) + (z - cz * CHUNK) * CHUNK] = top;
+  const k = keyOf(cx, cz);
+  let m = edits.get(k);
+  if (!m) { m = new Map(); edits.set(k, m); }
+  m.set(x + ',' + y + ',' + z, id);
+  c.dirty = true;
+  requestMesh(cx, cz, true);
+  const lx = x - cx * CHUNK, lz = z - cz * CHUNK;
+  if (lx === 0) requestMesh(cx - 1, cz, true);
+  if (lx === CHUNK - 1) requestMesh(cx + 1, cz, true);
+  if (lz === 0) requestMesh(cx, cz - 1, true);
+  if (lz === CHUNK - 1) requestMesh(cx, cz + 1, true);
+  return true;
+}
+
+const FACES = [
+  { n: [1, 0, 0], shade: 0.96, c: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]] },
+  { n: [-1, 0, 0], shade: 0.96, c: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]] },
+  { n: [0, 1, 0], shade: 1, c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]] },
+  { n: [0, -1, 0], shade: 0.84, c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]] },
+  { n: [0, 0, 1], shade: 0.98, c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]] },
+  { n: [0, 0, -1], shade: 0.93, c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]] },
+];
+const AO_T = [0.78, 0.88, 0.95, 1];
+function tileUV(id) {
+  const col = id % ATLAS_N, row = (id / ATLAS_N) | 0;
+  const inset = 0.08 / (ATLAS_N * TILE);
+  const u0 = col / ATLAS_N + inset, u1 = (col + 1) / ATLAS_N - inset;
+  const v0 = 1 - (row + 1) / ATLAS_N + inset, v1 = 1 - row / ATLAS_N - inset;
+  return [u0, v0, u1, v1];
+}
+function faceHidden(id, nid) {
+  if (!nid) return false;
+  const d = DEFS[id], n = DEFS[nid];
+  if (!n) return false;
+  if (nid === id && !d.plant) return true;
+  if (n.cull) return true;
+  return false;
+}
+
+let tex, opaqueMat, cutoutMat, emissiveMat, waterMat, glassMat, arcaneMat;
+function makeMaterials() {
+  tex = new THREE.CanvasTexture(atlasCanvas);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  const base = { map: tex, vertexColors: true };
+  opaqueMat = new THREE.MeshLambertMaterial(base);
+  cutoutMat = new THREE.MeshLambertMaterial(Object.assign({}, base, { alphaTest: 0.5, side: THREE.DoubleSide }));
+  emissiveMat = new THREE.MeshLambertMaterial(Object.assign({}, base, {
+    emissive: new THREE.Color(0xffffff), emissiveMap: tex, emissiveIntensity: 0.72
+  }));
+  waterMat = new THREE.MeshLambertMaterial(Object.assign({}, base, {
+    transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide
+  }));
+  glassMat = new THREE.MeshLambertMaterial(Object.assign({}, base, {
+    transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide
+  }));
+  arcaneMat = new THREE.MeshLambertMaterial(Object.assign({}, base, {
+    transparent: true, opacity: 0.78, depthWrite: false, side: THREE.DoubleSide,
+    emissive: new THREE.Color(0x6a3cff), emissiveMap: tex, emissiveIntensity: 0.45
+  }));
+}
+const MATS = {};
+function mats() {
+  MATS.opaque = opaqueMat; MATS.cutout = cutoutMat; MATS.emissive = emissiveMat;
+  MATS.water = waterMat; MATS.glass = glassMat; MATS.arcane = arcaneMat;
+  return MATS;
+}
+
+function buildMesh(chunk) {
+  const buckets = {
+    opaque: { pos: [], nor: [], uv: [], col: [], idx: [] },
+    cutout: { pos: [], nor: [], uv: [], col: [], idx: [] },
+    emissive: { pos: [], nor: [], uv: [], col: [], idx: [] },
+    water: { pos: [], nor: [], uv: [], col: [], idx: [] },
+    glass: { pos: [], nor: [], uv: [], col: [], idx: [] },
+    arcane: { pos: [], nor: [], uv: [], col: [], idx: [] },
+  };
+  const blocks = chunk.blocks;
+  const X0 = chunk.cx * CHUNK, Z0 = chunk.cz * CHUNK;
+  function at(lx, y, lz) {
+    if (y < 0 || y >= HEIGHT) return y < 0 ? BEDROCK : AIR;
+    if (lx >= 0 && lz >= 0 && lx < CHUNK && lz < CHUNK) return blocks[IDX(lx, y, lz)];
+    return getBlock(X0 + lx, y, Z0 + lz);
+  }
+  function occludes(lx, y, lz) {
+    const id = at(lx, y, lz);
+    return !!(DEFS[id] && DEFS[id].cull);
+  }
+  function pushQuad(bucket, verts, normal, uvs, cols) {
+    const base = bucket.pos.length / 3;
+    for (let i = 0; i < 4; i++) {
+      bucket.pos.push(verts[i][0], verts[i][1], verts[i][2]);
+      bucket.nor.push(normal[0], normal[1], normal[2]);
+      bucket.uv.push(uvs[i][0], uvs[i][1]);
+      bucket.col.push(cols[i][0], cols[i][1], cols[i][2]);
+    }
+    bucket.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  for (let y = 0; y < HEIGHT; y++) for (let z = 0; z < CHUNK; z++) for (let x = 0; x < CHUNK; x++) {
+    const id = blocks[IDX(x, y, z)];
+    if (!id) continue;
+    const d = DEFS[id];
+    const biome = chunk.biome[x + z * CHUNK];
+    if (d.plant) {
+      const uv = tileUV(d.top);
+      const uvs = [[uv[0], uv[1]], [uv[2], uv[1]], [uv[2], uv[3]], [uv[0], uv[3]]];
+      const cols = [[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]];
+      const q1 = [[x, y, z], [x + 1, y, z + 1], [x + 1, y + 1, z + 1], [x, y + 1, z]];
+      const q2 = [[x + 1, y, z], [x, y, z + 1], [x, y + 1, z + 1], [x + 1, y + 1, z]];
+      pushQuad(buckets.cutout, q1, [0, 1, 0], uvs, cols);
+      pushQuad(buckets.cutout, q2, [0, 1, 0], uvs, cols);
+      continue;
+    }
+    const above = at(x, y + 1, z);
+    const yScale = d.fluid && above !== id ? 0.875 : 1;
+    for (let f = 0; f < 6; f++) {
+      const face = FACES[f];
+      const nid = at(x + face.n[0], y + face.n[1], z + face.n[2]);
+      if (faceHidden(id, nid)) continue;
+      const uv = tileUV(f === 2 ? d.top : f === 3 ? d.bottom : d.side);
+      const uvs = [[uv[0], uv[1]], [uv[2], uv[1]], [uv[2], uv[3]], [uv[0], uv[3]]];
+      const cols = [];
+      const verts = [];
+      let flipLight = 0, flipDark = 0;
+      const aos = [];
+      for (let i = 0; i < 4; i++) {
+        const vx = face.c[i][0], vy = face.c[i][1], vz = face.c[i][2];
+        let px = x + (d.inset ? (vx ? 1 - d.inset : d.inset) : vx);
+        let pz = z + (d.inset ? (vz ? 1 - d.inset : d.inset) : vz);
+        let py = y + (vy ? yScale : 0);
+        verts.push([px, py, pz]);
+        const sx = vx ? 1 : -1, sy = vy ? 1 : -1, sz = vz ? 1 : -1;
+        let a1, a2, ac;
+        if (face.n[0]) { a1 = occludes(x + face.n[0], y + sy, z); a2 = occludes(x + face.n[0], y, z + sz); ac = occludes(x + face.n[0], y + sy, z + sz); }
+        else if (face.n[1]) { a1 = occludes(x + sx, y + face.n[1], z); a2 = occludes(x, y + face.n[1], z + sz); ac = occludes(x + sx, y + face.n[1], z + sz); }
+        else { a1 = occludes(x + sx, y, z + face.n[2]); a2 = occludes(x, y + sy, z + face.n[2]); ac = occludes(x + sx, y + sy, z + face.n[2]); }
+        const ao = (a1 && a2) ? 0 : 3 - ((a1 ? 1 : 0) + (a2 ? 1 : 0) + (ac ? 1 : 0));
+        aos.push(ao);
+        let tint = [1, 1, 1];
+        if (id === GRASS && f === 2) tint = GRASS_TINT[biome] || [1, 1, 1];
+        let vary = 1;
+        if (d.vary) vary = 0.93 + hash2((X0 + x) * 5 + y, (Z0 + z) * 3 - y) * 0.14;
+        if (id === WATER) {
+          const depth = clamp((SEA - y) / 16, 0, 1);
+          tint = [0.82 - depth * 0.35, 0.92 - depth * 0.2, 1];
+        }
+        const lit = AO_T[ao] * face.shade * vary;
+        cols.push([tint[0] * lit, tint[1] * lit, tint[2] * lit]);
+      }
+      const bucket = buckets[d.group] || buckets.opaque;
+      const base = bucket.pos.length / 3;
+      for (let i = 0; i < 4; i++) {
+        bucket.pos.push(verts[i][0], verts[i][1], verts[i][2]);
+        bucket.nor.push(face.n[0], face.n[1], face.n[2]);
+        bucket.uv.push(uvs[i][0], uvs[i][1]);
+        bucket.col.push(cols[i][0], cols[i][1], cols[i][2]);
+      }
+      if (aos[0] + aos[2] < aos[1] + aos[3]) bucket.idx.push(base, base + 1, base + 3, base + 1, base + 2, base + 3);
+      else bucket.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+  if (chunk.group) {
+    scene.remove(chunk.group);
+    chunk.group.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  }
+  const group = new THREE.Group();
+  group.position.set(X0, 0, Z0);
+  const map = mats();
+  for (const name of Object.keys(buckets)) {
+    const bkt = buckets[name];
+    if (!bkt.pos.length) continue;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(bkt.pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(bkt.nor, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(bkt.uv, 2));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(bkt.col, 3));
+    geo.setIndex(new THREE.BufferAttribute(new Uint32Array(bkt.idx), 1));
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(CHUNK / 2, HEIGHT / 2, CHUNK / 2), Math.hypot(CHUNK, HEIGHT / 2));
+    const mesh = new THREE.Mesh(geo, map[name]);
+    if (name === 'water' || name === 'glass' || name === 'arcane') mesh.renderOrder = 2;
+    group.add(mesh);
+  }
+  scene.add(group);
+  chunk.group = group;
+  chunk.dirty = false;
+}
+
+const dataQueue = [], meshQueue = [];
+const dataQueued = new Set(), meshQueued = new Set();
+function requestData(cx, cz) {
+  const k = keyOf(cx, cz);
+  if (chunks.has(k) || dataQueued.has(k)) {
+    if (chunks.has(k)) requestMesh(cx, cz, false);
+    return;
+  }
+  dataQueued.add(k); dataQueue.push(k);
+}
+function requestMesh(cx, cz, urgent) {
+  const k = keyOf(cx, cz);
+  if (!chunks.has(k)) return;
+  if (meshQueued.has(k)) return;
+  const c = chunks.get(k);
+  if (c.group && !c.dirty) return;
+  meshQueued.add(k);
+  if (urgent) meshQueue.unshift(k); else meshQueue.push(k);
+}
+function tooFar(cx, cz) {
+  const pcx = Math.floor(player.x / CHUNK), pcz = Math.floor(player.z / CHUNK);
+  return Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz)) > RD + 2;
+}
+function processQueues(budget) {
+  const t0 = performance.now();
+  while (dataQueue.length && performance.now() - t0 < budget) {
+    const k = dataQueue.shift(); dataQueued.delete(k);
+    const [cx, cz] = k.split(',').map(Number);
+    if (tooFar(cx, cz)) continue;
+    ensureData(cx, cz); requestMesh(cx, cz, false);
+  }
+  while (meshQueue.length && performance.now() - t0 < budget) {
+    const k = meshQueue.shift(); meshQueued.delete(k);
+    const [cx, cz] = k.split(',').map(Number);
+    if (Math.max(Math.abs(cx - Math.floor(player.x / CHUNK)), Math.abs(cz - Math.floor(player.z / CHUNK))) > RD) continue;
+    const c = chunks.get(k);
+    if (c) buildMesh(c);
+  }
+}
+function stream() {
+  const pcx = Math.floor(player.x / CHUNK), pcz = Math.floor(player.z / CHUNK);
+  const need = [];
+  for (let dz = -RD; dz <= RD; dz++) for (let dx = -RD; dx <= RD; dx++) {
+    need.push([pcx + dx, pcz + dz, Math.abs(dx) + Math.abs(dz)]);
+  }
+  need.sort((a, b) => a[2] - b[2]);
+  for (const [cx, cz] of need) requestData(cx, cz);
+  for (const [k, c] of chunks) {
+    if (tooFar(c.cx, c.cz)) {
+      if (c.group) {
+        scene.remove(c.group);
+        c.group.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+      }
+      chunks.delete(k); meshQueued.delete(k); dataQueued.delete(k);
+    }
+  }
+  if (colCache.size > 250000) colCache.clear();
+}
+
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMappingExposure = 1;
+renderer.setClearColor(0x87b8e8, 1);
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xc5e4f8, 40, 120);
+const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.08, 700);
+makeMaterials();
+
+const hemi = new THREE.HemisphereLight(0xd7ecff, 0x8a7356, 0.7);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff4dc, 0.75);
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xfff0d2, 0.45);
+fill.position.set(90, 50, 40);
+scene.add(fill);
+const fill2 = new THREE.DirectionalLight(0xc9d8ff, 0.32);
+fill2.position.set(-70, 36, -50);
+scene.add(fill2);
+const amb = new THREE.AmbientLight(0xffffff, 0.42);
+scene.add(amb);
+
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: {
+    topColor: { value: new THREE.Color() },
+    horizonColor: { value: new THREE.Color() },
+    bottomColor: { value: new THREE.Color() },
+    sunDir: { value: new THREE.Vector3() },
+    sunColor: { value: new THREE.Color() },
+    moonDir: { value: new THREE.Vector3() },
+  },
+  vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `
+    varying vec3 vDir;
+    uniform vec3 topColor; uniform vec3 horizonColor; uniform vec3 bottomColor;
+    uniform vec3 sunDir; uniform vec3 sunColor; uniform vec3 moonDir;
+    void main(){
+      vec3 d = normalize(vDir);
+      float h = d.y;
+      vec3 col = h > 0.0 ? mix(horizonColor, topColor, pow(max(h,0.0), 0.65)) : mix(horizonColor, bottomColor, pow(clamp(-h,0.0,1.0), 0.55));
+      float sunDot = max(dot(d, normalize(sunDir)), 0.0);
+      col += sunColor * pow(sunDot, 420.0) * 1.8;
+      col += sunColor * pow(sunDot, 14.0) * 0.38;
+      float moon = max(dot(d, normalize(moonDir)), 0.0);
+      col += vec3(0.85, 0.9, 1.0) * pow(moon, 700.0);
+      col += vec3(0.55, 0.62, 0.85) * pow(moon, 10.0) * 0.22;
+      gl_FragColor = vec4(col, 1.0);
+    }`
+});
+const sky = new THREE.Mesh(new THREE.SphereGeometry(520, 28, 16), skyMat);
+sky.frustumCulled = false; sky.renderOrder = -2;
+scene.add(sky);
+const starPos = [];
+for (let i = 0; i < 700; i++) {
+  const v = new THREE.Vector3(Math.random() * 2 - 1, Math.random(), Math.random() * 2 - 1).normalize().multiplyScalar(480);
+  starPos.push(v.x, v.y, v.z);
+}
+const starGeo = new THREE.BufferGeometry();
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.5, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+stars.frustumCulled = false; stars.renderOrder = -1;
+scene.add(stars);
+
+const cloudCanvas = document.createElement('canvas');
+cloudCanvas.width = cloudCanvas.height = 512;
+const cctx = cloudCanvas.getContext('2d');
+cctx.clearRect(0, 0, 512, 512);
+for (let i = 0; i < 90; i++) {
+  const x = hash2(i, 1) * 512, y = hash2(i, 2) * 512, r = 30 + hash2(i, 3) * 70;
+  const g = cctx.createRadialGradient(x, y, r * 0.2, x, y, r);
+  g.addColorStop(0, 'rgba(255,255,255,0.55)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  cctx.fillStyle = g; cctx.beginPath(); cctx.arc(x, y, r, 0, 7); cctx.fill();
+}
+const cloudTex = new THREE.CanvasTexture(cloudCanvas);
+cloudTex.wrapS = cloudTex.wrapT = THREE.RepeatWrapping;
+cloudTex.repeat.set(6, 6);
+cloudTex.colorSpace = THREE.SRGBColorSpace;
+cloudTex.magFilter = THREE.LinearFilter; cloudTex.minFilter = THREE.LinearFilter;
+const cloudMat = new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, depthWrite: false, opacity: 0.8, fog: true });
+const clouds = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400), cloudMat);
+clouds.rotation.x = -Math.PI / 2; clouds.position.y = 196; clouds.renderOrder = 1; clouds.frustumCulled = false;
+scene.add(clouds);
+
+const ffCount = 48;
+const ffPos = new Float32Array(ffCount * 3);
+const ffGeo = new THREE.BufferGeometry();
+ffGeo.setAttribute('position', new THREE.BufferAttribute(ffPos, 3));
+const fireflies = new THREE.Points(ffGeo, new THREE.PointsMaterial({ color: 0xffe7a8, size: 0.22, transparent: true, opacity: 0, depthWrite: false }));
+scene.add(fireflies);
+
+const hl = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002, 1.002, 1.002)),
+  new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 })
+);
+hl.visible = false; scene.add(hl);
+
+const pGeo = new THREE.BoxGeometry(1, 1, 1);
+const particles = [], pool = [];
+function burst(x, y, z, color) {
+  if (particles.length > 160) return;
+  const [r, g, b] = color || [200, 200, 200];
+  for (let i = 0; i < 12; i++) {
+    let m = pool.pop();
+    if (!m) {
+      m = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial());
+      scene.add(m);
+    }
+    m.visible = true;
+    m.material.color.setRGB(r / 255, g / 255, b / 255);
+    m.position.set(x + Math.random(), y + Math.random(), z + Math.random());
+    const s = 0.08 + Math.random() * 0.12;
+    m.scale.setScalar(s);
+    m.userData.v = new THREE.Vector3((Math.random() - 0.5) * 3.2, Math.random() * 3.4 + 1.2, (Math.random() - 0.5) * 3.2);
+    m.userData.life = 0.45 + Math.random() * 0.35;
+    particles.push(m);
+  }
+}
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const m = particles[i];
+    m.userData.life -= dt;
+    m.userData.v.y -= 9 * dt;
+    m.position.addScaledVector(m.userData.v, dt);
+    m.rotation.y += dt * 4;
+    if (m.userData.life <= 0) { m.visible = false; pool.push(m); particles.splice(i, 1); }
+  }
+}
+
+const player = { x: 8.5, y: 80, z: 8.5 };
+const vel = { x: 0, y: 0, z: 0 };
+let yaw = 0, pitch = -0.2, onGround = false, flying = false, noclip = false;
+let state = 'menu', menuAng = 0.4, dayTime = 0.34, fastTime = false;
+let hp = 20, hurt = 0, bobPhase = 0, stepAcc = 0;
+let breakCd = 0, placeCd = 0, target = null;
+const buttons = { left: false, right: false };
+const down = new Set();
+const HW = 0.28, PH = 1.8, STEP = 1.05;
+let hotbar = [GRASS, DIRT, STONE, COBBLE, PLANKS, LOG, MARBLE, GLOW, GLASS, CRYSTAL];
+let sel = 0;
+let muted = false, hintLeft = 26, fpsS = 60, wind = 0;
+let fogNear = 48, fogFar = 120;
+const dayTop = new THREE.Color(0x6eb6f5), dayHor = new THREE.Color(0xd3ecfd), dayBot = new THREE.Color(0xc5d8aa);
+const setTop = new THREE.Color(0x2a3a68), setHor = new THREE.Color(0xf0944e), setBot = new THREE.Color(0x6a4038);
+const nightTop = new THREE.Color(0x070914), nightHor = new THREE.Color(0x1a2444), nightBot = new THREE.Color(0x0c1020);
+const tmpA = new THREE.Color(), tmpB = new THREE.Color();
+
+function solidAt(x, y, z) {
+  if (y < 0) return true;
+  if (y >= HEIGHT) return false;
+  const id = getBlock(x, y, z);
+  return !!(DEFS[id] && DEFS[id].solid);
+}
+function overlapsAt(px, py, pz) {
+  if (noclip || state === 'menu') return false;
+  const x0 = Math.floor(px - HW), x1 = Math.floor(px + HW - 1e-4);
+  const y0 = Math.floor(py), y1 = Math.floor(py + PH - 1e-4);
+  const z0 = Math.floor(pz - HW), z1 = Math.floor(pz + HW - 1e-4);
+  for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++)
+    if (solidAt(x, y, z)) return true;
+  return false;
+}
+function moveY(dy) {
+  if (!dy) return;
+  const old = player.y;
+  player.y += dy;
+  if (!overlapsAt(player.x, player.y, player.z)) return;
+  let lo = old, hi = player.y;
+  for (let i = 0; i < 12; i++) {
+    const mid = (lo + hi) / 2;
+    player.y = mid;
+    if (overlapsAt(player.x, player.y, player.z)) hi = mid; else lo = mid;
+  }
+  player.y = lo;
+  if (dy < 0) onGround = true;
+  vel.y = 0;
+}
+function moveXZ(axis, delta) {
+  if (!delta) return;
+  const old = player[axis];
+  player[axis] += delta;
+  if (!overlapsAt(player.x, player.y, player.z)) return;
+  if ((onGround || vel.y <= 0) && !flying) {
+    const saved = player.y;
+    let stepped = false;
+    for (let s = 0.1; s <= STEP + 1e-3; s += 0.1) {
+      player.y = saved + s;
+      if (!overlapsAt(player.x, player.y, player.z)) { stepped = true; break; }
+    }
+    if (stepped) { onGround = true; vel.y = 0; return; }
+    player.y = saved;
+  }
+  player[axis] = old;
+  vel[axis] = 0;
+}
+
+function raycast(ox, oy, oz, dx, dy, dz, maxDist) {
+  let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
+  const sx = Math.sign(dx) || 0, sy = Math.sign(dy) || 0, sz = Math.sign(dz) || 0;
+  const tdx = dx ? Math.abs(1 / dx) : Infinity;
+  const tdy = dy ? Math.abs(1 / dy) : Infinity;
+  const tdz = dz ? Math.abs(1 / dz) : Infinity;
+  let tmx = dx ? ((sx > 0 ? x + 1 - ox : ox - x) * tdx) : Infinity;
+  let tmy = dy ? ((sy > 0 ? y + 1 - oy : oy - y) * tdy) : Infinity;
+  let tmz = dz ? ((sz > 0 ? z + 1 - oz : oz - z) * tdz) : Infinity;
+  let nx = 0, ny = 0, nz = 0;
+  for (let i = 0; i < 64; i++) {
+    const id = getBlock(x, y, z);
+    if (id !== AIR) return { x, y, z, id, nx, ny, nz };
+    if (tmx <= tmy && tmx <= tmz) {
+      if (tmx > maxDist) return null;
+      x += sx; tmx += tdx; nx = -sx; ny = 0; nz = 0;
+    } else if (tmy <= tmz) {
+      if (tmy > maxDist) return null;
+      y += sy; tmy += tdy; nx = 0; ny = -sy; nz = 0;
+    } else {
+      if (tmz > maxDist) return null;
+      z += sz; tmz += tdz; nx = 0; ny = 0; nz = -sz;
+    }
+    if (y < 0 || y >= HEIGHT) return null;
+  }
+  return null;
+}
+function replaceable(id) { return id === AIR || (DEFS[id] && (DEFS[id].fluid || DEFS[id].plant)); }
+function hitsPlayer(x, y, z) {
+  return player.x + HW > x && player.x - HW < x + 1 && player.y + PH > y && player.y < y + 1 && player.z + HW > z && player.z - HW < z + 1;
+}
+function breakBlock(t) {
+  if (!t || t.id === BEDROCK || t.y <= 0) return;
+  writeBlock(t.x, t.y, t.z, AIR);
+  burst(t.x, t.y, t.z, DEFS[t.id].color);
+  sfxBreak();
+}
+function placeBlock(t) {
+  if (!t) return;
+  const id = hotbar[sel];
+  const x = t.x + t.nx, y = t.y + t.ny, z = t.z + t.nz;
+  if (y <= 0 || y >= HEIGHT - 1) return;
+  if (!replaceable(getBlock(x, y, z))) return;
+  if (DEFS[id].solid && hitsPlayer(x, y, z)) return;
+  writeBlock(x, y, z, id);
+  sfxPlace();
+}
+
+let audioCtx = null, nextNote = 0;
+function ac() {
+  if (muted) return null;
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq, dur, type, vol, slide) {
+  const a = ac(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, a.currentTime);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, slide), a.currentTime + dur);
+  g.gain.setValueAtTime(vol, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + dur + 0.02);
+}
+function noise(dur, vol, freq) {
+  const a = ac(); if (!a) return;
+  const buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const src = a.createBufferSource(); src.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq;
+  const g = a.createGain();
+  g.gain.setValueAtTime(vol, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+  src.connect(f); f.connect(g); g.connect(a.destination); src.start();
+}
+function sfxBreak() { noise(0.12, 0.18, 280); tone(140, 0.08, 'square', 0.03, 70); }
+function sfxPlace() { tone(220, 0.06, 'square', 0.04, 120); noise(0.05, 0.08, 600); }
+function sfxFoot() { noise(0.05, 0.05, 180); }
+function sfxChime() { [523, 659, 784].forEach((f, i) => setTimeout(() => tone(f, 0.35, 'sine', 0.03), i * 120)); }
+function updateMusic() {
+  const a = ac(); if (!a || state === 'menu') return;
+  if (a.currentTime < nextNote) return;
+  const scale = [220, 247, 294, 330, 370, 440, 494];
+  const n = scale[(Math.random() * scale.length) | 0];
+  tone(n, 1.8, 'sine', 0.018);
+  if (Math.random() < 0.45) tone(n * 1.5, 2.2, 'sine', 0.01);
+  nextNote = a.currentTime + 1.5 + Math.random() * 1.6;
+}
+
+const screenEl = document.getElementById('screen');
+const playBtn = document.getElementById('play');
+const progEl = document.getElementById('prog');
+const pauseEl = document.getElementById('pause');
+const invEl = document.getElementById('inv');
+const hud = document.getElementById('hud');
+const statEl = document.getElementById('stat');
+const marksEl = document.getElementById('marks');
+const handEl = document.getElementById('hand');
+const hotbarEl = document.getElementById('hotbar');
+const heartsEl = document.getElementById('hearts');
+const bannerEl = document.getElementById('banner');
+const toastEl = document.getElementById('toast');
+const hintEl = document.getElementById('hint');
+const veil = document.getElementById('veil');
+const mapCanvas = document.getElementById('map');
+const mapCtx = mapCanvas.getContext('2d');
+const compassEl = document.getElementById('compass');
+const compassItems = [];
+for (const [label, ang] of [['北', 0], ['东北', Math.PI / 4], ['东', -Math.PI / 2], ['东南', -Math.PI * 0.75], ['南', Math.PI], ['西南', Math.PI * 0.75], ['西', Math.PI / 2], ['西北', Math.PI / 4]]) {
+  // angles fixed below
+}
+const COMPASS = [
+  ['北', 0], ['东北', -Math.PI / 4], ['东', -Math.PI / 2], ['东南', -Math.PI * 3 / 4],
+  ['南', Math.PI], ['西南', Math.PI * 3 / 4], ['西', Math.PI / 2], ['西北', Math.PI / 4],
+];
+for (const [label] of COMPASS) {
+  const i = document.createElement('i'); i.textContent = label; compassEl.appendChild(i); compassItems.push(i);
+}
+
+function iconFor(id) {
+  const c = document.createElement('canvas'); c.width = c.height = 48;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  g.fillStyle = '#1a1d24'; g.fillRect(0, 0, 48, 48);
+  const tile = DEFS[id].top;
+  const col = tile % ATLAS_N, row = (tile / ATLAS_N) | 0;
+  g.drawImage(atlasCanvas, col * 16, row * 16, 16, 16, 4, 4, 40, 40);
+  return c;
+}
+function buildHotbar() {
+  hotbarEl.innerHTML = '';
+  hotbar.forEach((id, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (i === sel ? ' on' : '');
+    slot.appendChild(iconFor(id));
+    const n = document.createElement('i'); n.textContent = i === 9 ? '0' : String(i + 1);
+    slot.appendChild(n);
+    hotbarEl.appendChild(slot);
+  });
+  handEl.textContent = DEFS[hotbar[sel]].name + (flying ? ' · 飞行' : '') + (noclip ? ' · 穿墙' : '');
+}
+function buildInv() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (let id = 1; id < DEFS.length; id++) {
+    if (id === BEDROCK) continue;
+    const cell = document.createElement('button');
+    cell.appendChild(iconFor(id));
+    const lab = document.createElement('span'); lab.textContent = DEFS[id].name;
+    cell.appendChild(lab);
+    cell.addEventListener('click', () => { hotbar[sel] = id; buildHotbar(); closeInv(true); });
+    grid.appendChild(cell);
+  }
+}
+function buildHearts() {
+  heartsEl.innerHTML = '';
+  for (let i = 0; i < 10; i++) {
+    const s = document.createElement('span'); s.textContent = '♥';
+    const v = hp - i * 2;
+    s.className = v >= 2 ? 'full' : v >= 1 ? 'half' : '';
+    heartsEl.appendChild(s);
+  }
+}
+let bannerT = 0, toastT = 0;
+function showBanner(name, desc) {
+  bannerEl.querySelector('.n').textContent = name;
+  bannerEl.querySelector('.d').textContent = desc;
+  bannerEl.classList.add('show'); bannerT = 4.2;
+}
+function showToast(text) {
+  toastEl.textContent = text; toastEl.classList.add('show'); toastT = 1.6;
+}
+function applyFogDist() {
+  const dist = RD * CHUNK;
+  fogNear = dist * 0.42; fogFar = dist * 1.55;
+}
+function standAt(x, z) {
+  const h = SITES[0].h;
+  player.x = x; player.z = z; player.y = h + 1.02;
+  state = 'play';
+  for (let i = 0; i < 8 && overlapsAt(player.x, player.y, player.z); i++) player.y += 1;
+}
+function beginPlay() {
+  standAt(5.5, 5.5);
+  vel.x = vel.y = vel.z = 0;
+  const dx = SITES[1].x - player.x, dz = SITES[1].z - player.z;
+  yaw = Math.atan2(-dx, -dz); pitch = -0.08;
+  flying = false; noclip = false; hp = 20;
+  screenEl.classList.add('hidden'); pauseEl.classList.add('hidden');
+  hud.classList.add('show'); hintLeft = 26; hintEl.style.opacity = 1;
+}
+function openInv() {
+  state = 'inv';
+  document.exitPointerLock();
+  invEl.classList.remove('hidden');
+  pauseEl.classList.add('hidden');
+}
+function closeInv(lock) {
+  invEl.classList.add('hidden');
+  state = 'play';
+  if (lock) canvas.requestPointerLock();
+}
+function respawn() {
+  standAt(5.5, 5.5);
+  vel.x = vel.y = vel.z = 0; hp = 20; flying = false;
+  showBanner('星辉重燃', '你被送回了广场');
+}
+
+playBtn.addEventListener('click', async () => {
+  beginPlay();
+  try { await canvas.requestPointerLock(); } catch (e) {}
+  ac();
+});
+document.getElementById('resume').addEventListener('click', async () => {
+  state = 'play'; pauseEl.classList.add('hidden'); hud.classList.add('show');
+  try { await canvas.requestPointerLock(); } catch (e) {}
+});
+document.addEventListener('pointerlockchange', () => {
+  const locked = document.pointerLockElement === canvas;
+  if (locked) {
+    state = 'play';
+    screenEl.classList.add('hidden'); pauseEl.classList.add('hidden'); invEl.classList.add('hidden');
+    hud.classList.add('show');
+  } else if (state === 'play') {
+    state = 'pause'; pauseEl.classList.remove('hidden');
+  }
+});
+canvas.addEventListener('mousedown', (e) => {
+  if (state !== 'play') return;
+  if (e.button === 0) buttons.left = true;
+  if (e.button === 2) buttons.right = true;
+  if (e.button === 1 && target && target.id !== BEDROCK) { hotbar[sel] = target.id; buildHotbar(); }
+  e.preventDefault();
+});
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 0) buttons.left = false;
+  if (e.button === 2) buttons.right = false;
+});
+window.addEventListener('contextmenu', (e) => e.preventDefault());
+window.addEventListener('mousemove', (e) => {
+  if (document.pointerLockElement !== canvas) return;
+  yaw -= e.movementX * 0.0022;
+  pitch -= e.movementY * 0.0022;
+  pitch = clamp(pitch, -1.5, 1.5);
+});
+let lastSpace = -1;
+window.addEventListener('keydown', (e) => {
+  down.add(e.code);
+  if (['Space', 'KeyE', 'Tab'].includes(e.code)) e.preventDefault();
+  if (e.code === 'KeyE') {
+    if (state === 'play') openInv();
+    else if (state === 'inv') closeInv(true);
+  }
+  if (e.code === 'Escape' && state === 'inv') {
+    state = 'pause'; invEl.classList.add('hidden'); pauseEl.classList.remove('hidden');
+  }
+  const digit = { Digit1:0, Digit2:1, Digit3:2, Digit4:3, Digit5:4, Digit6:5, Digit7:6, Digit8:7, Digit9:8, Digit0:9 };
+  if (digit[e.code] != null && state === 'play') { sel = digit[e.code]; buildHotbar(); }
+  if (e.code === 'KeyF' && state === 'play') { flying = !flying; vel.y = 0; showToast(flying ? '飞行' : '步行'); }
+  if (e.code === 'KeyV' && state === 'play') { noclip = !noclip; showToast(noclip ? '穿墙' : '实心'); }
+  if (e.code === 'KeyR' && state === 'play') respawn();
+  if (e.code === 'KeyT') { fastTime = !fastTime; showToast(fastTime ? '时光加速' : '时光正常'); }
+  if (e.code === 'KeyM') { muted = !muted; if (muted && audioCtx) audioCtx.suspend(); else if (audioCtx) audioCtx.resume(); showToast(muted ? '已静音' : '音乐开启'); }
+  if (e.code === 'KeyH') hud.classList.toggle('show');
+  if (e.code === 'BracketLeft') { RD = clamp(RD - 1, 2, 6); applyFogDist(); showToast('视距 ' + RD); }
+  if (e.code === 'BracketRight') { RD = clamp(RD + 1, 2, 6); applyFogDist(); showToast('视距 ' + RD); }
+  if (e.code === 'Space' && state === 'play') {
+    const t = performance.now();
+    if (t - lastSpace < 280) { flying = !flying; vel.y = 0; showToast(flying ? '飞行' : '步行'); }
+    lastSpace = t;
+  }
+});
+window.addEventListener('keyup', (e) => down.delete(e.code));
+window.addEventListener('wheel', (e) => {
+  if (state !== 'play') return;
+  sel = (sel + (e.deltaY > 0 ? 1 : -1) + hotbar.length) % hotbar.length;
+  buildHotbar();
+}, { passive: true });
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+window.addEventListener('error', (e) => {
+  document.getElementById('errmsg').textContent = (e.message || e.error) + ' @' + (e.lineno || '');
+});
+window.addEventListener('unhandledrejection', (e) => {
+  document.getElementById('errmsg').textContent = String(e.reason && e.reason.stack || e.reason);
+});
+
+function fluidHere() {
+  const id = getBlock(Math.floor(player.x), Math.floor(player.y + 0.9), Math.floor(player.z));
+  return id;
+}
+function updatePlayer(dt) {
+  if (state === 'menu') {
+    menuAng += dt * 0.12;
+    const h = SITES[0].h;
+    const r = 34;
+    player.x = Math.cos(menuAng) * r;
+    player.z = Math.sin(menuAng) * r;
+    player.y = h + 38;
+    yaw = Math.atan2(player.x, player.z);
+    pitch = -0.62;
+    vel.x = vel.y = vel.z = 0;
+    return;
+  }
+  if (state !== 'play') return;
+  const body = fluidHere();
+  const inWater = body === WATER || body === ARCANE;
+  const inLava = body === LAVA;
+  const sneak = !flying && (down.has('ShiftLeft') || down.has('ShiftRight'));
+  const sprint = down.has('ControlLeft') || down.has('ControlRight');
+  let speed = sneak ? 1.5 : sprint ? 7.1 : 4.5;
+  if (flying) speed = sprint ? 22 : 13;
+  if (noclip) speed = 30;
+  if (inWater && !flying) speed *= 0.55;
+  if (inLava && !flying) speed *= 0.4;
+  const forward = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+  const right = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+  let mx = 0, mz = 0;
+  if (down.has('KeyW')) mz += 1;
+  if (down.has('KeyS')) mz -= 1;
+  if (down.has('KeyA')) mx -= 1;
+  if (down.has('KeyD')) mx += 1;
+  const mag = Math.hypot(mx, mz) || 1;
+  const wishX = ((right.x * mx + forward.x * mz) / mag) * (mx || mz ? speed : 0);
+  const wishZ = ((right.z * mx + forward.z * mz) / mag) * (mx || mz ? speed : 0);
+  const accel = (onGround || flying || noclip) ? 16 : 3;
+  vel.x += (wishX - vel.x) * Math.min(1, accel * dt);
+  vel.z += (wishZ - vel.z) * Math.min(1, accel * dt);
+  if (flying || noclip) {
+    let vy = 0;
+    const vs = noclip ? 22 : sprint ? 16 : 10;
+    if (down.has('Space')) vy += vs;
+    if (down.has('ShiftLeft') || down.has('ShiftRight')) vy -= vs;
+    vel.y = vy;
+  } else if (inWater || inLava) {
+    vel.y -= (inLava ? 3 : 7) * dt;
+    vel.y *= Math.exp(-2.5 * dt);
+    if (down.has('Space')) vel.y += 16 * dt;
+    if (down.has('ShiftLeft') || down.has('ShiftRight')) vel.y -= 10 * dt;
+  } else {
+    vel.y -= 30 * dt;
+    if (down.has('Space') && onGround) vel.y = 8.7;
+  }
+  onGround = false;
+  moveY(vel.y * dt);
+  moveXZ('x', vel.x * dt);
+  moveXZ('z', vel.z * dt);
+  if (!flying && !noclip && vel.y <= 0) {
+    player.y -= 0.06;
+    const g = overlapsAt(player.x, player.y, player.z);
+    player.y += 0.06;
+    if (g) { onGround = true; if (vel.y < 0) vel.y = 0; }
+  }
+  if (player.y < -20) respawn();
+  if (inLava && state === 'play') { hp -= 8 * dt; hurt = Math.min(1, hurt + dt * 3); }
+  else { hurt = Math.max(0, hurt - dt * 0.8); if (hp < 20) hp = Math.min(20, hp + dt * 0.5); }
+  if (hp <= 0) respawn();
+  const moving = Math.hypot(vel.x, vel.z) > 0.8 && onGround && !flying;
+  if (moving) {
+    bobPhase += dt * (sprint ? 13 : 9.5);
+    stepAcc += dt;
+    if (stepAcc > (sprint ? 0.32 : 0.48)) { stepAcc = 0; sfxFoot(); }
+  } else stepAcc = 0;
+  const eyeId = getBlock(Math.floor(player.x), Math.floor(player.y + (sneak ? 1.4 : 1.62)), Math.floor(player.z));
+  if (eyeId === WATER) { veil.style.background = 'rgba(30,90,170,.35)'; veil.style.opacity = 1; }
+  else if (eyeId === ARCANE) { veil.style.background = 'rgba(90,40,180,.38)'; veil.style.opacity = 1; }
+  else if (eyeId === LAVA || hurt > 0.2) { veil.style.background = 'rgba(180,40,10,.4)'; veil.style.opacity = eyeId === LAVA ? 0.55 : hurt * 0.45; }
+  else veil.style.opacity = 0;
+  if (eyeId === WATER || eyeId === ARCANE) { scene.fog.near = 1; scene.fog.far = eyeId === ARCANE ? 22 : 26; scene.fog.color.set(eyeId === ARCANE ? 0x3a1878 : 0x1c5c92); }
+}
+
+function updateAtmosphere(dt) {
+  dayTime = (dayTime + dt / (fastTime ? 18 : 480)) % 1;
+  const ang = dayTime * Math.PI * 2;
+  const sy = -Math.cos(ang);
+  const sunDir = new THREE.Vector3(Math.sin(ang), sy, Math.cos(ang) * 0.35).normalize();
+  const day = smoothstep(-0.05, 0.35, sy);
+  if (sy > 0) {
+    const t = smoothstep(0, 0.45, sy);
+    tmpA.copy(setTop).lerp(dayTop, t); tmpB.copy(setHor).lerp(dayHor, t);
+  } else {
+    const t = smoothstep(0, -0.4, sy);
+    tmpA.copy(setTop).lerp(nightTop, t); tmpB.copy(setHor).lerp(nightHor, t);
+  }
+  skyMat.uniforms.topColor.value.copy(tmpA);
+  skyMat.uniforms.horizonColor.value.copy(tmpB);
+  skyMat.uniforms.bottomColor.value.copy(sy > 0 ? dayBot : nightBot);
+  skyMat.uniforms.sunDir.value.copy(sunDir);
+  skyMat.uniforms.sunColor.value.setRGB(1, 0.78 + day * 0.15, 0.55 + day * 0.3);
+  skyMat.uniforms.moonDir.value.set(-sunDir.x, -sunDir.y, -sunDir.z);
+  sun.position.copy(sunDir).multiplyScalar(300);
+  sun.intensity = 0.06 + day * 0.7;
+  sun.color.setRGB(1, 0.9 + day * 0.06, 0.75 + day * 0.2);
+  hemi.intensity = 0.38 + day * 0.36;
+  hemi.color.copy(tmpA);
+  amb.intensity = 0.3 + day * 0.18;
+  fill.intensity = 0.16 + day * 0.34;
+  fill2.intensity = 0.12 + day * 0.22;
+  stars.material.opacity = smoothstep(0.15, -0.25, sy);
+  cloudMat.opacity = 0.25 + day * 0.6;
+  cloudMat.color.setRGB(1, 0.9 + day * 0.1, 0.8 + day * 0.2);
+  const eyeInFluid = scene.fog.near < 5;
+  if (!eyeInFluid) {
+    scene.fog.color.copy(tmpB);
+    scene.fog.near = fogNear; scene.fog.far = fogFar;
+  }
+  renderer.setClearColor(tmpB, 1);
+  fireflies.material.opacity = smoothstep(0.2, -0.2, sy);
+}
+
+function updateHUD(dt) {
+  if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) bannerEl.classList.remove('show'); }
+  if (toastT > 0) { toastT -= dt; if (toastT <= 0) toastEl.classList.remove('show'); }
+  if (state === 'play') {
+    hintLeft -= dt;
+    hintEl.style.opacity = hintLeft > 4 ? 1 : Math.max(0, hintLeft / 4);
+  }
+  const hours = Math.floor(dayTime * 24) % 24;
+  const mins = Math.floor((dayTime * 24 * 60) % 60);
+  const phase = hours < 5 || hours >= 21 ? '深夜' : hours < 8 ? '黎明' : hours < 16 ? '白昼' : hours < 19 ? '黄昏' : '入夜';
+  let biome = '…';
+  const cx = Math.floor(player.x / CHUNK), cz = Math.floor(player.z / CHUNK);
+  const ch = chunks.get(keyOf(cx, cz));
+  if (ch) {
+    const lx = Math.floor(player.x) - cx * CHUNK, lz = Math.floor(player.z) - cz * CHUNK;
+    if (lx >= 0 && lz >= 0 && lx < CHUNK && lz < CHUNK) biome = BIOME_NAMES[ch.biome[lx + lz * CHUNK]] || '…';
+  }
+  const mode = noclip ? '穿墙' : flying ? '飞行' : '步行';
+  statEl.innerHTML = `${Math.floor(player.x)}, ${Math.floor(player.y)}, ${Math.floor(player.z)}<br>${biome} · ${phase} ${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}<br>${mode} · 视距 ${RD} · ${fpsS.toFixed(0)} 帧`;
+  buildHearts();
+  const half = compassEl.clientWidth / 2 || 200;
+  COMPASS.forEach(([label, ang], i) => {
+    let d = ang - yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+    const el = compassItems[i];
+    if (Math.abs(d) > 1.35) { el.style.opacity = 0; return; }
+    el.style.opacity = 1; el.style.left = (half + (-d / 1.35) * half) + 'px';
+  });
+  const list = SITES.map(lm => {
+    const dx = lm.x - player.x, dz = lm.z - player.z;
+    const dist = Math.hypot(dx, dz);
+    let d = Math.atan2(-dx, -dz) - yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+    return { lm, dist, d };
+  }).sort((a, b) => a.dist - b.dist).slice(0, 5);
+  marksEl.innerHTML = '<b>传说地标</b>' + list.map(it => {
+    const rot = (-it.d).toFixed(3);
+    return `<div class="mk"><span>${it.lm.name}</span><span><s style="transform:rotate(${rot}rad)">▲</s> ${Math.round(it.dist)}</span></div>`;
+  }).join('');
+  if (state === 'play') {
+    for (const lm of SITES) {
+      if (!lm.discovered && Math.hypot(lm.x - player.x, lm.z - player.z) < 30) {
+        lm.discovered = true; showBanner(lm.name, lm.blurb); sfxChime();
+      }
+    }
+  }
+  handEl.textContent = (target ? ('看着 ' + DEFS[target.id].name + ' · ') : '') + DEFS[hotbar[sel]].name;
+}
+
+let mapAcc = 0;
+function drawMap() {
+  const w = mapCanvas.width, h = mapCanvas.height, scale = 2.1;
+  mapCtx.fillStyle = '#10141c'; mapCtx.fillRect(0, 0, w, h);
+  mapCtx.save();
+  mapCtx.beginPath(); mapCtx.arc(w / 2, h / 2, w / 2 - 1, 0, Math.PI * 2); mapCtx.clip();
+  const range = w / scale;
+  for (let py = 0; py < h; py++) {
+    for (let px = 0; px < w; px++) {
+      const wx = player.x + (px - w / 2) / scale;
+      const wz = player.z + (py - h / 2) / scale;
+      const cx = Math.floor(wx / CHUNK), cz = Math.floor(wz / CHUNK);
+      const c = chunks.get(keyOf(cx, cz));
+      if (!c) continue;
+      const lx = Math.floor(wx) - cx * CHUNK, lz = Math.floor(wz) - cz * CHUNK;
+      if (lx < 0 || lz < 0 || lx >= CHUNK || lz >= CHUNK) continue;
+      const top = c.top[lx + lz * CHUNK];
+      const id = c.blocks[IDX(lx, top, lz)];
+      const biome = c.biome[lx + lz * CHUNK];
+      let col = BIO_COLOR[biome] || '#666';
+      if (id === WATER) col = '#2c74c8';
+      else if (id === ARCANE) col = '#7a4dff';
+      else if (id === LAVA) col = '#ff6a1a';
+      else if (id === SNOW || id === ICE) col = '#f2f6fa';
+      else if (id === SAND || id === SANDSTONE) col = '#e4d29a';
+      else if (id === MARBLE || id === BONE) col = '#f3efe6';
+      else if (id === GOLD) col = '#e6b84a';
+      else if (id === OBSIDIAN || id === DEEPSLATE) col = '#241e2e';
+      else if (id === BLOSSOM) col = '#f0b4d0';
+      else if (id === LEAVES || id === DARKLEAVES) col = '#2f7a34';
+      else if (id === CRYSTAL || id === GLOW || id === LANTERN) col = '#8ef6ff';
+      else if (id === PRISMARINE) col = '#3aa89a';
+      mapCtx.fillStyle = col;
+      mapCtx.fillRect(px, py, 1, 1);
+    }
+  }
+  for (const lm of SITES) {
+    const mx = w / 2 + (lm.x - player.x) * scale;
+    const my = h / 2 + (lm.z - player.z) * scale;
+    if (mx < 4 || my < 4 || mx > w - 4 || my > h - 4) continue;
+    mapCtx.fillStyle = '#e7c98a';
+    mapCtx.fillRect(mx - 2, my - 2, 4, 4);
+  }
+  mapCtx.translate(w / 2, h / 2); mapCtx.rotate(-yaw);
+  mapCtx.fillStyle = '#fff';
+  mapCtx.beginPath(); mapCtx.moveTo(0, -7); mapCtx.lineTo(5, 6); mapCtx.lineTo(0, 3); mapCtx.lineTo(-5, 6); mapCtx.closePath(); mapCtx.fill();
+  mapCtx.restore();
+}
+
+function settleAround(x, z) {
+  player.x = x; player.z = z;
+  const pcx = Math.floor(x / CHUNK), pcz = Math.floor(z / CHUNK);
+  for (let dz = -RD; dz <= RD; dz++) for (let dx = -RD; dx <= RD; dx++) {
+    const c = ensureData(pcx + dx, pcz + dz);
+    buildMesh(c);
+  }
+}
+
+async function preload() {
+  applyFogDist();
+  const pcx = 0, pcz = 0;
+  const jobs = [];
+  for (let dz = -RD; dz <= RD; dz++) for (let dx = -RD; dx <= RD; dx++) jobs.push([dx, dz, dx * dx + dz * dz]);
+  jobs.sort((a, b) => a[2] - b[2]);
+  for (let i = 0; i < jobs.length; i++) {
+    const c = ensureData(pcx + jobs[i][0], pcz + jobs[i][1]);
+    buildMesh(c);
+    const p = (i + 1) / jobs.length;
+    progEl.style.width = (p * 100) + '%';
+    playBtn.textContent = '世界正在苏醒… ' + Math.floor(p * 100) + '%';
+    if (i % 1 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+  const h = SITES[0].h;
+  player.x = Math.cos(menuAng) * 34; player.z = Math.sin(menuAng) * 34; player.y = h + 38;
+  playBtn.disabled = false;
+  playBtn.textContent = '踏入世界';
+  screenEl.classList.add('ready');
+  window.__MYTH.ready = true;
+}
+
+buildHotbar(); buildInv(); buildHearts(); applyFogDist();
+
+window.__MYTH = {
+  ready: false, player, SITES, getBlock, columnInfo, chunks, DEFS, settleAround,
+  setView(x, y, z, yw, pi) { state = 'shot'; player.x = x; player.y = y; player.z = z; yaw = yw; pitch = pi; vel.x = vel.y = vel.z = 0; },
+  setState(s) { state = s; },
+  yawPitch: () => ({ yaw, pitch }),
+};
+
+const dir = new THREE.Vector3();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  fpsS = fpsS * 0.92 + (1 / Math.max(dt, 0.001)) * 0.08;
+  if (window.__MYTH.ready) {
+    updatePlayer(dt);
+    stream();
+    processQueues(state === 'menu' ? 8 : 12);
+  }
+  updateAtmosphere(dt);
+  const sneak = down.has('ShiftLeft') || down.has('ShiftRight');
+  const bob = (state === 'play' && onGround && !flying) ? Math.sin(bobPhase) * 0.04 : 0;
+  const eye = state === 'menu' || state === 'shot' ? 0 : (sneak && !flying ? 1.42 : 1.62);
+  camera.position.set(player.x, player.y + (state === 'menu' || state === 'shot' ? 0 : eye) + bob, player.z);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = yaw; camera.rotation.x = pitch;
+  sky.position.copy(camera.position);
+  stars.position.copy(camera.position);
+  clouds.position.x = camera.position.x; clouds.position.z = camera.position.z;
+  wind += dt * 0.004;
+  cloudTex.offset.x = camera.position.x / 400 + wind;
+  cloudTex.offset.y = camera.position.z / 400;
+  if (fireflies.material.opacity > 0.02) {
+    for (let i = 0; i < ffCount; i++) {
+      const a = now * 0.001 * (0.4 + (i % 5) * 0.08) + i;
+      ffPos[i * 3] = player.x + Math.cos(a) * (6 + (i % 7)) + Math.sin(a * 0.7) * 3;
+      ffPos[i * 3 + 1] = player.y + 1.2 + Math.sin(a * 1.3) * 1.4 + (i % 4);
+      ffPos[i * 3 + 2] = player.z + Math.sin(a * 0.9) * (6 + (i % 6));
+    }
+    ffGeo.attributes.position.needsUpdate = true;
+  }
+  if (state === 'play' || state === 'shot') {
+    camera.getWorldDirection(dir);
+    target = raycast(camera.position.x, camera.position.y, camera.position.z, dir.x, dir.y, dir.z, 7);
+    if (target && target.id) {
+      hl.visible = true; hl.position.set(target.x + 0.5, target.y + 0.5, target.z + 0.5);
+    } else { hl.visible = false; target = null; }
+    breakCd -= dt; placeCd -= dt;
+    if (state === 'play' && buttons.left && target && breakCd <= 0) { breakBlock(target); breakCd = 0.14; }
+    if (state === 'play' && buttons.right && target && placeCd <= 0) { placeBlock(target); placeCd = 0.16; }
+  } else hl.visible = false;
+  updateParticles(dt);
+  updateMusic();
+  mapAcc += dt;
+  if (mapAcc > 0.25) { mapAcc = 0; if (hud.classList.contains('show')) drawMap(); }
+  updateHUD(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+preload();
+</script>
+</body>
+</html>
