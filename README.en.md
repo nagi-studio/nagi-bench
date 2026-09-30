@@ -45,8 +45,8 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | GPT-6.1 Sol | OpenAI | Codex CLI · High | 06 |
 | GPT-6 Astra | OpenAI | Codex CLI · xhigh | 06 |
 | GPT-6 Sol | OpenAI | Codex CLI · xhigh | 06 |
-| GPT-5.6-Sol | OpenAI | Codex CLI · ultra<br>Codex CLI · max<br>Codex CLI · xhigh | 10 |
-| GPT-5.6-Terra | OpenAI | Codex CLI · ultra<br>Codex CLI · xhigh | 04 |
+| GPT-5.6-Sol | OpenAI | Codex CLI · ultra<br>Codex CLI · max<br>Codex CLI · xhigh | 11 |
+| GPT-5.6-Terra | OpenAI | Codex CLI · ultra<br>Codex CLI · xhigh | 05 |
 | GPT-5.5 Pro | OpenAI | ChatGPT Web · Extended Pro | 03 |
 | GPT-5.5 | OpenAI | Codex CLI · xhigh | 03 |
 | GPT-5.4 | OpenAI | Cursor · xhigh<br>Codex CLI · xhigh | 06 |
@@ -57,6 +57,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Gemini 3.5 Flash | Google | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High | 06 |
 | Gemini 3.1 Pro | Google | AntiGravity · High<br>Cursor · Default<br>Gemini Web · Deep Think<br>Google AI Studio · High | 11 |
 | DeepSeek V4.1 Flash | DeepSeek | DeepSeek Harness · High | 04 |
+| DeepSeek V4 Pro 0831 | DeepSeek | DeepSeek Harness · Minimal | 01 |
 | DeepSeek V4 Pro 0813 | DeepSeek | DeepSeek Harness · High<br>DeepSeek Harness · Minimal · High<br>DeepSeek Harness · Max<br>Codex CLI · xhigh | 21 (showcase 01) |
 | DeepSeek-V4-Pro | DeepSeek | Claude Code · Max<br>Qoder · Max<br>Open Code · High | 05 |
 | DeepSeek V4 Flash 0731 | DeepSeek | Claude Code · Max<br>OMP · Default | 05 (showcase 01) |
