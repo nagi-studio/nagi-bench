@@ -31,6 +31,7 @@ One-shot LLM eval cases by NAGI STUDIO: same prompt, different model x harness x
 | Model | Vendor | Harness x Effort | Runs |
 |---|---|---|---|
 | Claude Opus 5.5 | Anthropic | Claude Code · High | 06 |
+| Claude Haiku 5.5 | Anthropic | Claude Code · High | 02 |
 | Claude Sonnet 5.5 | Anthropic | Claude Code · High<br>Claude Code · Max<br>Claude Code · xhigh | 17 |
 | Claude Fable 5.1 | Anthropic | Claude Code · High | 06 |
 | Claude Opus 5 | Anthropic | Claude Code · Max<br>Claude Code · xhigh<br>Claude Code · High | 16 |
