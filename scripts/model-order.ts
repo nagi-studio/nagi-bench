@@ -6,7 +6,7 @@
 // 2. Inside a vendor, the newer version comes first, parsed from the first
 //    number in the label ("Claude Fable 5.1" -> 5.1, "GPT-6 Sol" -> 6), so a
 //    new release never has to be slotted in by hand.
-// 3. Same version: flagship tiers before light ones (Flash / Mini / Lite /
+// 3. Same version: flagship tiers before light ones (Haiku / Flash / Mini / Lite /
 //    Nano / Small sort after Pro / Max / unmarked), then a trailing MMDD
 //    snapshot newest first ("DeepSeek V4 Pro 0813" > "DeepSeek-V4-Pro").
 // 4. Otherwise: hand-set `order`, then id.
@@ -23,7 +23,7 @@ export function labelVersion(label: string): number | null {
   return match ? Number(match[1]) : null
 }
 
-const LIGHT_TIER = /(?<![a-z])(flash|mini|lite|nano|small)(?![a-z])/i
+const LIGHT_TIER = /(?<![a-z])(flash|mini|lite|nano|small|haiku)(?![a-z])/i
 
 export function labelTier(label: string): number {
   return LIGHT_TIER.test(label) ? 1 : 0
