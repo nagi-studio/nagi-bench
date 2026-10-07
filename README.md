@@ -31,8 +31,8 @@ NAGI STUDIO 的 LLM 测评案例集：同一段提示词，不同「模型 × Ha
 | 模型 | 厂商 | 运行环境（Harness）× 思考配额 | 产出 |
 |---|---|---|---|
 | Claude Opus 5.5 | Anthropic | Claude Code · High | 06 |
-| Claude Haiku 5.5 | Anthropic | Claude Code · High | 04 |
 | Claude Sonnet 5.5 | Anthropic | Claude Code · High<br>Claude Code · Max<br>Claude Code · xhigh | 17 |
+| Claude Haiku 5.5 | Anthropic | Claude Code · High | 05 |
 | Claude Fable 5.1 | Anthropic | Claude Code · High | 06 |
 | Claude Opus 5 | Anthropic | Claude Code · Max<br>Claude Code · xhigh<br>Claude Code · High | 16 |
 | Claude Fable 5 | Anthropic | Claude Web App · Max<br>Claude Code · High<br>Claude Code · Max<br>Claude Code · xhigh<br>Cursor · High | 11 |
