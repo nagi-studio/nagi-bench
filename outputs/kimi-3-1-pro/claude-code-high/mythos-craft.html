@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>遗落神域 · Aetheria</title>
+<style>
+  :root{--gold:#e9cb82;--cyan:#8ee9e4;--ink:#071116;--glass:rgba(8,18,23,.76)}
+  *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#071116;color:#edf5ed;font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif;user-select:none}
+  #world{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+  #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at center,transparent 52%,rgba(0,8,12,.34) 100%);z-index:2}
+  #underwater{position:fixed;inset:0;pointer-events:none;background:rgba(20,105,135,.28);opacity:0;transition:opacity .25s;z-index:3}
+  .hidden{display:none!important}.glass{background:linear-gradient(135deg,rgba(13,27,31,.86),rgba(7,17,22,.64));border:1px solid rgba(215,236,214,.16);box-shadow:0 12px 50px #0005,inset 0 1px rgba(255,255,255,.06);backdrop-filter:blur(12px)}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:4;text-shadow:0 2px 4px #000}
+  #brand{position:absolute;left:24px;top:20px;display:flex;align-items:center;gap:12px}
+  #brand .sigil{width:37px;height:37px;border:1px solid #d9c37c88;transform:rotate(45deg);display:grid;place-items:center;background:#d9c37c0c}
+  #brand .sigil:after{content:"✦";font-size:21px;color:var(--gold);transform:rotate(-45deg)}
+  #brand b{font-family:Georgia,serif;font-weight:500;font-size:17px;letter-spacing:4px;color:#f4e7bf}
+  #brand small{display:block;font-size:9px;letter-spacing:3px;color:#a5bab7;margin-top:3px}
+  #status{position:absolute;left:25px;top:76px;font-size:11px;color:#c5d4cf;letter-spacing:.5px;line-height:1.8}
+  #status .dot{display:inline-block;width:5px;height:5px;background:#8ad4a5;border-radius:50%;box-shadow:0 0 8px #8ad4a5;margin:0 7px 2px 0}
+  #mapBox{position:absolute;right:22px;top:20px;width:164px;padding:8px;border-radius:3px}
+  #minimap{display:block;width:146px;height:146px;image-rendering:pixelated;background:#13232a}
+  #coords{padding:7px 3px 2px;font:10px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;color:#c7d8d2;display:flex;justify-content:space-between}
+  #biome{color:var(--gold);font-family:"Segoe UI","Microsoft YaHei",sans-serif;letter-spacing:1px}
+  #crosshair{position:absolute;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%);filter:drop-shadow(0 1px 2px #000)}
+  #crosshair:before,#crosshair:after{content:"";position:absolute;background:#f7fff1;border-radius:1px}
+  #crosshair:before{left:10px;top:3px;width:2px;height:16px}#crosshair:after{left:3px;top:10px;width:16px;height:2px}
+  #crosshair i{position:absolute;left:9px;top:9px;width:4px;height:4px;background:#152522;border:1px solid #fff;z-index:2}
+  #hotbarWrap{position:absolute;bottom:25px;left:50%;transform:translateX(-50%);text-align:center}
+  #targetName{height:22px;font-size:11px;letter-spacing:1px;color:#e6e7d7;margin-bottom:4px}
+  #hotbar{display:flex;gap:4px;padding:5px;background:#071114a8;border:1px solid #dce8cf22;border-radius:4px;box-shadow:0 8px 30px #0006}
+  .slot{position:relative;width:52px;height:52px;border:1px solid #b7c9b52b;background:linear-gradient(#26352d88,#0b1514aa);display:grid;place-items:center;transition:.12s}
+  .slot.selected{border-color:#f3db8f;box-shadow:0 0 0 1px #f3db8f88,0 0 18px #e9cb8233;transform:translateY(-4px);background:#42513c99}
+  .slot canvas{width:34px;height:34px;image-rendering:pixelated;filter:drop-shadow(2px 3px 2px #0008)}
+  .slot em{position:absolute;left:4px;top:2px;font:normal 9px ui-monospace,monospace;color:#afc0b6}.slot.selected em{color:#ffe7a6}
+  #selectedName{font-size:10px;color:#c9d4cb;letter-spacing:2px;margin-top:8px}
+  #controls{position:absolute;left:24px;bottom:24px;font-size:10px;color:#b7c6c0;line-height:1.9;letter-spacing:.4px}
+  #controls kbd{font:9px ui-monospace,monospace;color:#f1e6c7;background:#17231fcc;border:1px solid #d8d5b52b;border-radius:2px;padding:2px 5px;margin-right:4px}
+  #flight{position:absolute;right:25px;bottom:25px;color:#b8e9e3;font-size:10px;letter-spacing:2px;opacity:0;transition:.2s}
+  #toast{position:absolute;left:50%;top:19%;transform:translate(-50%,-10px);text-align:center;opacity:0;transition:.6s}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  #toast small{display:block;color:#b6cdc5;font-size:10px;letter-spacing:5px;margin-bottom:8px}
+  #toast b{font:normal 26px Georgia,"Microsoft YaHei",serif;letter-spacing:5px;color:#f4e3b4}
+  #toast:after{content:"";display:block;width:100px;height:1px;background:linear-gradient(90deg,transparent,#dbc781,transparent);margin:13px auto}
+  #overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,rgba(8,23,27,.18),rgba(3,10,14,.8));transition:opacity .35s}
+  #panel{width:min(600px,calc(100% - 36px));padding:42px 46px 35px;text-align:center;border-radius:4px;position:relative;overflow:hidden}
+  #panel:before{content:"";position:absolute;left:15%;right:15%;top:0;height:1px;background:linear-gradient(90deg,transparent,#e9cb82,transparent)}
+  #eyebrow{font-size:9px;letter-spacing:6px;color:#a8c3bb;margin-bottom:15px}
+  h1{font:normal 48px/1.05 Georgia,"Microsoft YaHei",serif;letter-spacing:10px;margin:0;color:#f1e6c8;text-shadow:0 3px 24px #ddc37a25}
+  #enTitle{font:12px Georgia,serif;letter-spacing:9px;color:var(--gold);margin:12px 0 23px}
+  #intro{font-size:12px;line-height:2;color:#afc3bd;max-width:450px;margin:0 auto 21px}
+  #features{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-bottom:26px}
+  #features span{font-size:9px;letter-spacing:1px;border:1px solid #aac7b72b;color:#b8cbc3;padding:5px 8px;border-radius:2px;background:#a8c4ad08}
+  #start{pointer-events:auto;width:240px;height:46px;border:1px solid #d9c47d;background:linear-gradient(110deg,#b79a50,#e1cc8b,#b3974e);color:#14201d;font-weight:700;font-size:12px;letter-spacing:4px;cursor:pointer;transition:.2s;box-shadow:0 5px 24px #d6bb6522}
+  #start:hover:not(:disabled){filter:brightness(1.13);box-shadow:0 6px 30px #d6bb6544;transform:translateY(-1px)}
+  #start:disabled{filter:grayscale(.8);opacity:.55;cursor:wait}
+  #loading{height:2px;width:240px;margin:12px auto 14px;background:#c9d8c515;overflow:hidden}#loading i{display:block;height:100%;width:5%;background:#d9c47d;transition:width .25s}
+  #startHint{font-size:9px;color:#819a93;letter-spacing:1px;min-height:14px}
+  #helpGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 20px;margin:25px 0 0;padding-top:21px;border-top:1px solid #bbd0bb19;text-align:left}
+  #helpGrid div{font-size:9px;color:#90a9a2;line-height:1.8}#helpGrid b{display:block;font-size:10px;font-weight:500;color:#d2ded5;letter-spacing:1px}
+  #seed{position:absolute;right:13px;bottom:10px;font:8px ui-monospace,monospace;color:#627d77;letter-spacing:1px}
+  #help{position:fixed;z-index:7;right:205px;top:20px;width:270px;padding:20px;color:#c2d2cc;font-size:11px;line-height:2;pointer-events:none}
+  #help h3{font:15px Georgia,"Microsoft YaHei",serif;color:#ead99f;letter-spacing:3px;margin:0 0 10px}#help p{margin:5px 0}#help .dim{color:#78928b;font-size:9px}
+  @media(max-width:720px){#mapBox{right:10px;top:10px;transform:scale(.8);transform-origin:top right}#brand{left:14px;top:14px}#status{left:15px}.slot{width:39px;height:43px}.slot canvas{width:28px;height:28px}#controls{display:none}#panel{padding:30px 22px}h1{font-size:36px}#helpGrid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<canvas id="world"></canvas>
+<div id="vignette"></div><div id="underwater"></div>
+<div id="hud">
+  <div id="brand"><div class="sigil"></div><div><b>遗落神域</b><small>A E T H E R I A</small></div></div>
+  <div id="status"><span class="dot"></span><span id="worldState">世界苏醒中</span><br><span id="discovery">已发现 0 处神话遗迹</span></div>
+  <div id="mapBox" class="glass"><canvas id="minimap" width="64" height="64"></canvas><div id="coords"><span id="xyz">0 / 0 / 0</span><span id="biome">晨曦圣所</span></div></div>
+  <div id="crosshair"><i></i></div>
+  <div id="toast"><small>发现神话遗迹</small><b></b></div>
+  <div id="hotbarWrap"><div id="targetName"></div><div id="hotbar"></div><div id="selectedName"></div></div>
+  <div id="controls"><kbd>WASD</kbd> 移动　<kbd>SPACE</kbd> 跳跃<br><kbd>左键</kbd> 破坏　<kbd>右键</kbd> 放置　<kbd>滚轮</kbd> 切换<br><kbd>F</kbd> 飞行　<kbd>H</kbd> 帮助　<kbd>ESC</kbd> 暂停</div>
+  <div id="flight">✦ 神行模式 · SPACE 上升 / C 下降</div>
+</div>
+<div id="help" class="glass hidden"><h3>旅行者手册</h3><p>W A S D　移动 / Shift 疾跑<br>Space　跳跃 / 飞行时上升<br>鼠标　环视 / 左键破坏 / 右键放置<br>1—9 / 滚轮　选择方块<br>中键　选取指向的方块<br>F　切换飞行 / C 飞行下降<br>[ / ]　缩小 / 扩大视距<br>M　静音 / H　关闭本手册</p><p class="dim">世界会随脚步持续生成。所有改动在本次旅程中保留。水流不会阻挡挖掘；游泳时按 Space 上浮。</p></div>
+<div id="overlay"><div id="panel" class="glass">
+  <div id="eyebrow">一 场 由 你 书 写 的 神 话</div><h1 id="title">遗落神域</h1><div id="enTitle">A E T H E R I A</div>
+  <p id="intro">穿越晨曦圣所，在世界树的冠冕下休憩，寻找悬于云海的神殿与沉睡古龙的骸骨。每一寸山河皆可抵达，每一块巨石皆可重塑。</p>
+  <div id="features"><span>∞ 程序化大陆</span><span>七类神话遗迹</span><span>自由建造</span><span>昼夜流转</span><span>流云动态光影</span></div>
+  <button id="start" disabled>正在唤醒神域</button><div id="loading"><i></i></div><div id="startHint">正在生成方块纹理与初始区块…</div>
+  <div id="helpGrid"><div><b>移动与探索</b>WASD 移动 · Shift 疾跑<br>Space 跳跃 · F 自由飞行</div><div><b>破坏与创造</b>左键破坏 · 右键放置<br>数字键 / 滚轮切换材料</div><div><b>旅途提示</b>寻找地图上的金色标记<br>按 H 查看完整旅行者手册</div></div>
+  <div id="seed"></div>
+</div></div>
+<script>
+'use strict';
+// ---------- 基础工具与确定性柏林噪声 ----------
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=t=>t*t*(3-2*t);
+const SEED=(Number(new URLSearchParams(location.search).get('seed'))||0xA37E21)>>>0;
+function hash32(n){n=Math.imul(n^n>>>16,0x45d9f3b);n=Math.imul(n^n>>>16,0x45d9f3b);return (n^n>>>16)>>>0}
+function hash2(x,z,s=0){return hash32(Math.imul(x,374761393)^Math.imul(z,668265263)^SEED^s)/4294967295}
+function hash3(x,y,z,s=0){return hash32(Math.imul(x,374761393)^Math.imul(y,1103515245)^Math.imul(z,668265263)^SEED^s)/4294967295}
+class Perlin{
+  constructor(seed){const p=new Uint16Array(512),a=Array.from({length:256},(_,i)=>i);let n=seed>>>0;for(let i=255;i>=0;i--){n=hash32(n+i);const j=n%(i+1);[a[i],a[j]]=[a[j],a[i]]}for(let i=0;i<512;i++)p[i]=a[i&255];this.p=p}
+  fade(t){return t*t*t*(t*(t*6-15)+10)}
+  grad(h,x,y,z){const u=h<8?x:y,v=h<4?y:(h===12||h===14?x:z);return ((h&1)?-u:u)+((h&2)?-v:v)}
+  noise3(x,y,z){const p=this.p,X=Math.floor(x)&255,Y=Math.floor(y)&255,Z=Math.floor(z)&255;x-=Math.floor(x);y-=Math.floor(y);z-=Math.floor(z);const u=this.fade(x),v=this.fade(y),w=this.fade(z),A=p[X]+Y,AA=p[A]+Z,AB=p[A+1]+Z,B=p[X+1]+Y,BA=p[B]+Z,BB=p[B+1]+Z;return lerp(lerp(lerp(this.grad(p[AA]&15,x,y,z),this.grad(p[BA]&15,x-1,y,z),u),lerp(this.grad(p[AB]&15,x,y-1,z),this.grad(p[BB]&15,x-1,y-1,z),u),v),lerp(lerp(this.grad(p[AA+1]&15,x,y,z-1),this.grad(p[BA+1]&15,x-1,y,z-1),u),lerp(this.grad(p[AB+1]&15,x,y-1,z-1),this.grad(p[BB+1]&15,x-1,y-1,z-1),u),v),w)}
+  noise2(x,z){return this.noise3(x,0,z)}
+}
+const noise=new Perlin(SEED),noiseB=new Perlin(SEED^0x9e3779b9);
+function fbm(x,z,oct=4){let v=0,a=.5,f=1,sum=0;for(let i=0;i<oct;i++){v+=noise.noise2(x*f,z*f)*a;sum+=a;f*=2.03;a*=.5}return v/sum}
+function heightAt(x,z){
+  const continental=fbm(x*.0038,z*.0038,4),hills=fbm(x*.015+71,z*.015-43,3);
+  const ridge=1-Math.abs(noiseB.noise2(x*.007,z*.007));
+  const mountains=Math.pow(Math.max(0,ridge-.57)/.43,2)*27;
+  let h=27+continental*15+hills*4.5+mountains;
+  const river=Math.abs(noiseB.noise2(x*.005+180,z*.005-90));
+  if(river<.065)h-=(1-river/.065)*7;
+  const d=Math.hypot(x,z),t=smooth(clamp((d-18)/34,0,1));h=lerp(30,h,t);
+  return clamp(Math.floor(h),5,HEIGHT-26);
+}
+function biomeAt(x,z,h=heightAt(x,z)){
+  const temp=noise.noise2(x*.0027+390,z*.0027-260),wet=noiseB.noise2(x*.0037-200,z*.0037+510),magic=noise.noise2(x*.0042+910,z*.0042+760);
+  if(h>51||temp<-.48)return{id:'snow',name:'霜语雪境',color:[184,205,211]};
+  if(magic>.43)return{id:'crystal',name:'紫晶秘境',color:[111,90,139]};
+  if(temp>.34&&wet<.05)return{id:'desert',name:'日金沙海',color:[197,174,112]};
+  if(wet>.20)return{id:'forest',name:'月影森林',color:[65,111,67]};
+  return{id:'plains',name:'风语草原',color:[98,139,72]};
+}
+// ---------- 方块与完全程序化的像素材质 ----------
+const AIR=0,GRASS=1,DIRT=2,STONE=3,SAND=4,LOG=5,LEAVES=6,MARBLE=7,OBSIDIAN=8,RUNE=9,CRYSTAL=10,GOLD=11,SNOW=12,BRICK=13,MOSSY=14,BONE=15,WATER=16,ROOF=17,PLANKS=18,MOONLEAVES=19,MAGMA=20,BEDROCK=21;
+const TILE=16,ACOLS=8,AROWS=3;
+const tiles={grassTop:0,grassSide:1,dirt:2,stone:3,sand:4,logSide:5,logTop:6,leaves:7,marble:8,obsidian:9,rune:10,crystal:11,gold:12,snow:13,brick:14,mossy:15,bone:16,water:17,roof:18,planks:19,moonLeaves:20,magma:21,bedrock:22};
+const BLOCK=[];
+function block(id,name,side,top=side,bottom=side,color='#888',render='solid'){BLOCK[id]={id,name,side,top,bottom,color,render}}
+block(GRASS,'肥沃草方块',tiles.grassSide,tiles.grassTop,tiles.dirt,'#6d9848');block(DIRT,'泥土',tiles.dirt,tiles.dirt,tiles.dirt,'#795237');block(STONE,'远古岩石',tiles.stone,tiles.stone,tiles.stone,'#777b79');block(SAND,'日金细沙',tiles.sand,tiles.sand,tiles.sand,'#c9b77b');block(LOG,'世界树木材',tiles.logSide,tiles.logTop,tiles.logTop,'#70503a');block(LEAVES,'苍翠树叶',tiles.leaves,tiles.leaves,tiles.leaves,'#477b45');block(MARBLE,'神殿大理石',tiles.marble,tiles.marble,tiles.marble,'#d6d5c7');block(OBSIDIAN,'黑曜石',tiles.obsidian,tiles.obsidian,tiles.obsidian,'#29223d');block(RUNE,'永恒符文',tiles.rune,tiles.rune,tiles.rune,'#65e6dc','glow');block(CRYSTAL,'星辉水晶',tiles.crystal,tiles.crystal,tiles.crystal,'#a887e8','glow');block(GOLD,'鎏金砖',tiles.gold,tiles.gold,tiles.gold,'#d7af49');block(SNOW,'霜雪',tiles.snow,tiles.snow,tiles.snow,'#dce7e6');block(BRICK,'远古石砖',tiles.brick,tiles.brick,tiles.brick,'#8d9287');block(MOSSY,'苔痕石砖',tiles.mossy,tiles.mossy,tiles.mossy,'#66775b');block(BONE,'古龙遗骨',tiles.bone,tiles.bone,tiles.bone,'#d1c7a6');block(WATER,'魔法泉水',tiles.water,tiles.water,tiles.water,'#438cad','water');block(ROOF,'苍穹琉璃瓦',tiles.roof,tiles.roof,tiles.roof,'#31556a');block(PLANKS,'精灵木板',tiles.planks,tiles.planks,tiles.planks,'#a8794e');block(MOONLEAVES,'月华树叶',tiles.moonLeaves,tiles.moonLeaves,tiles.moonLeaves,'#7875a4');block(MAGMA,'龙焰熔岩',tiles.magma,tiles.magma,tiles.magma,'#f07632','glow');block(BEDROCK,'创世基石',tiles.bedrock,tiles.bedrock,tiles.bedrock,'#35373a');
+const isLeaf=id=>id===LEAVES||id===MOONLEAVES;
+const isSolid=id=>id!==AIR&&id!==WATER;
+const atlas=document.createElement('canvas');atlas.width=ACOLS*TILE;atlas.height=AROWS*TILE;const actx=atlas.getContext('2d');
+function pixel(t,x,y,c){actx.fillStyle=c;actx.fillRect((t%ACOLS)*TILE+x,Math.floor(t/ACOLS)*TILE+y,1,1)}
+function noisyTile(t,palette,seed=0,holes=0){for(let y=0;y<TILE;y++)for(let x=0;x<TILE;x++){const r=hash3(x,y,t,seed);if(r<holes)continue;pixel(t,x,y,palette[Math.floor(r*palette.length)%palette.length])}}
+function makeTextures(){
+  noisyTile(tiles.dirt,['#6f4a31','#795439','#825c3e','#67432f','#8d6241']);
+  noisyTile(tiles.grassTop,['#668d43','#739b4a','#587e3d','#7da552','#4f753b','#88aa56']);for(let i=0;i<20;i++){const x=Math.floor(hash2(i,2)*16),y=Math.floor(hash2(i,3)*16);pixel(tiles.grassTop,x,y,'#9cba62')}
+  noisyTile(tiles.grassSide,['#6f4a31','#795439','#825c3e','#67432f']);for(let y=0;y<4;y++)for(let x=0;x<16;x++)pixel(tiles.grassSide,x,y,['#668d43','#739b4a','#587e3d'][Math.floor(hash3(x,y,1)*3)]);for(let x=0;x<16;x++){const d=1+Math.floor(hash2(x,9)*4);for(let y=4;y<4+d;y++)pixel(tiles.grassSide,x,y,'#5c813e')}
+  noisyTile(tiles.stone,['#737875','#7d817d','#696f6c','#888b84','#626966']);for(let i=0;i<14;i++){const x=Math.floor(hash2(i,21)*16),y=Math.floor(hash2(i,22)*16);pixel(tiles.stone,x,y,'#555d5a');if(x<15)pixel(tiles.stone,x+1,y,'#93968e')}
+  noisyTile(tiles.sand,['#c7b578','#d2c188','#bdaa70','#dbc990','#c2af73']);noisyTile(tiles.logSide,['#65462f','#745238','#5b3d2c','#805a3b']);for(let x=1;x<16;x+=4)for(let y=0;y<16;y++)if(hash3(x,y,5)>.25)pixel(tiles.logSide,x,y,'#4e3527');
+  for(let y=0;y<16;y++)for(let x=0;x<16;x++){const d=Math.max(Math.abs(x-7.5),Math.abs(y-7.5));pixel(tiles.logTop,x,y,Math.floor(d)%3===0?'#68492f':['#9b7148','#a67c51','#8d643f'][Math.floor(hash3(x,y,6)*3)])}
+  noisyTile(tiles.leaves,['#3f713e','#4d8045','#598c4b','#37663b','#689953'],0,.12);noisyTile(tiles.moonLeaves,['#67658f','#7774a0','#8581aa','#565c86','#9490b3'],0,.10);
+  noisyTile(tiles.marble,['#d5d4c8','#dfded2','#c9cbc3','#e7e4d8']);for(let i=0;i<16;i++){const x=(i*3+2)%16;pixel(tiles.marble,x,i,'#aeb8b2');if(i%3===0&&x<15)pixel(tiles.marble,x+1,i,'#bdc3bb')}
+  noisyTile(tiles.obsidian,['#211c31','#29213b','#302643','#1b192b','#382b4c']);for(let i=0;i<13;i++)pixel(tiles.obsidian,Math.floor(hash2(i,8)*16),Math.floor(hash2(i,9)*16),'#57416b');
+  noisyTile(tiles.rune,['#163e46','#194a50','#12343e','#20545a']);for(let y=2;y<14;y++){pixel(tiles.rune,7,y,'#83fff1');pixel(tiles.rune,8,y,'#48cfc9')}for(let x=3;x<13;x++){pixel(tiles.rune,x,3,'#69e8df');pixel(tiles.rune,x,12,'#3ba8aa')}for(let i=0;i<5;i++){pixel(tiles.rune,3+i,5+i,'#8affed');pixel(tiles.rune,12-i,5+i,'#8affed')}
+  noisyTile(tiles.crystal,['#8b6bc5','#a582dc','#baa0eb','#7556b0','#cab6f2']);for(let y=0;y<16;y++){const x=Math.floor(y*.45);for(let k=0;k<3;k++)if(x+k<16)pixel(tiles.crystal,x+k,y,k===0?'#e4d8ff':'#bda3eb')}
+  noisyTile(tiles.gold,['#c79e3f','#d9b64f','#e4c567','#b98e35']);for(let y=0;y<16;y+=5)for(let x=0;x<16;x++)pixel(tiles.gold,x,y,'#96702b');for(let y=0;y<16;y+=5)for(let x=(y%10?4:10);x<16;x+=8)for(let k=0;k<5;k++)if(y+k<16)pixel(tiles.gold,x,y+k,'#a57c2e');
+  noisyTile(tiles.snow,['#dbe6e5','#e8efea','#cddddd','#f1f3ec']);noisyTile(tiles.brick,['#858b82','#92978b','#7b827b']);for(let y=0;y<16;y+=5)for(let x=0;x<16;x++)pixel(tiles.brick,x,y,'#59635f');for(let y=0;y<16;y+=5){const off=y%10?3:8;for(let x=off;x<16;x+=8)for(let k=0;k<5;k++)if(y+k<16)pixel(tiles.brick,x,y+k,'#616a63')}
+  noisyTile(tiles.mossy,['#66745b','#75806a','#596d52','#7b8270','#4e664a']);for(let y=0;y<16;y+=5)for(let x=0;x<16;x++)pixel(tiles.mossy,x,y,'#485b48');
+  noisyTile(tiles.bone,['#c9c09f','#d8cfb1','#bdb695','#e0d8bb']);for(let i=0;i<12;i++)pixel(tiles.bone,Math.floor(hash2(i,33)*16),Math.floor(hash2(i,34)*16),'#9e987f');
+  noisyTile(tiles.water,['#3e84a6','#478fac','#397c9f','#549bb4']);for(let y=2;y<16;y+=5)for(let x=0;x<16;x++)if((x+y)%3)pixel(tiles.water,x,y,'#67adc0');
+  noisyTile(tiles.roof,['#294b60','#31566b','#385e70','#244355']);for(let y=0;y<16;y+=4)for(let x=0;x<16;x++)pixel(tiles.roof,x,y,'#1c384b');
+  noisyTile(tiles.planks,['#a8794c','#b38354','#9a6b45','#bc8d5c']);for(let y=0;y<16;y+=4)for(let x=0;x<16;x++)pixel(tiles.planks,x,y,'#765035');
+  noisyTile(tiles.magma,['#c84c25','#e66a2d','#f58c35','#ffba45','#8e3525']);for(let i=0;i<16;i++){pixel(tiles.magma,i,(i*7)%16,'#632b27');pixel(tiles.magma,(i*3)%16,i,'#ffce55')}
+  noisyTile(tiles.bedrock,['#303438','#3c3e40','#262b2e','#4a4b49']);
+}
+makeTextures();
+// ---------- WebGL 微引擎：区块合批、雾、天空、粒子 ----------
+const canvas=$('#world'),gl=canvas.getContext('webgl',{antialias:true,alpha:false,powerPreference:'high-performance'});
+if(!gl){alert('此浏览器不支持 WebGL。请使用较新的 Chrome、Edge、Firefox 或 Safari。');throw Error('WebGL unavailable')}
+function shader(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
+function program(vs,fs){const p=gl.createProgram();gl.attachShader(p,shader(gl.VERTEX_SHADER,vs));gl.attachShader(p,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));p.u={};p.a={};const nu=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<nu;i++){const q=gl.getActiveUniform(p,i);p.u[q.name]=gl.getUniformLocation(p,q.name)}const na=gl.getProgramParameter(p,gl.ACTIVE_ATTRIBUTES);for(let i=0;i<na;i++){const q=gl.getActiveAttrib(p,i);p.a[q.name]=gl.getAttribLocation(p,q.name)}return p}
+const blockVS=`attribute vec3 aPos;attribute vec3 aNormal;attribute vec2 aUV;attribute vec3 aColor;uniform mat4 uProj,uView;uniform vec3 uCamera;uniform float uTime,uWater;varying vec2 vUV;varying vec3 vNormal,vColor;varying float vDist;void main(){vec3 p=aPos;if(uWater>.5){p.y+=sin(p.x*.7+p.z*.55+uTime*1.8)*.035;}vUV=aUV;vNormal=aNormal;vColor=aColor;vDist=distance(p,uCamera);gl_Position=uProj*uView*vec4(p,1.);}`;
+const blockFS=`precision mediump float;uniform sampler2D uAtlas;uniform vec3 uFogColor,uSunDir;uniform float uDaylight,uEmissive,uWater,uFogFar;varying vec2 vUV;varying vec3 vNormal,vColor;varying float vDist;void main(){vec4 tex=texture2D(uAtlas,vUV);if(tex.a<.35)discard;float diffuse=max(dot(normalize(vNormal),uSunDir),0.);float light=.32+uDaylight*(.58+.25*diffuse);vec3 c=tex.rgb*vColor*light;if(uEmissive>.5)c=tex.rgb*(1.05+.12*sin(vUV.x*9.));float fog=smoothstep(uFogFar*.48,uFogFar,vDist);c=mix(c,uFogColor,fog);gl_FragColor=vec4(c,uWater>.5?.70:1.);}`;
+const skyVS=`attribute vec2 aPos;varying vec2 vPos;void main(){vPos=aPos;gl_Position=vec4(aPos,0.,1.);}`;
+const skyFS=`precision mediump float;varying vec2 vPos;uniform mat4 uCameraWorld;uniform vec3 uSunDir;uniform float uAspect,uTanFov,uTime,uDaylight;float hash(vec3 p){p=fract(p*.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}float n2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);float a=hash(vec3(i,1.)),b=hash(vec3(i+vec2(1,0),1.)),c=hash(vec3(i+vec2(0,1),1.)),d=hash(vec3(i+1.,1.));return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}void main(){vec3 dir=normalize((uCameraWorld*vec4(normalize(vec3(vPos.x*uAspect*uTanFov,vPos.y*uTanFov,-1.)),0.)).xyz);float d=uDaylight;float h=pow(clamp(dir.y,0.,1.),.48);vec3 day=mix(vec3(.73,.84,.88),vec3(.16,.40,.69),h);vec3 night=mix(vec3(.055,.075,.12),vec3(.008,.014,.045),h);vec3 col=mix(night,day,d);float sunset=(1.-smoothstep(0.,.36,abs(uSunDir.y)))*pow(1.-abs(dir.y),5.);col+=vec3(.34,.12,.025)*sunset*d;float sd=max(dot(dir,uSunDir),0.);col+=vec3(1.,.78,.42)*pow(sd,80.)*.28*d;col+=vec3(1.,.91,.67)*smoothstep(.9994,.99975,sd)*1.5*d;float md=max(dot(dir,-uSunDir),0.);col+=vec3(.68,.78,1.)*smoothstep(.99955,.9998,md)*(1.-d);vec3 cell=floor(dir*650.);float star=step(.9965,hash(cell))*pow(hash(cell+7.),4.);col+=vec3(.75,.85,1.)*star*(1.-d)*(1.+.4*sin(uTime*2.+hash(cell)*30.));if(dir.y>.025){vec2 p=dir.xz/(dir.y+.18)*1.7+vec2(uTime*.004,uTime*.001);float cloud=n2(p)*.58+n2(p*2.03)*.28+n2(p*4.1)*.14;cloud=smoothstep(.59,.78,cloud)*smoothstep(.02,.18,dir.y);col=mix(col,vec3(.91,.94,.93)*( .3+.7*d),cloud*.72*d);}gl_FragColor=vec4(col,1.);}`;
+const flatVS=`attribute vec3 aPos;attribute vec3 aColor;uniform mat4 uProj,uView;uniform float uPoint;varying vec3 vColor;void main(){vec4 v=uView*vec4(aPos,1.);gl_Position=uProj*v;gl_PointSize=uPoint>0.?clamp(90./max(1.,-v.z),2.,10.):1.;vColor=aColor;}`;
+const flatFS=`precision mediump float;uniform float uPoint,uAlpha;varying vec3 vColor;void main(){if(uPoint>0.){vec2 p=gl_PointCoord-.5;if(max(abs(p.x),abs(p.y))>.46)discard;}gl_FragColor=vec4(vColor,uAlpha);}`;
+const blockProgram=program(blockVS,blockFS),skyProgram=program(skyVS,skyFS),flatProgram=program(flatVS,flatFS);
+const skyBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,skyBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+const texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,texture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,atlas);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);
+let proj=new Float32Array(16),view=new Float32Array(16),cameraWorld=new Float32Array(16),tanFov=Math.tan(Math.PI/4),aspect=1;
+function perspective(out,fov,asp,near,far){const f=1/Math.tan(fov/2),nf=1/(near-far);out.set([f/asp,0,0,0,0,f,0,0,0,0,(far+near)*nf,-1,0,0,2*far*near*nf,0])}
+function resize(){const dpr=Math.min(devicePixelRatio||1,1.6),w=Math.floor(innerWidth*dpr),h=Math.floor(innerHeight*dpr);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}aspect=w/h;perspective(proj,Math.PI/2,aspect,.06,420);tanFov=1;gl.viewport(0,0,w,h)}
+addEventListener('resize',resize);resize();
+function uploadMesh(data){if(!data.length)return null;const vbo=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vbo);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);return{vbo,count:data.length/11}}
+function deleteMesh(m){if(m)gl.deleteBuffer(m.vbo)}
+// ---------- 神话建筑蓝图 ----------
+const SPECIALS=[
+  {x:0,z:0,type:'sanctum',name:'晨曦圣所',r:18,key:'s0'},
+  {x:-48,z:-32,type:'worldTree',name:'永夜世界树',r:20,key:'s1'},
+  {x:48,z:-48,type:'dragon',name:'古龙沉眠之地',r:23,key:'s2'},
+  {x:48,z:32,type:'skyTemple',name:'阿斯特拉天空神殿',r:21,key:'s3'},
+  {x:-48,z:48,type:'runeGate',name:'失落星门',r:17,key:'s4'}
+];
+const REGION=80,blueprintCache=new Map();
+const typeNames={worldTree:'苍冠世界树',dragon:'龙骸荒原',skyTemple:'云海天空神殿',runeGate:'破碎星门',crystal:'紫晶方尖碑',tower:'星辉精灵塔',ruins:'泰坦环形回廊'};
+function makeAnchor(gx,gz){if(gx===0&&gz===0)return null;const x=gx*REGION+Math.floor((hash2(gx,gz,71)-.5)*34),z=gz*REGION+Math.floor((hash2(gx,gz,72)-.5)*34);if(Math.hypot(x,z)<72)return null;const types=['worldTree','dragon','skyTemple','runeGate','crystal','tower','ruins'],type=types[Math.floor(hash2(gx,gz,73)*types.length)];return{x,z,type,name:typeNames[type],r:type==='dragon'||type==='ruins'?23:21,key:`r${gx},${gz}`}}
+function createBlueprint(a){
+  const blocks=[],base=a.type==='skyTemple'?clamp(Math.max(63,heightAt(a.x,a.z)+23),63,70):heightAt(a.x,a.z),set=(x,y,z,id)=>{if(y>=0&&y<HEIGHT)blocks.push([Math.round(x),Math.round(y),Math.round(z),id])};
+  const disk=(y,r,id,cx=a.x,cz=a.z)=>{for(let x=-r;x<=r;x++)for(let z=-r;z<=r;z++)if(x*x+z*z<=r*r)set(cx+x,y,cz+z,id)};
+  const pillar=(x,z,y,h,id=MARBLE)=>{for(let k=0;k<h;k++)set(x,y+k,z,id);set(x,y,z,GOLD);set(x,y+h-1,z,GOLD)};
+  if(a.type==='sanctum'){
+    for(let x=-15;x<=15;x++)for(let z=-15;z<=15;z++){const d=Math.hypot(x,z);if(d>15)continue;for(let y=1;y<11;y++)set(a.x+x,base+y,a.z+z,AIR);set(a.x+x,base-1,a.z+z,STONE);set(a.x+x,base,a.z+z,d>13.5?BRICK:((Math.floor(d)===7||((x+z)%11===0&&d<7))?RUNE:MARBLE))}
+    for(const x of [-10,10])for(const z of [-10,10]){pillar(a.x+x,a.z+z,base+1,8);set(a.x+x,base+9,a.z+z,CRYSTAL);set(a.x+x,base+10,a.z+z,RUNE)}
+    for(let x=-6;x<=6;x++)for(let y=0;y<=11;y++){const d=Math.hypot(x,y-5.5);if(d>4.25&&d<5.65)set(a.x+x,base+1+y,a.z-5,(Math.abs(x)===5||y===1||y===11)?RUNE:OBSIDIAN)}
+    for(const x of [-6,6])for(const z of [-6,6]){set(a.x+x,base+1,a.z+z,GOLD);set(a.x+x,base+2,a.z+z,RUNE)}
+    for(let z=6;z<17;z++)for(let x=-2;x<=2;x++)set(a.x+x,base,a.z+z,(x===0&&z%3===0)?RUNE:BRICK);
+  }else if(a.type==='worldTree'){
+    const leaf=a.z%2?MOONLEAVES:LEAVES;for(let x=-12;x<=12;x++)for(let y=-5;y<=7;y++)for(let z=-12;z<=12;z++){const d=x*x/144+z*z/144+y*y/49;if(d<1&&hash3(x,y,z,91)>.10)set(a.x+x,base+23+y,a.z+z,leaf)}
+    for(let y=0;y<23;y++){const r=y<5?3.8:(y<16?2.8:1.8);for(let x=-4;x<=4;x++)for(let z=-4;z<=4;z++)if(x*x+z*z<r*r*(.85+hash3(x,y,z)*.3))set(a.x+x,base+y,a.z+z,LOG)}
+    for(let k=0;k<10;k++){const ang=k*Math.PI*.2,len=8+hash2(k,SEED)*5;for(let t=0;t<len;t++){const x=Math.cos(ang)*t,z=Math.sin(ang)*t;set(a.x+x,base+Math.max(0,3-Math.floor(t*.45)),a.z+z,LOG);if(t<5)set(a.x+x,base+1,a.z+z,LOG)}}
+    for(let k=0;k<9;k++){const ang=k*2.399,y=base+12+k%3*4;for(let t=0;t<8;t++)set(a.x+Math.cos(ang)*t,y+Math.floor(t*.32),a.z+Math.sin(ang)*t,LOG)}
+    for(let k=0;k<12;k++){const ang=k*2.4,r=5+k%5,x=a.x+Math.round(Math.cos(ang)*r),z=a.z+Math.round(Math.sin(ang)*r),y=base+18+k%5;for(let q=0;q<3;q++)set(x,y-q,z,LOG);set(x,y-3,z,RUNE)}
+  }else if(a.type==='dragon'){
+    for(let z=-18;z<=21;z++){const y=base+6+Math.round(Math.sin(z*.13)*2);set(a.x,y,a.z+z,BONE);set(a.x+1,y,a.z+z,BONE);if(z%4===0){set(a.x,y+1,a.z+z,BONE);set(a.x-1,y,a.z+z,BONE)}}
+    for(let z=-10;z<=11;z+=4){const r=7-Math.abs(z)*.12;for(let t=0;t<=Math.PI;t+=.055){const x=Math.round(Math.cos(t)*r),y=Math.round(base+2+Math.sin(t)*r);set(a.x+x,y,a.z+z,BONE);if(hash3(x,y,z)>.4)set(a.x+x,y,a.z+z+1,BONE)}}
+    for(let x=-3;x<=3;x++)for(let y=0;y<4;y++)for(let z=-4;z<=2;z++)if(Math.abs(x)+Math.abs(z)<6)set(a.x+x,base+5+y,a.z-17+z,BONE);
+    for(const x of [-2,2]){set(a.x+x,base+7,a.z-20,OBSIDIAN);set(a.x+x,base+8,a.z-20,OBSIDIAN);for(let k=0;k<5;k++)set(a.x+x+Math.sign(x)*Math.floor(k/2),base+9+k,a.z-15+k,BONE)}
+    for(let z=-22;z<-18;z++)for(let x=-2;x<=2;x++)set(a.x+x,base+5,a.z+z,BONE);
+    for(let k=0;k<22;k++){const x=Math.floor((hash2(k,81)-.5)*30),z=Math.floor((hash2(k,82)-.5)*34);set(a.x+x,base+1,a.z+z,k%5===0?MAGMA:BONE)}
+  }else if(a.type==='skyTemple'){
+    for(let y=-13;y<=0;y++){const r=Math.max(1,(y+13)/13*13);for(let x=-14;x<=14;x++)for(let z=-14;z<=14;z++){const d=Math.hypot(x,z);if(d<r*(.86+hash3(x,y,z)*.18))set(a.x+x,base+y,a.z+z,y===0?(d>11?MARBLE:GRASS):(hash3(x,y,z,4)>.93?CRYSTAL:STONE))}}
+    for(let x=-10;x<=10;x++)for(let z=-10;z<=10;z++)set(a.x+x,base+1,a.z+z,(Math.abs(x)===10||Math.abs(z)===10)?GOLD:MARBLE);
+    for(const x of [-7,7])for(const z of [-7,0,7])pillar(a.x+x,a.z+z,base+2,8);
+    for(const z of [-7,7])pillar(a.x,a.z+z,base+2,8);
+    for(let s=0;s<4;s++){const r=11-s;for(let x=-r;x<=r;x++)for(let z=-r;z<=r;z++)if(Math.abs(x)===r||Math.abs(z)===r||s===3)set(a.x+x,base+10+s,a.z+z,(Math.abs(x)===r&&Math.abs(z)===r)?GOLD:ROOF)}
+    for(let y=2;y<9;y++)set(a.x,base+y,a.z,y%3===0?RUNE:CRYSTAL);for(const x of [-3,3])for(const z of [-3,3]){set(a.x+x,base+2,a.z+z,GOLD);set(a.x+x,base+3,a.z+z,RUNE)}
+    for(let y=base;y>base-24;y--){set(a.x+12,y,a.z,WATER);set(a.x+12,y,a.z+1,WATER)}
+  }else if(a.type==='runeGate'){
+    disk(base,11,MOSSY);for(let x=-9;x<=9;x++)for(let y=0;y<17;y++){const d=Math.hypot(x,y-8);if(d>6.4&&d<8.1&&hash3(x,y,0,12)>.10)set(a.x+x,base+1+y,a.z,(Math.round(d*10)+y)%7===0?RUNE:OBSIDIAN)}
+    for(const x of [-10,10]){pillar(a.x+x,a.z,base+1,5+Math.floor(hash2(x,2)*5),BRICK);set(a.x+x,base+8,a.z,CRYSTAL)}
+    for(let z=1;z<13;z++)for(let x=-2;x<=2;x++)set(a.x+x,base,a.z+z,(x===0&&z%4===0)?RUNE:BRICK);
+  }else if(a.type==='crystal'){
+    disk(base,9,OBSIDIAN);for(let k=0;k<9;k++){const ox=k?Math.round((hash2(k,41)-.5)*13):0,oz=k?Math.round((hash2(k,42)-.5)*13):0,h=k?5+Math.floor(hash2(k,43)*8):19;for(let y=0;y<h;y++){const r=y<h*.6?1:0;for(let x=-r;x<=r;x++)for(let z=-r;z<=r;z++)set(a.x+ox+x,base+1+y,a.z+oz+z,(y%5===0&&k===0)?RUNE:CRYSTAL)}}
+  }else if(a.type==='tower'){
+    disk(base,7,MOSSY);for(let y=1;y<19;y++)for(let x=-5;x<=5;x++)for(let z=-5;z<=5;z++){const d=Math.hypot(x,z);if(d>3.7&&d<5.2){let id=(y%6===0)?GOLD:MARBLE;if(y%6>2&&y%6<5&&((Math.abs(x)===4&&z===0)||(Math.abs(z)===4&&x===0)))id=RUNE;if(z===4&&Math.abs(x)<2&&y<4)id=AIR;set(a.x+x,base+y,a.z+z,id)}}
+    for(let y=0;y<9;y++){const r=Math.max(0,7-Math.floor(y*.8));disk(base+19+y,r,y%3===0?GOLD:ROOF)}
+    for(let k=0;k<5;k++)set(a.x,base+28+k,a.z,k===4?RUNE:GOLD);
+  }else if(a.type==='ruins'){
+    disk(base,15,MOSSY);for(let k=0;k<20;k++){const ang=k/20*Math.PI*2,x=a.x+Math.round(Math.cos(ang)*13),z=a.z+Math.round(Math.sin(ang)*13),h=3+Math.floor(hash2(k,99)*8);pillar(x,z,base+1,h,k%3?BRICK:MOSSY);if(k%3===0){set(x,base+h+1,z,RUNE);for(let q=1;q<4;q++)set(x+Math.round(Math.cos(ang)*q),base+1,z+Math.round(Math.sin(ang)*q),BONE)}}
+    for(let x=-4;x<=4;x++)for(let z=-4;z<=4;z++)if(Math.hypot(x,z)>2.5)set(a.x+x,base+1,a.z+z,MAGMA);set(a.x,base+2,a.z,CRYSTAL);
+  }
+  return{blocks,base};
+}
+function getBlueprint(a){if(!blueprintCache.has(a.key))blueprintCache.set(a.key,createBlueprint(a));return blueprintCache.get(a.key)}
+function anchorsForChunk(cx,cz){const out=SPECIALS.slice(),x0=cx*SIZE,z0=cz*SIZE;for(let gx=Math.floor((x0-25)/REGION);gx<=Math.floor((x0+SIZE+25)/REGION);gx++)for(let gz=Math.floor((z0-25)/REGION);gz<=Math.floor((z0+SIZE+25)/REGION);gz++){const a=makeAnchor(gx,gz);if(a)out.push(a)}return out}
+// ---------- 无限体素区块 ----------
+const SIZE=16,HEIGHT=96,SEA=22,chunks=new Map(),edits=new Map(),editsByChunk=new Map(),dirty=new Set();
+let renderDistance=5,desired=[],playerChunk='',generatedCount=0,meshedCount=0,spawnReady=false;
+const ckey=(x,z)=>`${x},${z}`,bkey=(x,y,z)=>`${x},${y},${z}`,idx=(x,y,z)=>(y*SIZE+z)*SIZE+x;
+function baseBlock(x,y,z,h,biome){
+  if(y<0)return BEDROCK;if(y===0)return BEDROCK;
+  if(y>h)return y<=SEA?WATER:AIR;
+  if(y<h-4&&y>3){const cave=noise.noise3(x*.055,y*.071,z*.055);if(cave>.51)return AIR}
+  if(y===h){if(h<=SEA+1||biome.id==='desert')return SAND;if(biome.id==='snow')return SNOW;if(biome.id==='crystal')return OBSIDIAN;return GRASS}
+  if(y>=h-3)return biome.id==='desert'?SAND:(biome.id==='crystal'?STONE:DIRT);
+  const ore=hash3(x,y,z,61);if(ore>.994)return CRYSTAL;if(ore>.985&&y<20)return GOLD;return STONE;
+}
+function localSet(data,cx,cz,x,y,z,id,onlyAir=false){if(x<cx*SIZE||x>=cx*SIZE+SIZE||z<cz*SIZE||z>=cz*SIZE+SIZE||y<0||y>=HEIGHT)return;const i=idx(x-cx*SIZE,y,z-cz*SIZE);if(onlyAir&&data[i]!==AIR&&data[i]!==WATER)return;data[i]=id}
+function growTrees(data,cx,cz){
+  const grid=7;for(let gx=Math.floor((cx*SIZE-7)/grid);gx<=Math.floor((cx*SIZE+SIZE+7)/grid);gx++)for(let gz=Math.floor((cz*SIZE-7)/grid);gz<=Math.floor((cz*SIZE+SIZE+7)/grid);gz++){
+    const x=gx*grid+Math.floor(hash2(gx,gz,201)*5)-2,z=gz*grid+Math.floor(hash2(gx,gz,202)*5)-2;if(Math.hypot(x,z)<22)continue;const h=heightAt(x,z),b=biomeAt(x,z,h),r=hash2(gx,gz,203);if(h<=SEA+1)continue;
+    const threshold=b.id==='forest'?.30:b.id==='plains'?.88:b.id==='snow'?.83:b.id==='crystal'?.89:b.id==='desert'?.965:1;if(r<threshold)continue;
+    if(b.id==='desert'){if(r>.965)for(let y=1;y<5;y++)localSet(data,cx,cz,x,h+y,z,LOG);continue}
+    const crystal=b.id==='crystal',pine=b.id==='snow',th=crystal?5:pine?7:4+Math.floor(hash2(gx,gz,204)*3),leaf=crystal?CRYSTAL:pine?MOONLEAVES:(b.id==='forest'&&r>.75?MOONLEAVES:LEAVES);
+    for(let y=1;y<=th;y++)localSet(data,cx,cz,x,h+y,z,LOG,true);
+    if(pine){for(let y=3;y<=th+2;y++){const rad=Math.max(0,Math.floor((th+2-y)/2));for(let ox=-rad;ox<=rad;ox++)for(let oz=-rad;oz<=rad;oz++)if(Math.abs(ox)+Math.abs(oz)<=rad+1)localSet(data,cx,cz,x+ox,h+y,z+oz,leaf,true)}}
+    else for(let ox=-3;ox<=3;ox++)for(let oy=-2;oy<=2;oy++)for(let oz=-3;oz<=3;oz++){const d=ox*ox+oz*oz+oy*oy*1.8;if(d<8.5&&hash3(x+ox,h+th+oy,z+oz)>.08)localSet(data,cx,cz,x+ox,h+th+oy,z+oz,leaf,true)}
+  }
+}
+function generateChunk(cx,cz){
+  const data=new Uint8Array(SIZE*HEIGHT*SIZE);for(let z=0;z<SIZE;z++)for(let x=0;x<SIZE;x++){const wx=cx*SIZE+x,wz=cz*SIZE+z,h=heightAt(wx,wz),b=biomeAt(wx,wz,h);for(let y=0;y<=Math.max(h,SEA);y++)data[idx(x,y,z)]=baseBlock(wx,y,wz,h,b)}
+  growTrees(data,cx,cz);const x0=cx*SIZE,z0=cz*SIZE;
+  for(const a of anchorsForChunk(cx,cz)){if(a.x+a.r<x0||a.x-a.r>=x0+SIZE||a.z+a.r<z0||a.z-a.r>=z0+SIZE)continue;for(const [x,y,z,id] of getBlueprint(a).blocks)localSet(data,cx,cz,x,y,z,id)}
+  const em=editsByChunk.get(ckey(cx,cz));if(em)for(const [key,id] of em){const [x,y,z]=key.split(',').map(Number);if(x>=x0&&x<x0+SIZE&&z>=z0&&z<z0+SIZE&&y>=0&&y<HEIGHT)data[idx(x-x0,y,z-z0)]=id}
+  const c={cx,cz,data,solid:null,glow:null,water:null};chunks.set(ckey(cx,cz),c);generatedCount++;return c;
+}
+function getBlock(x,y,z){x=Math.floor(x);y=Math.floor(y);z=Math.floor(z);if(y<0)return BEDROCK;if(y>=HEIGHT)return AIR;const key=bkey(x,y,z);if(edits.has(key))return edits.get(key);const c=chunks.get(ckey(Math.floor(x/SIZE),Math.floor(z/SIZE)));if(c)return c.data[idx(x-c.cx*SIZE,y,z-c.cz*SIZE)];const h=heightAt(x,z);return baseBlock(x,y,z,h,biomeAt(x,z,h))}
+const FACES=[
+  {n:[1,0,0],s:.84,v:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]]},{n:[-1,0,0],s:.84,v:[[0,0,1],[0,1,1],[0,1,0],[0,0,0]]},
+  {n:[0,1,0],s:1,v:[[0,1,1],[1,1,1],[1,1,0],[0,1,0]]},{n:[0,-1,0],s:.55,v:[[0,0,0],[1,0,0],[1,0,1],[0,0,1]]},
+  {n:[0,0,1],s:.74,v:[[1,0,1],[1,1,1],[0,1,1],[0,0,1]]},{n:[0,0,-1],s:.74,v:[[0,0,0],[0,1,0],[1,1,0],[1,0,0]]}
+];
+function faceVisible(id,n){if(id===WATER)return n===AIR;return n===AIR||n===WATER||(isLeaf(n)&&!isLeaf(id))}
+function meshChunk(c){
+  const solid=[],glow=[],water=[];for(let y=0;y<HEIGHT;y++)for(let z=0;z<SIZE;z++)for(let x=0;x<SIZE;x++){
+    const id=c.data[idx(x,y,z)];if(!id)continue;const wx=c.cx*SIZE+x,wz=c.cz*SIZE+z,def=BLOCK[id],arr=def.render==='glow'?glow:def.render==='water'?water:solid;
+    for(const f of FACES){const nx=wx+f.n[0],ny=y+f.n[1],nz=wz+f.n[2],nid=getBlock(nx,ny,nz);if(!faceVisible(id,nid))continue;const tile=f.n[1]===1?def.top:f.n[1]===-1?def.bottom:def.side,tx=tile%ACOLS,ty=Math.floor(tile/ACOLS),e=.025,u0=(tx*TILE+e)/(ACOLS*TILE),u1=((tx+1)*TILE-e)/(ACOLS*TILE),v0=(ty*TILE+e)/(AROWS*TILE),v1=((ty+1)*TILE-e)/(AROWS*TILE),uv=[[u0,v1],[u0,v0],[u1,v0],[u1,v1]],shade=f.s*(.96+hash3(wx,y,wz,17)*.06);
+      for(const q of [0,1,2,0,2,3]){const v=f.v[q];arr.push(wx+v[0],y+v[1],wz+v[2],...f.n,...uv[q],shade,shade,shade)}
+    }
+  }
+  deleteMesh(c.solid);deleteMesh(c.glow);deleteMesh(c.water);c.solid=uploadMesh(solid);c.glow=uploadMesh(glow);c.water=uploadMesh(water);meshedCount++;
+}
+function rebuild(c){if(!c)return;deleteMesh(c.solid);deleteMesh(c.glow);deleteMesh(c.water);c.solid=c.glow=c.water=null;meshChunk(c)}
+function refreshChunks(){const pcx=Math.floor(player.pos.x/SIZE),pcz=Math.floor(player.pos.z/SIZE),key=ckey(pcx,pcz);if(key===playerChunk&&desired.length)return;playerChunk=key;desired=[];const r=renderDistance+1;for(let x=-r;x<=r;x++)for(let z=-r;z<=r;z++)if(x*x+z*z<=r*r)desired.push({cx:pcx+x,cz:pcz+z,d:x*x+z*z});desired.sort((a,b)=>a.d-b.d);for(const [k,c] of chunks){const d=Math.max(Math.abs(c.cx-pcx),Math.abs(c.cz-pcz));if(d>renderDistance+2){deleteMesh(c.solid);deleteMesh(c.glow);deleteMesh(c.water);chunks.delete(k)}}}
+function updateChunks(){refreshChunks();const start=performance.now();let guard=0;while(performance.now()-start<9&&guard++<10){if(dirty.size){const k=dirty.values().next().value;dirty.delete(k);const c=chunks.get(k);if(c)rebuild(c);continue}let worked=false;for(const q of desired){const k=ckey(q.cx,q.cz);let c=chunks.get(k);if(!c){generateChunk(q.cx,q.cz);worked=true;break}if(q.d<=renderDistance*renderDistance&&!c.solid&&!c.glow&&!c.water){let ready=true;for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]])if(!chunks.has(ckey(q.cx+dx,q.cz+dz))){ready=false;break}if(ready){meshChunk(c);worked=true;break}}}if(!worked)break}
+  const spawn=chunks.get(ckey(Math.floor(SPAWN.x/SIZE),Math.floor(SPAWN.z/SIZE)));if(!spawnReady&&spawn&&(spawn.solid||spawn.glow)){spawnReady=true;$('#start').disabled=false;$('#start').textContent='踏 入 神 域';$('#startHint').textContent='点击后锁定鼠标 · ESC 可暂停旅程'}
+  $('#loading i').style.width=`${Math.min(100,5+meshedCount*4)}%`;if(!spawnReady)$('#startHint').textContent=`正在编织山川与遗迹 · 已生成 ${generatedCount} 个区块`;
+}
+function setBlock(x,y,z,id){if(y<1||y>=HEIGHT)return;const key=bkey(x,y,z),old=getBlock(x,y,z);if(old===id)return;edits.set(key,id);const ck=ckey(Math.floor(x/SIZE),Math.floor(z/SIZE));if(!editsByChunk.has(ck))editsByChunk.set(ck,new Map());editsByChunk.get(ck).set(key,id);const c=chunks.get(ck);if(c){c.data[idx(x-c.cx*SIZE,y,z-c.cz*SIZE)]=id;dirty.add(ck);if(x-c.cx*SIZE===0)dirty.add(ckey(c.cx-1,c.cz));if(x-c.cx*SIZE===SIZE-1)dirty.add(ckey(c.cx+1,c.cz));if(z-c.cz*SIZE===0)dirty.add(ckey(c.cx,c.cz-1));if(z-c.cz*SIZE===SIZE-1)dirty.add(ckey(c.cx,c.cz+1))}}
+// ---------- 第一人称控制器、重力和体素碰撞 ----------
+const SPAWN={x:.5,y:31.04,z:8.5};
+const player={pos:{x:SPAWN.x,y:SPAWN.y,z:SPAWN.z},vel:{x:0,y:0,z:0},yaw:0,pitch:-.08,grounded:false,flying:false};
+const keys=new Set();let locked=false,started=false,selected=0,target=null;
+const hotbar=[GRASS,DIRT,STONE,LOG,PLANKS,MARBLE,OBSIDIAN,RUNE,CRYSTAL];
+function collidesAt(pos){const r=.3,h=1.78;for(let x=Math.floor(pos.x-r);x<=Math.floor(pos.x+r);x++)for(let y=Math.floor(pos.y);y<=Math.floor(pos.y+h);y++)for(let z=Math.floor(pos.z-r);z<=Math.floor(pos.z+r);z++)if(isSolid(getBlock(x,y,z)))return true;return false}
+function moveAxis(axis,delta){if(!delta)return;player.pos[axis]+=delta;const r=.3,h=1.78,p=player.pos;let minX=Math.floor(p.x-r),maxX=Math.floor(p.x+r),minY=Math.floor(p.y),maxY=Math.floor(p.y+h),minZ=Math.floor(p.z-r),maxZ=Math.floor(p.z+r);for(let x=minX;x<=maxX;x++)for(let y=minY;y<=maxY;y++)for(let z=minZ;z<=maxZ;z++){if(!isSolid(getBlock(x,y,z)))continue;const overlap=p.x+r>x&&p.x-r<x+1&&p.y+h>y&&p.y<y+1&&p.z+r>z&&p.z-r<z+1;if(!overlap)continue;if(axis==='x')p.x=delta>0?x-r-.001:x+1+r+.001;else if(axis==='z')p.z=delta>0?z-r-.001:z+1+r+.001;else{p.y=delta>0?y-h-.001:y+1+.001;if(delta<0)player.grounded=true}player.vel[axis]=0}}
+function physics(dt){
+  const inWater=getBlock(player.pos.x,player.pos.y+.7,player.pos.z)===WATER,sprint=keys.has('ShiftLeft')||keys.has('ShiftRight');let speed=player.flying?(sprint?16:10):(sprint?7.5:4.7);if(inWater)speed=3.1;
+  let f=(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),r=(keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0),len=Math.hypot(f,r);if(len){f/=len;r/=len}const sy=Math.sin(player.yaw),cy=Math.cos(player.yaw),tx=(-sy*f+cy*r)*speed,tz=(-cy*f-sy*r)*speed,accel=player.grounded||player.flying?18:7;
+  player.vel.x=lerp(player.vel.x,tx,Math.min(1,accel*dt));player.vel.z=lerp(player.vel.z,tz,Math.min(1,accel*dt));
+  if(player.flying){player.vel.y=lerp(player.vel.y,((keys.has('Space')?1:0)-(keys.has('KeyC')?1:0))*speed,Math.min(1,12*dt))}
+  else if(inWater){player.vel.y+=(-4-player.vel.y)*Math.min(1,3*dt);if(keys.has('Space'))player.vel.y=4.2}
+  else{player.vel.y-=24*dt;if(keys.has('Space')&&player.grounded){player.vel.y=8.4;player.grounded=false;playSound('jump')}}
+  player.grounded=false;const steps=Math.max(1,Math.ceil(dt/.016));for(let i=0;i<steps;i++){moveAxis('x',player.vel.x*dt/steps);moveAxis('z',player.vel.z*dt/steps);moveAxis('y',player.vel.y*dt/steps)}
+  if(player.pos.y<-12){player.pos={...SPAWN};player.vel={x:0,y:0,z:0};toast('命运将你带回了圣所')}
+  $('#underwater').style.opacity=getBlock(player.pos.x,player.pos.y+1.6,player.pos.z)===WATER?1:0;
+}
+function raycast(maxDist=6){const cp=Math.cos(player.pitch),dir={x:-Math.sin(player.yaw)*cp,y:Math.sin(player.pitch),z:-Math.cos(player.yaw)*cp},o={x:player.pos.x,y:player.pos.y+1.62,z:player.pos.z};let x=Math.floor(o.x),y=Math.floor(o.y),z=Math.floor(o.z),normal={x:0,y:0,z:0},dist=0;const sx=dir.x>=0?1:-1,sy=dir.y>=0?1:-1,sz=dir.z>=0?1:-1,dx=Math.abs(1/(dir.x||1e-12)),dy=Math.abs(1/(dir.y||1e-12)),dz=Math.abs(1/(dir.z||1e-12));let mx=((sx>0?x+1-o.x:o.x-x))*dx,my=((sy>0?y+1-o.y:o.y-y))*dy,mz=((sz>0?z+1-o.z:o.z-z))*dz;
+  while(dist<=maxDist){const id=getBlock(x,y,z);if(id!==AIR&&id!==WATER)return{x,y,z,id,normal};if(mx<my&&mx<mz){x+=sx;dist=mx;mx+=dx;normal={x:-sx,y:0,z:0}}else if(my<mz){y+=sy;dist=my;my+=dy;normal={x:0,y:-sy,z:0}}else{z+=sz;dist=mz;mz+=dz;normal={x:0,y:0,z:-sz}}}return null;
+}
+function breakBlock(){if(!target||target.y<=0)return;const id=target.id;setBlock(target.x,target.y,target.z,AIR);spawnParticles(target.x+.5,target.y+.5,target.z+.5,id);playSound('break',id);target=null}
+function placeBlock(){if(!target)return;const x=target.x+target.normal.x,y=target.y+target.normal.y,z=target.z+target.normal.z;if(getBlock(x,y,z)!==AIR&&getBlock(x,y,z)!==WATER)return;const p=player.pos;if(x+1>p.x-.3&&x<p.x+.3&&y+1>p.y&&y<p.y+1.78&&z+1>p.z-.3&&z<p.z+.3)return;setBlock(x,y,z,hotbar[selected]);playSound('place');target=null}
+function pickBlock(){if(!target)return;const i=hotbar.indexOf(target.id);if(i>=0)selected=i;else hotbar[selected]=target.id;updateHotbar()}
+// ---------- 交互、音效与界面 ----------
+let audio=null,muted=false;
+function initAudio(){if(audio)return;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;audio=new AC();audio.master=audio.createGain();audio.master.gain.value=.16;audio.master.connect(audio.destination)}
+function playSound(type){if(!audio||muted)return;if(audio.state==='suspended')audio.resume();const now=audio.currentTime,o=audio.createOscillator(),g=audio.createGain();o.connect(g);g.connect(audio.master);o.type=type==='break'?'sawtooth':type==='discover'?'sine':'triangle';const f=type==='break'?95:type==='place'?170:type==='jump'?120:440;o.frequency.setValueAtTime(f,now);o.frequency.exponentialRampToValueAtTime(type==='discover'?880:Math.max(45,f*.55),now+(type==='discover'?.5:.09));g.gain.setValueAtTime(type==='discover'?.22:.16,now);g.gain.exponentialRampToValueAtTime(.001,now+(type==='discover'?.65:.11));o.start(now);o.stop(now+(type==='discover'?.7:.12))}
+function updateHotbar(){[...$('#hotbar').children].forEach((el,i)=>el.classList.toggle('selected',i===selected));$('#selectedName').textContent=BLOCK[hotbar[selected]].name}
+for(let i=0;i<hotbar.length;i++){const el=document.createElement('div');el.className='slot';el.innerHTML=`<em>${i+1}</em><canvas width="16" height="16"></canvas>`;const c=el.querySelector('canvas').getContext('2d'),id=hotbar[i],t=BLOCK[id].top;c.imageSmoothingEnabled=false;c.drawImage(atlas,(t%ACOLS)*16,Math.floor(t/ACOLS)*16,16,16,0,0,16,16);$('#hotbar').appendChild(el)}updateHotbar();
+function toast(text){const el=$('#toast');el.querySelector('b').textContent=text;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),3600)}
+const discovered=new Set();let discoveryTimer=0;
+function discover(dt){discoveryTimer-=dt;if(discoveryTimer>0)return;discoveryTimer=1;const all=SPECIALS.slice();for(let gx=Math.floor((player.pos.x-40)/REGION);gx<=Math.floor((player.pos.x+40)/REGION);gx++)for(let gz=Math.floor((player.pos.z-40)/REGION);gz<=Math.floor((player.pos.z+40)/REGION);gz++){const a=makeAnchor(gx,gz);if(a)all.push(a)}for(const a of all)if(!discovered.has(a.key)&&Math.hypot(player.pos.x-a.x,player.pos.z-a.z)<a.r+7){discovered.add(a.key);toast(a.name);playSound('discover');$('#discovery').textContent=`已发现 ${discovered.size} 处神话遗迹`;break}}
+function lock(){if(!spawnReady)return;initAudio();canvas.requestPointerLock()}
+$('#start').addEventListener('click',lock);canvas.addEventListener('click',()=>{if(started&&!locked)lock()});document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;$('#overlay').classList.toggle('hidden',locked);keys.clear();if(locked){started=true;$('#title').textContent='遗落神域';$('#startHint').textContent='ESC 可暂停 · H 可打开旅行者手册'}else if(started){$('#title').textContent='旅程暂停';$('#start').textContent='继 续 旅 程';$('#startHint').textContent='世界已暂停，点击继续'}});
+document.addEventListener('mousemove',e=>{if(!locked)return;player.yaw-=e.movementX*.0021;player.pitch=clamp(player.pitch-e.movementY*.0021,-Math.PI/2+.01,Math.PI/2-.01)});
+document.addEventListener('keydown',e=>{if(['Space','KeyW','KeyA','KeyS','KeyD'].includes(e.code))e.preventDefault();keys.add(e.code);if(e.repeat)return;if(e.code.startsWith('Digit')){const n=Number(e.code.slice(5))-1;if(n>=0&&n<9){selected=n;updateHotbar()}}if(e.code==='KeyF'){player.flying=!player.flying;player.vel.y=0;$('#flight').style.opacity=player.flying?1:0;toast(player.flying?'神行模式 · 已启用飞行':'神行模式 · 已关闭')}if(e.code==='KeyH')$('#help').classList.toggle('hidden');if(e.code==='KeyM'){muted=!muted;toast(muted?'声音已关闭':'声音已开启')}if(e.code==='BracketLeft'||e.code==='BracketRight'){renderDistance=clamp(renderDistance+(e.code==='BracketRight'?1:-1),3,7);playerChunk='';toast(`渲染视距 · ${renderDistance} 个区块`)}});document.addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>keys.clear());
+document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('mousedown',e=>{if(!locked)return;if(e.button===0)breakBlock();if(e.button===2)placeBlock();if(e.button===1)pickBlock()});document.addEventListener('wheel',e=>{if(!locked)return;selected=(selected+(e.deltaY>0?1:8))%9;updateHotbar()},{passive:true});
+$('#seed').textContent=`WORLD SEED · ${SEED.toString(36).toUpperCase()}`;
+// ---------- 小地图与遗迹标记 ----------
+const mapCtx=$('#minimap').getContext('2d'),mapImage=mapCtx.createImageData(64,64);let mapTimer=0;
+function updateMap(dt){mapTimer-=dt;if(mapTimer>0)return;mapTimer=.65;for(let py=0;py<64;py++)for(let px=0;px<64;px++){const x=Math.floor(player.pos.x+(px-32)*2),z=Math.floor(player.pos.z+(py-32)*2),h=heightAt(x,z),b=biomeAt(x,z,h),i=(py*64+px)*4;let rgb=h<=SEA?[47,104,132]:b.color;const light=clamp(.65+(h-24)*.013,.48,1.18);mapImage.data[i]=rgb[0]*light;mapImage.data[i+1]=rgb[1]*light;mapImage.data[i+2]=rgb[2]*light;mapImage.data[i+3]=255}mapCtx.putImageData(mapImage,0,0);for(const a of SPECIALS){const x=(a.x-player.pos.x)/2+32,y=(a.z-player.pos.z)/2+32;if(x>2&&x<62&&y>2&&y<62){mapCtx.fillStyle='#f2d37c';mapCtx.fillRect(Math.floor(x)-1,Math.floor(y)-1,3,3)}}mapCtx.fillStyle='#ffffff';mapCtx.beginPath();mapCtx.moveTo(32,28);mapCtx.lineTo(29,35);mapCtx.lineTo(35,35);mapCtx.fill()}
+// ---------- 选框和破坏粒子 ----------
+const selectionBuffer=gl.createBuffer(),particleBuffer=gl.createBuffer(),particles=[];
+function spawnParticles(x,y,z,id){const c=BLOCK[id].color.match(/[a-f\d]{2}/gi).map(v=>parseInt(v,16)/255);for(let i=0;i<16;i++){const a=Math.random()*Math.PI*2,s=.7+Math.random()*1.7;particles.push({x,y,z,vx:Math.cos(a)*s,vy:1.5+Math.random()*2.4,vz:Math.sin(a)*s,life:.55+Math.random()*.35,c})}}
+function updateParticles(dt){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.life-=dt;if(p.life<=0){particles.splice(i,1);continue}p.vy-=10*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt}}
+function drawFlat(buffer,values,mode,point=0,alpha=1){gl.useProgram(flatProgram);gl.uniformMatrix4fv(flatProgram.u.uProj,false,proj);gl.uniformMatrix4fv(flatProgram.u.uView,false,view);gl.uniform1f(flatProgram.u.uPoint,point);gl.uniform1f(flatProgram.u.uAlpha,alpha);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(values),gl.DYNAMIC_DRAW);gl.enableVertexAttribArray(flatProgram.a.aPos);gl.enableVertexAttribArray(flatProgram.a.aColor);gl.vertexAttribPointer(flatProgram.a.aPos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(flatProgram.a.aColor,3,gl.FLOAT,false,24,12);gl.drawArrays(mode,0,values.length/6)}
+function drawSelection(){if(!target)return;const {x,y,z}=target,e=.003,vs=[];const corners=[[x-e,y-e,z-e],[x+1+e,y-e,z-e],[x+1+e,y+1+e,z-e],[x-e,y+1+e,z-e],[x-e,y-e,z+1+e],[x+1+e,y-e,z+1+e],[x+1+e,y+1+e,z+1+e],[x-e,y+1+e,z+1+e]],edges=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];for(const [a,b] of edges)for(const q of [a,b])vs.push(...corners[q],1,1,.92);drawFlat(selectionBuffer,vs,gl.LINES)}
+// ---------- 渲染与主循环 ----------
+let worldTime=.17,last=performance.now(),uiTimer=0;
+function cameraMatrices(){const cp=Math.cos(player.pitch),f={x:-Math.sin(player.yaw)*cp,y:Math.sin(player.pitch),z:-Math.cos(player.yaw)*cp},r={x:Math.cos(player.yaw),y:0,z:-Math.sin(player.yaw)},u={x:r.y*f.z-r.z*f.y,y:r.z*f.x-r.x*f.z,z:r.x*f.y-r.y*f.x},p={x:player.pos.x,y:player.pos.y+1.62,z:player.pos.z};cameraWorld.set([r.x,r.y,r.z,0,u.x,u.y,u.z,0,-f.x,-f.y,-f.z,0,p.x,p.y,p.z,1]);view.set([r.x,u.x,-f.x,0,r.y,u.y,-f.y,0,r.z,u.z,-f.z,0,-(r.x*p.x+r.y*p.y+r.z*p.z),-(u.x*p.x+u.y*p.y+u.z*p.z),f.x*p.x+f.y*p.y+f.z*p.z,1]);return{p,f}}
+function bindBlockMesh(m,water=0,emissive=0){if(!m)return;gl.bindBuffer(gl.ARRAY_BUFFER,m.vbo);for(const [name,size,offset] of [['aPos',3,0],['aNormal',3,12],['aUV',2,24],['aColor',3,32]]){const loc=blockProgram.a[name];gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,size,gl.FLOAT,false,44,offset)}gl.uniform1f(blockProgram.u.uWater,water);gl.uniform1f(blockProgram.u.uEmissive,emissive);gl.drawArrays(gl.TRIANGLES,0,m.count)}
+function render(now){const {p,f}=cameraMatrices(),angle=worldTime*Math.PI*2,sun={x:Math.cos(angle),y:Math.sin(angle),z:.28},sl=Math.hypot(sun.x,sun.y,sun.z);sun.x/=sl;sun.y/=sl;sun.z/=sl;const daylight=clamp(sun.y*2.8+.28,0,1),fog=[lerp(.055,.68,daylight),lerp(.075,.80,daylight),lerp(.12,.87,daylight)],fogFar=renderDistance*SIZE-5;
+  gl.depthMask(false);gl.disable(gl.DEPTH_TEST);gl.useProgram(skyProgram);gl.uniformMatrix4fv(skyProgram.u.uCameraWorld,false,cameraWorld);gl.uniform3f(skyProgram.u.uSunDir,sun.x,sun.y,sun.z);gl.uniform1f(skyProgram.u.uAspect,aspect);gl.uniform1f(skyProgram.u.uTanFov,tanFov);gl.uniform1f(skyProgram.u.uTime,now/1000);gl.uniform1f(skyProgram.u.uDaylight,daylight);gl.bindBuffer(gl.ARRAY_BUFFER,skyBuffer);gl.enableVertexAttribArray(skyProgram.a.aPos);gl.vertexAttribPointer(skyProgram.a.aPos,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,3);gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(blockProgram);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(blockProgram.u.uAtlas,0);gl.uniformMatrix4fv(blockProgram.u.uProj,false,proj);gl.uniformMatrix4fv(blockProgram.u.uView,false,view);gl.uniform3f(blockProgram.u.uCamera,p.x,p.y,p.z);gl.uniform3f(blockProgram.u.uFogColor,...fog);gl.uniform3f(blockProgram.u.uSunDir,sun.x,sun.y,sun.z);gl.uniform1f(blockProgram.u.uDaylight,daylight);gl.uniform1f(blockProgram.u.uTime,now/1000);gl.uniform1f(blockProgram.u.uFogFar,fogFar);
+  const visible=[],water=[];for(const c of chunks.values()){const dx=c.cx*SIZE+8-p.x,dz=c.cz*SIZE+8-p.z,dist=Math.hypot(dx,dz);if(dist>fogFar+25)continue;if(dist>35&&(dx*f.x+dz*f.z)/dist<-.45)continue;bindBlockMesh(c.solid);bindBlockMesh(c.glow,0,1);if(c.water)water.push({c,dist})}gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);water.sort((a,b)=>b.dist-a.dist);for(const q of water)bindBlockMesh(q.c.water,1);gl.depthMask(true);gl.disable(gl.BLEND);drawSelection();if(particles.length){const a=[];for(const q of particles)a.push(q.x,q.y,q.z,...q.c);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);drawFlat(particleBuffer,a,gl.POINTS,1,.9);gl.disable(gl.BLEND)}
+}
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;updateChunks();if(locked){physics(dt);worldTime=(worldTime+dt/600)%1;target=raycast();discover(dt);updateParticles(dt)}else updateParticles(dt);updateMap(dt);render(now);uiTimer-=dt;if(uiTimer<=0){uiTimer=.15;const b=biomeAt(Math.floor(player.pos.x),Math.floor(player.pos.z));$('#xyz').textContent=`${Math.floor(player.pos.x)} / ${Math.floor(player.pos.y)} / ${Math.floor(player.pos.z)}`;$('#biome').textContent=b.name;$('#targetName').textContent=target?`${BLOCK[target.id].name} · 左键破坏 / 右键放置`:'';$('#worldState').textContent=player.flying?'神行模式 · 世界持续生成':`${chunks.size} 区块已载入 · ${SEED.toString(36).toUpperCase()}`}requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
