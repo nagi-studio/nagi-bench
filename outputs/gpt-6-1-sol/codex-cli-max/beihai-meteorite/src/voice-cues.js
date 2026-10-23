@@ -1,0 +1,27 @@
+/** The only speech source. Exactly seven fields per cue, ready for recording by id. */
+/** @type {import('@agentbench/cinematic-player').VoiceCue[]} */
+export const voiceCues = [
+  { id:'v01-worlds', kind:'dialogue', speaker:'收藏者', text:'它们来自尘世之外。每一块，都是一个新的世界。', delivery:'温暖，兴致勃勃；像在介绍老朋友', start:26, end:33.5 },
+  { id:'v02-earth', kind:'dialogue', speaker:'章北海', text:'地球也是一块大陨石。茶杯、茶水……都是。', delivery:'随和地打趣，微笑，末尾举杯', start:36.5, end:43.5 },
+  { id:'v03-bargain', kind:'dialogue', speaker:'收藏者', text:'你很精明，已经开始砍价了。', delivery:'带笑；略带自得，没有戒心', start:47, end:51.5 },
+  { id:'v04-three', kind:'dialogue', speaker:'章北海', text:'我要三块。坚实些，能加工。', delivery:'礼貌、笃定；略收起笑容', start:59.8, end:64.5 },
+  { id:'v05-gift', kind:'dialogue', speaker:'收藏者', text:'送人的？这三块，十八万。', delivery:'试探价钱，等着对方还价', start:65, end:69.5 },
+  { id:'v06-accept', kind:'dialogue', speaker:'章北海', text:'我接受。就算是……对收礼人的尊重。', delivery:'平静，不露破绽；尊重二字稍停', start:72, end:78.5 },
+  { id:'v07-remains', kind:'monologue', speaker:'章北海·内心', text:'碎了，就看不出它来过这里。', delivery:'冷静观察，低声；不带得意', start:117, end:122 },
+  { id:'v08-orders', kind:'broadcast', speaker:'太空军广播', text:'增援未来第一特遣队：冬眠前，完成太空实习。', delivery:'正式、清楚；公共广播的距离感', start:125.5, end:132.5 },
+  { id:'v09-century', kind:'broadcast', speaker:'太空军广播', text:'舰队的建设，可能需要一个世纪。', delivery:'平实、沉重；世纪二字留出空间', start:133, end:137.8 },
+  { id:'v10-policy', kind:'dialogue', speaker:'航天负责人', text:'先守住近地。恒星际推进，暂不列入主计划。', delivery:'谨慎的资深工程师；疲惫但负责，绝非恶人', start:140, end:147.5 },
+  { id:'v10b-locator', kind:'broadcast', speaker:'基地监测', text:'章北海，定位正常。舱室内。', delivery:'无感情的例行状态播报；与空床形成反差', start:153, end:159 },
+  { id:'v11-alone', kind:'monologue', speaker:'章北海·内心', text:'脚下没有大地。四周，只有空间。', delivery:'舒缓，几乎有一瞬间的解脱', start:167.5, end:174.5 },
+  { id:'v12-father', kind:'monologue', speaker:'章北海·内心', text:'父亲……您在那里，也是这样吗？', delivery:'极轻、私密；第一次显露脆弱', start:181, end:187.5 },
+  { id:'v13-photo', kind:'radio', speaker:'摄影师·通讯', text:'前排别动。等推进器的雾散了，再拍。', delivery:'耐心、日常；例行公事的轻松', start:194, end:200.5 },
+  { id:'v14-lastphoto', kind:'radio', speaker:'航天负责人·通讯', text:'这一次，终于能把地球也拍进去了。', delivery:'难得的放松，温和地对旁边的人说', start:203, end:209 },
+  { id:'v15-prison', kind:'monologue', speaker:'章北海·内心', text:'他们开启了太空时代。也把未来，锁在了旧航线上。', delivery:'克制地说服自己；第二句逐渐变冷', start:213, end:220.5 },
+  { id:'v16-starship', kind:'monologue', speaker:'章北海·内心', text:'我要的，是能飞向恒星的船。', delivery:'决绝，缓慢；不是宣言，是自我辩护', start:223, end:229.5 },
+  { id:'v17-innocent', kind:'monologue', speaker:'章北海·内心', text:'无辜？……他们也是。', delivery:'在漫长静默中突兀地承认；没有答案', start:245.8, end:250.5 },
+  { id:'v18-meteors', kind:'radio', speaker:'摄影师·通讯', text:'陨石雨！回舱！快！', delivery:'惊惧，短促；一边转身一边组织救援', start:255, end:258.8 },
+  { id:'v19-help', kind:'radio', speaker:'救援员·通讯', text:'抓住我！别松手！', delivery:'用尽全力，急切，照顾受伤同伴', start:262, end:266.5 },
+  { id:'v20-loss', kind:'radio', speaker:'黄河站·通讯', text:'三名负责人，生命体征消失。另有两人受伤。', delivery:'努力保持专业，声线发紧；中间长停顿', start:277, end:284 },
+  { id:'v21-done', kind:'monologue', speaker:'章北海·内心', text:'我做了……能做的。', delivery:'近乎无声，既不是释然，也不是胜利', start:288.5, end:293.5 },
+  { id:'v22-echo', kind:'memory', speaker:'收藏者·记忆', text:'每一块，都是一个新的世界。', delivery:'与开头同样温暖；作为远去的记忆，不增加音声效果', start:299, end:304.5 },
+];
