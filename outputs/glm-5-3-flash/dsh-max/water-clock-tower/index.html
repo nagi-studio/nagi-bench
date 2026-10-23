@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>水运仪象台 · 一台全部由水驱动的天文钟</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #07090e; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  /* ---------- 电影级黑边 ---------- */
+  .bar { position: fixed; left: 0; right: 0; height: 7.2vh; background: #05060a; z-index: 20;
+         box-shadow: 0 0 24px rgba(0,0,0,.9); }
+  .bar.top { top: 0; } .bar.bottom { bottom: 0; }
+
+  /* ---------- 字幕 ---------- */
+  #cap { position: fixed; left: 50%; bottom: 9.5vh; transform: translateX(-50%);
+         width: min(1120px, 88vw); text-align: center; z-index: 22; pointer-events: none; }
+  #capTitle { font: 700 clamp(19px, 2.5vw, 34px)/1.35 "Songti SC","Noto Serif SC","STSong",serif;
+              color: #ffe9bd; letter-spacing: .1em;
+              text-shadow: 0 2px 10px rgba(0,0,0,.95), 0 0 26px rgba(255,190,90,.35);
+              opacity: 0; transition: opacity .45s ease; }
+  #capBody  { margin-top: .45em; font: 400 clamp(13px, 1.55vw, 21px)/1.6 "PingFang SC","Noto Sans SC",sans-serif;
+              color: #e8e2d4; letter-spacing: .05em;
+              text-shadow: 0 2px 8px rgba(0,0,0,.95); opacity: 0; transition: opacity .45s ease; }
+  #cap.show #capTitle, #cap.show #capBody { opacity: 1; }
+
+  /* ---------- 章节角标 ---------- */
+  #chapter { position: fixed; top: 9.6vh; left: 4vw; z-index: 22; pointer-events: none;
+             font: 500 clamp(11px, 1.15vw, 15px)/1.5 "PingFang SC","Noto Sans SC",sans-serif;
+             color: #cbb98f; letter-spacing: .3em; opacity: 0; transition: opacity .6s ease; }
+  #chapter.show { opacity: .92; }
+  #chapter b { display:block; font-size: 1.5em; letter-spacing: .18em; color: #f0d9a8; margin-top:.1em;}
+
+  /* ---------- 开场 ---------- */
+  #gate { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column;
+          align-items: center; justify-content: center; gap: 3.2vh;
+          background: radial-gradient(120% 100% at 50% 30%, #16202e 0%, #080a10 70%);
+          transition: opacity .8s ease; }
+  #gate.hide { opacity: 0; pointer-events: none; }
+  #gate h1 { font: 700 clamp(30px, 5.4vw, 74px)/1.25 "Songti SC","Noto Serif SC",serif;
+             color: #f6e6c4; letter-spacing: .22em; text-shadow: 0 4px 30px rgba(0,0,0,.8); }
+  #gate h2 { font: 400 clamp(13px, 1.7vw, 22px)/1.7 "PingFang SC",sans-serif; color: #a9b4c2;
+             letter-spacing: .18em; text-align: center; max-width: 40em; }
+  #play { margin-top: 1vh; padding: 1.05em 3.1em; font: 600 clamp(15px,1.6vw,20px)/1 "PingFang SC",sans-serif;
+          letter-spacing: .35em; text-indent: .35em; color: #1a1408; background: linear-gradient(#f7e3ae,#dcb268);
+          border: 0; border-radius: 40px; cursor: pointer; box-shadow: 0 10px 34px rgba(220,178,104,.35);
+          transition: transform .18s ease, box-shadow .18s ease; }
+  #play:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(220,178,104,.5); }
+  #gateNote { font: 400 clamp(11px,1.1vw,14px)/1.7 "PingFang SC",sans-serif; color: #67727f;
+              letter-spacing: .12em; text-align:center; }
+  #gateTip { position:absolute; bottom: 9vh; font: 400 clamp(11px,1.05vw,13px)/1.8 "PingFang SC",sans-serif;
+             color:#5c6774; letter-spacing:.1em; text-align:center; }
+
+  /* ---------- 播放控制 ---------- */
+  #ctrl { position: fixed; right: 2.2vw; bottom: 9.4vh; z-index: 24; display: flex; gap: 10px;
+          opacity: 0; transition: opacity .5s ease; }
+  #ctrl.show { opacity: .85; }
+  #ctrl button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(240,217,168,.4);
+          background: rgba(10,12,18,.62); color: #f0d9a8; font-size: 15px; cursor: pointer;
+          display: grid; place-items: center; backdrop-filter: blur(4px); }
+  #ctrl button:hover { background: rgba(240,217,168,.18); }
+  #scrub { position: fixed; left: 4vw; right: 4vw; bottom: 5.6vh; height: 3px; z-index: 24;
+           background: rgba(255,255,255,.14); border-radius: 2px; opacity: 0; transition: opacity .5s; }
+  #scrub.show { opacity: .8; }
+  #scrubFill { height: 100%; width: 0%; background: linear-gradient(90deg,#dcb268,#f7e3ae); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="bar top"></div>
+<div class="bar bottom"></div>
+
+<div id="chapter"><span id="chapNo">第一幕</span><b id="chapName">枢轮</b></div>
+
+<div id="cap">
+  <div id="capTitle"></div>
+  <div id="capBody"></div>
+</div>
+
+<div id="ctrl">
+  <button id="btnPlay" title="播放 / 暂停">❚❚</button>
+  <button id="btnReplay" title="重播">↺</button>
+  <button id="btnMute" title="声音">♪</button>
+</div>
+<div id="scrub"><div id="scrubFill"></div></div>
+
+<div id="gate">
+  <h1>水运仪象台</h1>
+  <h2>北宋 · 苏颂 · 元祐三年(1088)<br/>一座以水为动力的天文钟塔 —— 枢轮昼夜旋转,浑仪随天而转,钟鼓按时自鸣</h2>
+  <button id="play">播 放</button>
+  <div id="gateNote">全部机械运动由物理引擎实时解算 · 音效由 Web Audio 程序化合成</div>
+  <div id="gateTip">建议佩戴耳机 · 片长约 32 秒</div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
