@@ -172,7 +172,7 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | Kimi K2.6<br><sub>Moonshot AI</sub> | 02 | Kimi Code · Thinking |
 | MiniMax M3<br><sub>MiniMax</sub> | 03 | MiniMax Code Web · Thinking<br>Qoder · Default |
 | MiniMax M2.7<br><sub>MiniMax</sub> | 01 | MiniMax Code Web · Thinking |
-| GLM-5.3 Flash<br><sub>Zhipu AI</sub> | 08 | DeepSeek Harness · Max<br>WorkBuddy · High |
+| GLM-5.3 Flash<br><sub>Zhipu AI</sub> | 11 | DeepSeek Harness · Max<br>WorkBuddy · High |
 | GLM-5.2<br><sub>Zhipu AI</sub> | 05 | ZCode · Max<br>Qoder · Max |
 | GLM-5.1<br><sub>Zhipu AI</sub> | 01 | ZCode · Max |
 | GLM-5 Turbo<br><sub>Zhipu AI</sub> | 03 | ZCode · Thinking |
