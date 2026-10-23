@@ -129,7 +129,7 @@ More than a hundred model x harness x effort combinations have run these cases, 
 | Claude Opus 4.5<br><sub>Anthropic</sub> | 02 | Cursor · Thinking |
 | Claude Haiku 4.5<br><sub>Anthropic</sub> | 02 | Claude Code · Default |
 | GPT-6.1 Sol<br><sub>OpenAI</sub> | 07 | Codex CLI · High |
-| GPT-6 Astra<br><sub>OpenAI</sub> | 07 | Codex CLI · xhigh |
+| GPT-6 Astra<br><sub>OpenAI</sub> | 08 | Codex CLI · Max / xhigh |
 | GPT-6 Sol<br><sub>OpenAI</sub> | 07 | Codex CLI · xhigh |
 | GPT-5.6-Sol<br><sub>OpenAI</sub> | 11 | Codex CLI · ultra / max / xhigh |
 | GPT-5.6-Terra<br><sub>OpenAI</sub> | 05 | Codex CLI · ultra / xhigh |
