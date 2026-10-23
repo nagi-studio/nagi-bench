@@ -185,7 +185,7 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | Spark X2<br><sub>iFlytek</sub> | 01 | Web · Reasoning |
 | Inkling<br><sub>Thinking Machines Lab</sub> | 02 | Tinker Web · xHigh |
 | Inkling-Small<br><sub>Thinking Machines Lab</sub> | 03 | Tinker Web · xHigh |
-| Openrouter Test<br><sub>OpenRouter</sub> | 05 | Undisclosed · Max |
+| Openrouter Test<br><sub>OpenRouter</sub> | 07 | Undisclosed · Max |
 <!-- registry:end -->
 
 </details>

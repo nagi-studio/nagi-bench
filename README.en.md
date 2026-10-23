@@ -185,7 +185,7 @@ More than a hundred model x harness x effort combinations have run these cases, 
 | Spark X2<br><sub>iFlytek</sub> | 01 | Web · Reasoning |
 | Inkling<br><sub>Thinking Machines Lab</sub> | 02 | Tinker Web · xHigh |
 | Inkling-Small<br><sub>Thinking Machines Lab</sub> | 03 | Tinker Web · xHigh |
-| Openrouter Test<br><sub>OpenRouter</sub> | 05 | Undisclosed · Max |
+| Openrouter Test<br><sub>OpenRouter</sub> | 07 | Undisclosed · Max |
 <!-- registry:end -->
 
 </details>
