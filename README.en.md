@@ -166,7 +166,7 @@ More than a hundred model x harness x effort combinations have run these cases, 
 | MiMo V2.5<br><sub>Xiaomi</sub> | 03 | MiMo Code · High |
 | MiMo v2.5 Pro<br><sub>Xiaomi</sub> | 03 | Claude Code · Max<br>MiMo Code · Max |
 | MiMo v2.5 Pro UltraSpeed<br><sub>Xiaomi</sub> | 05 | Web · Default |
-| Kimi K3.1 Pro<br><sub>Moonshot AI</sub> | 15 | Claude Code · High / Max<br>Kimi Code · Max |
+| Kimi K3.1 Pro<br><sub>Moonshot AI</sub> | 21 | Claude Code · High / Max<br>Kimi Code · Max |
 | Kimi K3<br><sub>Moonshot AI</sub> | 12 | Claude Code · Max<br>Kimi Code · Max<br>Kimi Web · Max |
 | Kimi K2.7-Code<br><sub>Moonshot AI</sub> | 04 | Kimi Code · Thinking<br>Qoder · Default |
 | Kimi K2.6<br><sub>Moonshot AI</sub> | 02 | Kimi Code · Thinking |
