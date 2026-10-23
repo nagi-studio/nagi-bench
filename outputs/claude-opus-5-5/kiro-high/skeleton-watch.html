@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOCTIS · Calibre N-28 Squelette — 交互式 3D 镂空机械表</title>
+<style>
+  :root { --gold:#d4b27a; --gold2:#f3dcae; --ink:#e9e6df; --mute:#8d8a84; --glass:rgba(16,17,20,.62); --line:rgba(212,178,122,.22); }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#050506; color:var(--ink);
+    font-family:"Segoe UI","PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif; }
+  #app canvas { display:block; outline:none; }
+  .serif { font-family:"Didot","Bodoni MT","Playfair Display",Georgia,"Times New Roman",serif; }
+
+  #loader { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 45%,#16181c 0%,#050506 70%); transition:opacity 1.2s ease, visibility 1.2s; }
+  #loader.done { opacity:0; visibility:hidden; }
+  #loader .logo { font-size:34px; letter-spacing:.6em; color:var(--gold2); padding-left:.6em; }
+  #loader .sub { margin-top:10px; font-size:11px; letter-spacing:.45em; color:var(--mute); }
+  #loader .bar { margin-top:34px; width:220px; height:1px; background:rgba(255,255,255,.08); overflow:hidden; }
+  #loader .bar i { display:block; height:100%; width:0; background:linear-gradient(90deg,transparent,var(--gold),var(--gold2)); transition:width .3s; }
+
+  .brand { position:fixed; top:26px; left:32px; z-index:10; pointer-events:none; }
+  .brand h1 { font-weight:400; font-size:26px; letter-spacing:.42em; color:var(--gold2); }
+  .brand p { margin-top:6px; font-size:10.5px; letter-spacing:.38em; color:var(--mute); text-transform:uppercase; }
+
+  .panel { position:fixed; z-index:10; background:var(--glass); backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,.06); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04); }
+
+  #controls { left:32px; top:50%; transform:translateY(-50%); width:208px; padding:16px 14px; }
+  #controls h3, #info h3 { font-size:10px; font-weight:600; letter-spacing:.32em; color:var(--gold); margin:4px 4px 12px; text-transform:uppercase; }
+  .btn { width:100%; display:flex; align-items:center; gap:10px; padding:9px 11px; margin-bottom:6px; border-radius:9px;
+    background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06); color:var(--ink); font-size:12.5px; cursor:pointer;
+    transition:all .25s ease; text-align:left; font-family:inherit; }
+  .btn:hover { background:rgba(212,178,122,.09); border-color:var(--line); }
+  .btn.on { background:linear-gradient(135deg,rgba(212,178,122,.22),rgba(212,178,122,.06)); border-color:rgba(212,178,122,.5); color:#fff; }
+  .btn .k { margin-left:auto; font-size:10px; color:var(--mute); border:1px solid rgba(255,255,255,.1); border-radius:4px; padding:1px 5px; }
+  .btn svg { width:15px; height:15px; flex:none; stroke:var(--gold2); fill:none; stroke-width:1.5; }
+  .slider { margin:12px 4px 4px; font-size:11px; color:var(--mute); }
+  .slider .row { display:flex; justify-content:space-between; margin-bottom:6px; }
+  .slider b { color:var(--gold2); font-weight:500; }
+  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:2px; background:rgba(255,255,255,.12); border-radius:2px; outline:none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:13px; height:13px; border-radius:50%; background:var(--gold2); border:2px solid #3a3022; cursor:pointer; box-shadow:0 0 10px rgba(212,178,122,.6); }
+  input[type=range]::-moz-range-thumb { width:12px; height:12px; border-radius:50%; background:var(--gold2); border:2px solid #3a3022; cursor:pointer; }
+
+  #info { right:32px; top:26px; bottom:26px; width:316px; padding:18px 18px 16px; overflow-y:auto; scrollbar-width:thin; }
+  #info .cal { font-size:21px; color:#fff; letter-spacing:.06em; }
+  #info .cal small { display:block; margin-top:4px; font-family:"Segoe UI",sans-serif; font-size:11px; letter-spacing:.2em; color:var(--mute); }
+  .clock { margin:16px 0 4px; font-size:30px; letter-spacing:.08em; color:var(--gold2); font-variant-numeric:tabular-nums; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:14px 0; }
+  .cell { padding:9px 10px; border-radius:9px; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.05); }
+  .cell span { display:block; font-size:9.5px; letter-spacing:.14em; color:var(--mute); }
+  .cell b { display:block; margin-top:4px; font-size:13.5px; font-weight:500; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .pr { margin:6px 0 16px; }
+  .pr .row { display:flex; justify-content:space-between; font-size:10.5px; color:var(--mute); letter-spacing:.12em; margin-bottom:7px; }
+  .pr .row b { color:var(--gold2); font-weight:500; }
+  .pr .track { height:6px; border-radius:6px; background:rgba(255,255,255,.06); overflow:hidden; }
+  .pr .track i { display:block; height:100%; width:70%; border-radius:6px; background:linear-gradient(90deg,#7a5c2c,var(--gold),var(--gold2)); box-shadow:0 0 12px rgba(212,178,122,.5); transition:width .4s; }
+  .beat { display:flex; align-items:center; gap:8px; font-size:10.5px; color:var(--mute); letter-spacing:.12em; margin-bottom:16px; }
+  .beat i { width:7px; height:7px; border-radius:50%; background:var(--gold2); box-shadow:0 0 8px var(--gold); opacity:.25; transition:opacity .05s; }
+  .beat i.t { opacity:1; }
+  #part { border-top:1px solid rgba(255,255,255,.06); padding-top:14px; }
+  #part .pn { font-size:17px; color:#fff; }
+  #part .pe { font-size:10px; letter-spacing:.24em; color:var(--gold); margin:4px 0 10px; text-transform:uppercase; }
+  #part .pd { font-size:12.5px; line-height:1.75; color:#c9c5bd; }
+  #part dl { margin-top:12px; display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:11.5px; }
+  #part dt { color:var(--mute); } #part dd { color:var(--ink); }
+  #part .empty { font-size:12px; color:var(--mute); line-height:1.8; }
+  .plist { display:flex; flex-wrap:wrap; gap:5px; margin-top:12px; }
+  .plist button { font:inherit; font-size:10.5px; padding:4px 8px; border-radius:20px; cursor:pointer; color:#bdb8ae;
+    background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); transition:all .2s; }
+  .plist button:hover, .plist button.on { color:#fff; border-color:rgba(212,178,122,.55); background:rgba(212,178,122,.12); }
+
+  #leaders { position:fixed; inset:0; width:100%; height:100%; z-index:5; pointer-events:none; }
+  #labels { position:fixed; inset:0; z-index:6; pointer-events:none; }
+  .lbl { position:absolute; left:0; top:0; white-space:nowrap; font-size:11px; letter-spacing:.06em; color:#efe9dd; padding:4px 9px;
+    border-radius:20px; background:rgba(10,10,12,.72); border:1px solid rgba(212,178,122,.3); pointer-events:auto; cursor:pointer;
+    transition:opacity .35s, border-color .2s, background .2s, color .2s; backdrop-filter:blur(6px); }
+  .lbl.hot { border-color:var(--gold2); background:rgba(212,178,122,.25); color:#fff; box-shadow:0 0 18px rgba(212,178,122,.35); }
+  .lbl em { font-style:normal; color:var(--gold); margin-right:6px; font-size:10px; }
+  #tip { position:fixed; z-index:20; pointer-events:none; padding:6px 11px; border-radius:8px; font-size:12px; color:#fff; opacity:0;
+    background:rgba(12,12,14,.85); border:1px solid rgba(212,178,122,.45); transition:opacity .2s; transform:translate(14px,14px); }
+  .hint { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:10; font-size:11px; letter-spacing:.24em; color:#6f6c67; pointer-events:none; white-space:nowrap; }
+  @media (max-width: 980px) { #info { width:250px; } #controls { width:170px; } .brand h1 { font-size:20px; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<svg id="leaders"></svg>
+<div id="labels"></div>
+<div id="tip"></div>
+
+<div id="loader">
+  <div class="logo serif">NOCTIS</div>
+  <div class="sub">CALIBRE N-28 · SQUELETTE</div>
+  <div class="bar"><i id="loadbar"></i></div>
+</div>
+
+<div class="brand"><h1 class="serif">NOCTIS</h1><p>Haute Horlogerie · Genève</p></div>
+
+<aside id="controls" class="panel">
+  <h3>控制</h3>
+  <button class="btn" id="bExplode"><svg viewBox="0 0 24 24"><path d="M12 3v5M12 16v5M3 12h5M16 12h5M6 6l3 3M15 15l3 3M18 6l-3 3M9 15l-3 3"/></svg>爆炸视图<span class="k">E</span></button>
+  <button class="btn on" id="bRotate"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>自动旋转<span class="k">R</span></button>
+  <button class="btn on" id="bLabels"><svg viewBox="0 0 24 24"><path d="M4 7h10l4 5-4 5H4z"/></svg>零件标签<span class="k">L</span></button>
+  <button class="btn" id="bLume"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>夜光模式<span class="k">N</span></button>
+  <button class="btn" id="bBack"><svg viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></svg>翻转背透<span class="k">B</span></button>
+  <button class="btn" id="bStrap"><svg viewBox="0 0 24 24"><path d="M8 3h8v5H8zM8 16h8v5H8zM7 8h10v8H7z"/></svg>隐藏表带<span class="k">S</span></button>
+  <button class="btn" id="bWind"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>旋转表冠上链<span class="k">W</span></button>
+  <button class="btn" id="bReset"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>重置视角<span class="k">0</span></button>
+  <div class="slider">
+    <div class="row"><span>时间流速</span><b id="speedV">1.00×</b></div>
+    <input type="range" id="speed" min="0" max="1" step="0.01" value="1">
+  </div>
+  <div class="slider">
+    <div class="row"><span>爆炸间距</span><b id="spreadV">100%</b></div>
+    <input type="range" id="spread" min="0.4" max="1.6" step="0.01" value="1">
+  </div>
+</aside>
+
+<aside id="info" class="panel">
+  <h3>机芯信息</h3>
+  <div class="cal serif">Calibre N-28 Squelette<small>手动上链 · 全镂空机芯</small></div>
+  <div class="clock serif" id="clock">--:--:--</div>
+  <div class="beat"><i id="beatDot"></i><span id="beatTxt">28,800 次/小时 · 4 Hz</span></div>
+  <div class="pr">
+    <div class="row"><span>动力储存</span><b id="prV">--</b></div>
+    <div class="track"><i id="prBar"></i></div>
+  </div>
+  <div class="grid">
+    <div class="cell"><span>振频</span><b>4 Hz</b></div>
+    <div class="cell"><span>实时摆幅</span><b id="ampV">--</b></div>
+    <div class="cell"><span>宝石轴承</span><b id="jewelV">--</b></div>
+    <div class="cell"><span>零件数</span><b id="partsV">--</b></div>
+    <div class="cell"><span>机芯直径</span><b>31.2 mm</b></div>
+    <div class="cell"><span>机芯厚度</span><b>4.65 mm</b></div>
+    <div class="cell"><span>表壳</span><b>42 mm 钢</b></div>
+    <div class="cell"><span>擒纵</span><b>瑞士杠杆式</b></div>
+  </div>
+  <div id="part"><div class="empty">将鼠标悬停于零件之上以高亮，点击零件查看其功能、材质与工艺细节。</div></div>
+  <div class="plist" id="plist"></div>
+</aside>
+
+<div class="hint">拖拽旋转 · 滚轮缩放 · 右键平移 · 点击零件查看详情 · 双击空白处取消选择</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+
+const TAU = Math.PI * 2;
+const V2 = THREE.Vector2, V3 = THREE.Vector3;
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const setLoad = (p) => { $('#loadbar').style.width = (p * 100).toFixed(0) + '%'; };
+
+/* =========================================================
+   RENDERER / SCENE
+   ========================================================= */
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+$('#app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 1, 3000);
+camera.position.set(60, 40, 220);
+
+/* studio HDR environment built from emissive softboxes -> crisp strip highlights on polished metal */
+function buildStudioEnv() {
+  const env = new THREE.Scene();
+  env.add(new THREE.Mesh(new THREE.BoxGeometry(120, 120, 120), new THREE.MeshBasicMaterial({ color: 0x040405, side: THREE.BackSide })));
+  const panel = (w, h, k, col, pos) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(k), side: THREE.DoubleSide }));
+    m.position.set(...pos); m.lookAt(0, 0, 0); env.add(m);
+  };
+  panel(70, 22, 3.2, 0xffffff, [0, 55, 12]);      // overhead softbox
+  panel(9, 80, 3.8, 0xfff0dc, [-50, 4, 22]);      // left warm strip
+  panel(9, 80, 3.8, 0xdfe9ff, [50, 2, 14]);       // right cool strip
+  panel(60, 9, 2.4, 0xffffff, [0, 16, -55]);      // back rim strip
+  panel(30, 20, 0.45, 0xfff6ea, [14, 10, 56]);    // frontal fill (camera side)
+  panel(18, 18, 2.0, 0xffe2b8, [-34, 30, 38]);    // warm kicker
+  panel(90, 8, 0.45, 0xffe8cc, [0, -55, 0]);      // floor bounce
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const tex = pmrem.fromScene(env, 0.03).texture;
+  pmrem.dispose();
+  return tex;
+}
+scene.environment = buildStudioEnv();
+
+function makeBackground() {
+  const c = document.createElement('canvas'); c.width = c.height = 1024;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(512, 430, 30, 512, 520, 780);
+  grd.addColorStop(0, '#24272d'); grd.addColorStop(0.38, '#14161a'); grd.addColorStop(0.75, '#08090b'); grd.addColorStop(1, '#030304');
+  g.fillStyle = grd; g.fillRect(0, 0, 1024, 1024);
+  const img = g.getImageData(0, 0, 1024, 1024), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 3; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+scene.background = makeBackground();
+
+/* lights */
+const keyLight = new THREE.DirectionalLight(0xfff3e4, 2.6);
+keyLight.position.set(-40, 70, 60);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+Object.assign(keyLight.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 10, far: 220 });
+keyLight.shadow.bias = -0.0004; keyLight.shadow.normalBias = 0.03; keyLight.shadow.radius = 3;
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0xcfdcff, 1.2); rimLight.position.set(30, 25, -70); scene.add(rimLight);
+const fillLight = new THREE.DirectionalLight(0xffe6c8, 0.5); fillLight.position.set(50, -10, 40); scene.add(fillLight);
+
+/* =========================================================
+   PROCEDURAL TEXTURES (finishing: perlage, Côtes de Genève, circular graining, alligator)
+   ========================================================= */
+function canvas(w, h = w) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function texFrom(c, rep = 1, srgb = false) {
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); t.anisotropy = 8;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function perlageTexture() {               // overlapping circular-grained spots, tile = 3 mm
+  const S = 512, c = canvas(S), g = c.getContext('2d');
+  g.fillStyle = '#808080'; g.fillRect(0, 0, S, S);
+  const n = 4, step = S / n, R = step * 0.78;
+  const spot = (x, y) => {
+    for (let r = R; r > 1; r -= 1.6) {
+      const v = 118 + Math.round(70 * Math.sin(r * 0.55 + Math.random() * 0.8) * (0.35 + 0.65 * r / R));
+      g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 1.8;
+      g.beginPath(); g.arc(x, y, r, 0, TAU); g.stroke();
+    }
+  };
+  for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) {
+    const x = col * step + (row % 2) * step / 2, y = row * step;
+    for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) {
+      const X = x + dx, Y = y + dy;
+      if (X > -R && X < S + R && Y > -R && Y < S + R) spot(X, Y);
+    }
+  }
+  return texFrom(c, 1 / 3);
+}
+function cotesTexture() {                 // Geneva stripes, stripe = 1.6 mm
+  const S = 512, c = canvas(S), g = c.getContext('2d');
+  const img = g.createImageData(S, S), d = img.data, stripes = 2;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const sw = S / stripes, t = (x % sw) / sw, yy = (y / S) * 2 - 1;
+    const arc = t + 0.18 * yy * yy;
+    let v = 0.5 + 0.5 * Math.cos(TAU * (arc - 0.5)) ;
+    v = 0.15 + 0.7 * v + 0.15 * Math.sin(y * 0.9 + t * 30) * 0.3;
+    const k = (y * S + x) * 4, b = clamp(v * 255, 0, 255);
+    d[k] = d[k + 1] = d[k + 2] = b; d[k + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = texFrom(c, 1 / 3.2); t.center.set(0.5, 0.5); t.rotation = Math.PI / 4; return t;
+}
+function sunburstTexture() {              // radial graining for wheels (uv 0..1 centred)
+  const S = 1024, c = canvas(S), g = c.getContext('2d');
+  g.fillStyle = '#808080'; g.fillRect(0, 0, S, S);
+  g.translate(S / 2, S / 2);
+  for (let i = 0; i < 2600; i++) {
+    const a = Math.random() * TAU, v = 90 + Math.random() * 90;
+    g.strokeStyle = `rgba(${v},${v},${v},0.55)`; g.lineWidth = 0.6 + Math.random();
+    g.beginPath(); g.moveTo(Math.cos(a) * 20, Math.sin(a) * 20); g.lineTo(Math.cos(a) * S, Math.sin(a) * S); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 8; return t;
+}
+function alligatorTextures() {
+  const W = 512, H = 1024, col = canvas(W, H), bmp = canvas(W, H);
+  const gc = col.getContext('2d'), gb = bmp.getContext('2d');
+  gc.fillStyle = '#120b07'; gc.fillRect(0, 0, W, H);
+  gb.fillStyle = '#202020'; gb.fillRect(0, 0, W, H);
+  let y = 0;
+  while (y < H) {
+    const rh = 34 + Math.random() * 30;
+    let x = 0;
+    while (x < W) {
+      const centre = 1 - Math.abs((x / W) * 2 - 1);
+      const cw = (centre > 0.55 ? 60 : 34) + Math.random() * 26;
+      const r = 9, pad = 3.5, w = Math.min(cw, W - x), h = Math.min(rh, H - y);
+      const shade = 22 + Math.random() * 14;
+      const path = (g) => { g.beginPath(); g.roundRect(x + pad, y + pad, w - pad * 2, h - pad * 2, r); };
+      const gr = gc.createLinearGradient(x, y, x + w, y + h);
+      gr.addColorStop(0, `rgb(${shade + 22},${shade + 9},${shade - 4})`); gr.addColorStop(1, `rgb(${shade},${shade * 0.55},${shade * 0.3})`);
+      gc.fillStyle = gr; path(gc); gc.fill();
+      const gg = gb.createRadialGradient(x + w / 2, y + h / 2, 2, x + w / 2, y + h / 2, Math.max(w, h) * 0.6);
+      gg.addColorStop(0, '#f0f0f0'); gg.addColorStop(1, '#8a8a8a');
+      gb.fillStyle = gg; path(gb); gb.fill();
+      x += w;
+    }
+    y += rh;
+  }
+  // stitching (both edges)
+  for (const u of [0.075, 0.925]) for (let yy = 4; yy < H; yy += 22) {
+    gc.fillStyle = '#c9b48f'; gc.beginPath(); gc.roundRect(u * W - 3, yy, 6, 13, 3); gc.fill();
+    gb.fillStyle = '#ffffff'; gb.beginPath(); gb.roundRect(u * W - 3, yy, 6, 13, 3); gb.fill();
+  }
+  const map = new THREE.CanvasTexture(col); map.colorSpace = THREE.SRGBColorSpace;
+  const bump = new THREE.CanvasTexture(bmp);
+  for (const t of [map, bump]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
+  return { map, bump };
+}
+setLoad(0.15);
+
+/* =========================================================
+   MATERIALS
+   ========================================================= */
+const TX = { perlage: perlageTexture(), cotes: cotesTexture(), sun: sunburstTexture(), gator: alligatorTextures() };
+const P = (o) => new THREE.MeshPhysicalMaterial(o);
+const MAT = {
+  steelPolish: P({ color: 0xe4e5e8, metalness: 1, roughness: 0.09 }),
+  steelBrushed: P({ color: 0xd6d8dc, metalness: 1, roughness: 0.3, anisotropy: 0.7 }),
+  steelDark: P({ color: 0x9a9da3, metalness: 1, roughness: 0.22 }),
+  rhodium: P({ color: 0xeef0f3, metalness: 1, roughness: 0.06 }),
+  plateCap: P({ color: 0x6e7178, metalness: 1, roughness: 0.34, bumpMap: TX.perlage, bumpScale: 1.4 }),
+  bridgeCap: P({ color: 0x74777e, metalness: 1, roughness: 0.3, bumpMap: TX.cotes, bumpScale: 1.6 }),
+  anglage: P({ color: 0xf2f3f5, metalness: 1, roughness: 0.05 }),
+  goldCap: P({ color: 0xf0c56f, metalness: 1, roughness: 0.24, bumpMap: TX.sun, bumpScale: 0.7 }),
+  goldPolish: P({ color: 0xf6d38a, metalness: 1, roughness: 0.08 }),
+  roseGold: P({ color: 0xf0b394, metalness: 1, roughness: 0.14 }),
+  blued: P({ color: 0x2a47c4, metalness: 1, roughness: 0.2, iridescence: 0.45, iridescenceIOR: 1.6, iridescenceThicknessRange: [180, 420] }),
+  hairspring: P({ color: 0x5b7ff0, metalness: 1, roughness: 0.18, iridescence: 0.3, side: THREE.DoubleSide }),
+  spring: P({ color: 0xd9dce2, metalness: 1, roughness: 0.16, side: THREE.DoubleSide }),
+  ruby: P({ color: 0xb0071f, metalness: 0, roughness: 0.04, clearcoat: 1, clearcoatRoughness: 0.02, ior: 1.77, specularIntensity: 1, sheen: 0.6, sheenColor: 0xff3355, emissive: 0x3a0008, emissiveIntensity: 0.6 }),
+  pivot: P({ color: 0x1a1b1e, metalness: 1, roughness: 0.25 }),
+  black: P({ color: 0x0c0c0e, metalness: 0.4, roughness: 0.5 }),
+  slot: new THREE.MeshStandardMaterial({ color: 0x050508, roughness: 0.8 }),
+  lume: P({ color: 0xeaf6e6, roughness: 0.55, metalness: 0, emissive: 0x52ff9a, emissiveIntensity: 0.12 }),
+  dialRing: P({ color: 0x3b3e44, metalness: 1, roughness: 0.42, bumpMap: TX.sun, bumpScale: 0.3 }),
+  print: new THREE.MeshStandardMaterial({ color: 0xf1ede4, roughness: 0.6, transparent: true, polygonOffset: true, polygonOffsetFactor: -2, depthWrite: false }),
+  crystal: P({ color: 0xffffff, metalness: 0, roughness: 0, transmission: 1, thickness: 1.1, ior: 1.77, specularIntensity: 0.45,
+    attenuationColor: new THREE.Color(0xeef4ff), attenuationDistance: 40, iridescence: 0.55, iridescenceIOR: 1.35, iridescenceThicknessRange: [120, 380], transparent: false }),
+  leather: P({ map: TX.gator.map, bumpMap: TX.gator.bump, bumpScale: 3, roughness: 0.5, clearcoat: 0.55, clearcoatRoughness: 0.35, sheen: 0.4, sheenColor: 0x8a6a4a, transparent: true, side: THREE.DoubleSide }),
+};
+MAT.dialRing.anisotropy = 0.4;
+const plateMats = [MAT.plateCap, MAT.anglage];
+const bridgeMats = [MAT.bridgeCap, MAT.anglage];
+const goldMats = [MAT.goldCap, MAT.goldPolish];
+const steelMats = [MAT.steelDark, MAT.rhodium];
+
+/* twist / wind shader for springs: inner coils rotate with arbor, outer stay fixed */
+function springMaterial(base, r0, r1) {
+  const m = base.clone();
+  m.userData.u = { uTwist: { value: 0 }, uWind: { value: 0 }, uR: { value: new V2(r0, r1) } };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, m.userData.u);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uTwist; uniform float uWind; uniform vec2 uR;')
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+        float spR = length(position.xy);
+        float spT = clamp((spR - uR.x) / (uR.y - uR.x), 0.0, 1.0);
+        float spT2 = mix(spT, pow(spT, 1.8), uWind);
+        float spS = (uR.x + spT2 * (uR.y - uR.x)) / max(spR, 1e-4);
+        float spA = uTwist * (1.0 - spT);
+        mat2 spM = mat2(cos(spA), sin(spA), -sin(spA), cos(spA));
+        objectNormal.xy = spM * objectNormal.xy;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        transformed.xy = spM * (transformed.xy * spS);`);
+  };
+  m.customProgramCacheKey = () => 'spring' + r0 + '_' + r1;
+  return m;
+}
+
+/* =========================================================
+   GEOMETRY HELPERS
+   ========================================================= */
+const polar = (r, a) => new V2(Math.cos(a) * r, Math.sin(a) * r);
+
+function extrude(shape, depth, bevel = 0.04, segs = 2, curveSegments = 24) {
+  const b = Math.min(bevel, depth * 0.3);
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: Math.max(depth - 2 * b, 0.001), bevelEnabled: b > 0, bevelThickness: b, bevelSize: b,
+    bevelOffset: -b, bevelSegments: segs, curveSegments });
+  g.translate(0, 0, b);
+  return g;
+}
+function remapUV(g, R) {
+  const p = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (2 * R) + 0.5, p.getY(i) / (2 * R) + 0.5);
+  uv.needsUpdate = true; return g;
+}
+/* wheel / pinion outline with cycloidal-ish teeth and curved skeleton spokes */
+function gearShape({ teeth, R, m, rim = 0.5, hub = 0.9, spokes = 5, curl = 0.55, spokeW = 0.42, ratchet = false }) {
+  const shape = new THREE.Shape(), pts = [];
+  const rt = R + 1.1 * m, rr = R - 1.3 * m;
+  if (!teeth) { for (let i = 0; i < 160; i++) pts.push(polar(R, i / 160 * TAU)); }
+  else {
+    const p = TAU / teeth;
+    for (let i = 0; i < teeth; i++) {
+      const c = i * p;
+      if (ratchet) {
+        pts.push(polar(rr, c - 0.5 * p), polar(rr, c - 0.42 * p), polar(rt, c + 0.32 * p), polar(rt - 0.4 * m, c + 0.42 * p));
+      } else {
+        pts.push(polar(rr, c - 0.5 * p), polar(rr, c - 0.29 * p), polar(R - 0.25 * m, c - 0.25 * p), polar(R, c - 0.22 * p),
+          polar(R + 0.6 * m, c - 0.15 * p), polar(rt, c - 0.06 * p), polar(rt, c + 0.06 * p), polar(R + 0.6 * m, c + 0.15 * p),
+          polar(R, c + 0.22 * p), polar(R - 0.25 * m, c + 0.25 * p), polar(rr, c + 0.29 * p));
+      }
+    }
+  }
+  shape.setFromPoints(pts);
+  const rimIn = (teeth ? rr : R) - rim;
+  if (spokes > 0 && rimIn - hub > 0.45) {
+    const hw = spokeW / 2, N = 16;
+    for (let s = 0; s < spokes; s++) {
+      const a0 = s * TAU / spokes, a1 = (s + 1) * TAU / spokes, h = [];
+      for (let k = 0; k <= N; k++) { const t = k / N, r = hub + t * (rimIn - hub); h.push(polar(r, a0 + curl * t + Math.asin(Math.min(hw / r, 0.95)))); }
+      const as = a0 + curl + Math.asin(hw / rimIn), ae = a1 + curl - Math.asin(hw / rimIn);
+      for (let k = 1; k < 24; k++) h.push(polar(rimIn, lerp(as, ae, k / 24)));
+      for (let k = N; k >= 0; k--) { const t = k / N, r = hub + t * (rimIn - hub); h.push(polar(r, a1 + curl * t - Math.asin(Math.min(hw / r, 0.95)))); }
+      const hs = a1 - Math.asin(hw / hub), he = a0 + Math.asin(hw / hub);
+      for (let k = 1; k < 10; k++) h.push(polar(hub, lerp(hs, he, k / 10)));
+      shape.holes.push(new THREE.Path(h));
+    }
+  }
+  return shape;
+}
+function escapeShape(R = 2.0, teeth = 15) {
+  const s = new THREE.Shape(), pts = [], p = TAU / teeth, rt = R + 0.12, rr = R - 0.5;
+  for (let i = 0; i < teeth; i++) {
+    const c = i * p;
+    pts.push(polar(rr, c - 0.5 * p), polar(rr, c - 0.3 * p), polar(rr + 0.25, c - 0.12 * p), polar(rt - 0.02, c + 0.02 * p),
+      polar(rt, c + 0.1 * p), polar(rt - 0.16, c + 0.17 * p), polar(rr + 0.22, c + 0.11 * p), polar(rr, c + 0.12 * p));
+  }
+  s.setFromPoints(pts);
+  const rimIn = rr - 0.28, hub = 0.45, n = 4;
+  for (let k = 0; k < n; k++) {
+    const h = [], a0 = k * TAU / n + 0.2, a1 = (k + 1) * TAU / n - 0.2;
+    for (let j = 0; j <= 18; j++) h.push(polar(rimIn, lerp(a0, a1, j / 18)));
+    for (let j = 18; j >= 0; j--) h.push(polar(hub + 0.1, lerp(a0 + 0.25, a1 - 0.25, j / 18)));
+    s.holes.push(new THREE.Path(h));
+  }
+  return s;
+}
+function spiralShape(r0, r1, turns, w, per = 64) {
+  const n = Math.ceil(turns * per), out = [], inn = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, a = t * turns * TAU, r = r0 + (r1 - r0) * t;
+    out.push(polar(r + w / 2, a)); inn.push(polar(r - w / 2, a));
+  }
+  return new THREE.Shape(out.concat(inn.reverse()));
+}
+/* smooth "bridge" stroke through points, with round ends */
+function strokeShape(points, w, N = 80) {
+  const curve = new THREE.SplineCurve(points.map(p => new V2(p[0], p[1])));
+  const L = [], Rr = [], hw = w / 2;
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, p = curve.getPoint(t), d = curve.getTangent(t), n = new V2(-d.y, d.x);
+    L.push(p.clone().addScaledVector(n, hw)); Rr.push(p.clone().addScaledVector(n, -hw));
+  }
+  const cap = (c, d, out) => { const an = Math.atan2(d.x, -d.y); for (let k = 1; k < 14; k++) out.push(polar(hw, an - Math.PI * k / 14).add(c)); };
+  const pts = [...L]; cap(curve.getPoint(1), curve.getTangent(1), pts);
+  pts.push(...Rr.reverse()); cap(curve.getPoint(0), curve.getTangent(0).negate(), pts);
+  return new THREE.Shape(pts);
+}
+function circleShape(r, holeR = 0) {
+  const s = new THREE.Shape(); s.absarc(0, 0, r, 0, TAU, false);
+  if (holeR > 0) { const h = new THREE.Path(); h.absarc(0, 0, holeR, 0, TAU, true); s.holes.push(h); }
+  return s;
+}
+/* lathe around Z: profile [[r,z,sharp?],...] counter-clockwise */
+function lathe(profile, segs = 96) {
+  const pts = [];
+  profile.forEach((p, i) => { pts.push(new V2(p[0], p[1])); if (p[2] && i > 0 && i < profile.length - 1) pts.push(new V2(p[0], p[1])); });
+  return new THREE.LatheGeometry(pts, segs).rotateX(Math.PI / 2);
+}
+function cylZ(r, z0, z1, segs = 24, r2 = r) { return new THREE.CylinderGeometry(r2, r, z1 - z0, segs).rotateX(Math.PI / 2).translate(0, 0, (z0 + z1) / 2); }
+
+function mesh(geo, mat, cast = true, recv = true) { const m = new THREE.Mesh(geo, mat); m.castShadow = cast; m.receiveShadow = recv; return m; }
+
+/* gear factory: returns group with wheel (+ optional pinion + arbor) placed on Z levels */
+function makeWheel(o) {
+  const g = new THREE.Group();
+  const wg = remapUV(extrude(gearShape(o), o.z1 - o.z0, Math.min(0.035, o.m * 0.22), 1, 12).translate(0, 0, o.z0), o.R + o.m);
+  g.add(mesh(wg, o.mats || goldMats));
+  if (o.pinion) {
+    const pp = o.pinion;
+    const pg = extrude(gearShape({ teeth: pp.teeth, R: pp.R, m: pp.m, spokes: 0 }), pp.z1 - pp.z0, 0.02, 1, 8).translate(0, 0, pp.z0);
+    g.add(mesh(pg, steelMats));
+  }
+  if (o.arbor) g.add(mesh(cylZ(o.arbor.r || 0.16, o.arbor.z0, o.arbor.z1, 16), MAT.steelPolish));
+  if (o.hubCap !== false) g.add(mesh(cylZ(o.hub * 0.75, o.z0 - 0.06, o.z1 + 0.06, 32), MAT.goldPolish));
+  return g;
+}
+
+/* jewel bearing in gold chaton; dir = +1 faces dial side, -1 faces back. returns group */
+const JEWELS = { count: 0 };
+const G = {
+  chaton: lathe([[0.4, 0], [0.78, 0, 1], [0.8, 0.12], [0.72, 0.2, 1], [0.4, 0.2]], 48),
+  ruby: lathe([[0.1, 0.06], [0.44, 0.06, 1], [0.44, 0.17], [0.3, 0.24], [0.12, 0.22]], 40),
+  pivotTip: cylZ(0.085, 0.0, 0.26, 12),
+  screwHead: lathe([[0, 0], [0.3, 0, 1], [0.31, 0.07], [0.26, 0.16], [0.14, 0.21], [0, 0.22]], 32),
+  slot: new THREE.BoxGeometry(0.62, 0.075, 0.08).translate(0, 0, 0.2),
+};
+function jewel(x, y, z, dir = 1, screws = 0, scale = 1) {
+  const j = new THREE.Group();
+  j.add(mesh(G.chaton, MAT.roseGold, false), mesh(G.ruby, MAT.ruby, false), mesh(G.pivotTip, MAT.pivot, false));
+  for (let i = 0; i < screws; i++) { const s = screw(0, 0, 0, 0.5); s.position.set(Math.cos(i * Math.PI + 0.6) * 1.0, Math.sin(i * Math.PI + 0.6) * 1.0, 0); j.add(s); }
+  j.position.set(x, y, z); j.scale.setScalar(scale); if (dir < 0) j.rotation.x = Math.PI; JEWELS.count++;
+  return j;
+}
+function screw(x, y, z, s = 1, dir = 1) {
+  const g = new THREE.Group(), inner = new THREE.Group();
+  inner.add(mesh(G.screwHead, MAT.blued, false), mesh(G.slot, MAT.slot, false));
+  inner.rotation.z = Math.random() * Math.PI; g.add(inner);
+  g.position.set(x, y, z); g.scale.setScalar(s); if (dir < 0) g.rotation.x = Math.PI;
+  return g;
+}
+setLoad(0.3);
+
+/* =========================================================
+   PART REGISTRY (labels, hover, explode layers)
+   ========================================================= */
+const PARTS = [];
+const PART_BY_ID = {};
+function registerPart(obj, d) {
+  const p = Object.assign({ obj, explode: 0, side: 'front', key: false }, d);
+  obj.userData.baseZ = obj.position.z;
+  obj.traverse(o => { if (o.isMesh) o.userData.part = p; });
+  PARTS.push(p); PART_BY_ID[p.id] = p;
+  return p;
+}
+
+/* =========================================================
+   MOVEMENT LAYOUT (mm, dial side = +Z)
+   ========================================================= */
+const watch = new THREE.Group(); scene.add(watch);
+const movement = new THREE.Group(); watch.add(movement);
+
+const POS = {};
+POS.C = new V2(0, 0);
+POS.B = polar(6.3, Math.PI / 3);                               // barrel (80T m.14) -> centre pinion (10T)
+POS.F = new V2(0, -8);                                         // fourth wheel / small seconds
+{ // third wheel: |T-C| = 4.8+0.6, |T-F| = 4.125+0.55
+  const a = 5.4, b = 4.675, d = 8;
+  const ty = -((a * a - b * b + d * d) / (2 * d)), tx = Math.sqrt(a * a - ty * ty);
+  POS.T = new V2(tx, ty);
+}
+POS.E = POS.F.clone().add(polar(3.84 + 0.24, THREE.MathUtils.degToRad(160)));
+POS.BAL = new V2(-8, -3);
+const uEB = POS.BAL.clone().sub(POS.E).normalize();
+POS.PAL = POS.E.clone().addScaledVector(uEB, 2.6);
+POS.MW = polar(2.4, THREE.MathUtils.degToRad(200));
+{ const dy = 1.8 - POS.B.y, d = 3.6 + 2.25; POS.CW = new V2(POS.B.x + Math.sqrt(d * d - dy * dy), 1.8); }
+
+/* phase solver so that teeth interleave at every mesh */
+function phaseFor(Kpos, thK, zK, Upos, zU) {
+  const a = Math.atan2(Upos.y - Kpos.y, Upos.x - Kpos.x), pK = TAU / zK, pU = TAU / zU;
+  const f = (((a - thK) / pK) % 1 + 1) % 1;
+  return a + Math.PI - pU * (0.5 - f);
+}
+const TRAIN = [];  // { g, k, th0 } rotation = th0 + k * thetaC
+function addTrain(g, pos, k, th0) { g.position.set(pos.x, pos.y, 0); movement.add(g); TRAIN.push({ g, k, th0 }); return g; }
+
+/* ---------- Barrel + mainspring ---------- */
+const barrel = new THREE.Group();
+const barrelDrum = new THREE.Group(); barrel.add(barrelDrum);
+barrelDrum.add(mesh(remapUV(extrude(gearShape({ teeth: 80, R: 5.6, m: 0.14, rim: 0.55, hub: 1.5, spokes: 5, curl: 0.7, spokeW: 0.55 }), 0.35, 0.03, 1, 12).translate(0, 0, 0.05), 5.8), goldMats));
+barrelDrum.add(mesh(extrude(circleShape(5.45, 5.0), 1.95, 0.05).translate(0, 0, -1.9), [MAT.goldPolish, MAT.goldPolish]));
+barrelDrum.add(mesh(remapUV(extrude(gearShape({ teeth: 0, R: 5.45, m: 0.1, rim: 0.5, hub: 1.5, spokes: 5, curl: -0.7, spokeW: 0.55 }), 0.15, 0.03).translate(0, 0, -2.05), 5.5), goldMats));
+const mainspringMat = springMaterial(MAT.spring, 1.25, 4.95);
+const mainspring = mesh(extrude(spiralShape(1.25, 4.95, 9, 0.12, 72), 1.6, 0).translate(0, 0, -1.8), mainspringMat, false);
+barrelDrum.add(mainspring);
+const barrelArbor = new THREE.Group(); barrel.add(barrelArbor);
+barrelArbor.add(mesh(cylZ(1.15, -1.85, -0.05, 32), MAT.steelPolish), mesh(cylZ(0.55, -3.85, 1.6, 24), MAT.steelPolish));
+movement.add(barrel); barrel.position.set(POS.B.x, POS.B.y, 0); // drum driven by train, arbor by winding
+
+/* ---------- Gear train ---------- */
+const thC0 = 0;
+const thB0 = phaseFor(POS.C, thC0, 10, POS.B, 80);
+const center = makeWheel({ teeth: 80, R: 4.8, m: 0.12, z0: -2.35, z1: -2.1, hub: 0.95, spokes: 5, curl: 0.62,
+  pinion: { teeth: 10, R: 0.7, m: 0.14, z0: -0.25, z1: 0.55 }, arbor: { r: 0.2, z0: -3.45, z1: 2.1 } });
+addTrain(center, POS.C, 1, thC0);
+const thT0 = phaseFor(POS.C, thC0, 80, POS.T, 10);
+const third = makeWheel({ teeth: 75, R: 4.125, m: 0.11, z0: -1.2, z1: -0.95, hub: 0.85, spokes: 5, curl: 0.62,
+  pinion: { teeth: 10, R: 0.6, m: 0.12, z0: -2.45, z1: -0.9 }, arbor: { r: 0.16, z0: -3.45, z1: 1.5 } });
+addTrain(third, POS.T, -8, thT0);
+const thF0 = phaseFor(POS.T, thT0, 75, POS.F, 10);
+const fourth = makeWheel({ teeth: 96, R: 3.84, m: 0.08, z0: -1.85, z1: -1.6, hub: 0.75, spokes: 5, curl: 0.62,
+  pinion: { teeth: 10, R: 0.55, m: 0.11, z0: -1.3, z1: -0.85 }, arbor: { r: 0.15, z0: -3.45, z1: 3.35 } });
+addTrain(fourth, POS.F, 60, thF0);
+const thE0 = phaseFor(POS.F, thF0, 96, POS.E, 6);
+const escape = new THREE.Group();
+escape.add(mesh(extrude(escapeShape(2.0, 15), 0.25, 0.02, 1, 6).translate(0, 0, -1.25), steelMats));
+escape.add(mesh(extrude(gearShape({ teeth: 6, R: 0.24, m: 0.08, spokes: 0 }), 0.45, 0.015, 1, 6).translate(0, 0, -1.95), steelMats));
+escape.add(mesh(cylZ(0.12, -3.45, 1.5, 12), MAT.steelPolish), mesh(cylZ(0.38, -1.3, -0.95, 24), MAT.steelPolish));
+addTrain(escape, POS.E, -960, thE0);
+
+/* ---------- Pallet fork (Swiss lever) ---------- */
+const pallet = new THREE.Group(), palletRot = new THREE.Group(); pallet.add(palletRot);
+{
+  const pts = [[0.35, 0.2], [1.75, 0.14], [1.95, 0.32], [2.3, 0.28], [2.27, 0.11], [2.0, 0.1], [2.0, -0.1], [2.27, -0.11], [2.3, -0.28],
+    [1.95, -0.32], [1.75, -0.14], [0.35, -0.2], [0.1, -0.42], [-0.95, -1.8], [-1.4, -1.98], [-1.62, -1.7], [-0.6, -0.48], [-0.5, 0],
+    [-0.6, 0.48], [-1.62, 1.7], [-1.4, 1.98], [-0.95, 1.8], [0.1, 0.42]].map(p => new V2(p[0], p[1]));
+  palletRot.add(mesh(extrude(new THREE.Shape(pts), 0.25, 0.03, 1).translate(0, 0, -1.25), steelMats));
+  for (const s of [1, -1]) {
+    const st = mesh(new THREE.BoxGeometry(0.5, 0.26, 0.3), MAT.ruby, false);
+    st.position.set(-1.62, 1.86 * s, -1.12); st.rotation.z = s * 0.95; palletRot.add(st);
+  }
+  palletRot.add(mesh(cylZ(0.12, -2.2, 1.5, 12), MAT.steelPolish), mesh(cylZ(0.32, -1.3, -0.95, 24), MAT.steelPolish));
+  pallet.position.set(POS.PAL.x, POS.PAL.y, 0);
+  pallet.rotation.z = Math.atan2(uEB.y, uEB.x);
+  movement.add(pallet);
+  // banking pins
+  for (const s of [1, -1]) { const bp = mesh(cylZ(0.12, -1.6, -0.6, 12), MAT.goldPolish); const q = new V3(1.3, 0.55 * s, 0).applyAxisAngle(new V3(0, 0, 1), pallet.rotation.z); bp.position.set(POS.PAL.x + q.x, POS.PAL.y + q.y, 0); movement.add(bp); }
+}
+
+/* ---------- Balance wheel + hairspring ---------- */
+const balance = new THREE.Group(), balanceRot = new THREE.Group(); balance.add(balanceRot);
+{
+  balanceRot.add(mesh(extrude(circleShape(4.2, 3.72), 0.5, 0.05, 2, 96).translate(0, 0, -2.95), goldMats));
+  const arm = new THREE.Shape(); // 3-arm crossing with elegant waist
+  const arms = 3;
+  const ap = [];
+  for (let i = 0; i < arms; i++) {
+    const a = i * TAU / arms;
+    ap.push(polar(0.75, a - 0.55), polar(3.8, a - 0.09), polar(3.8, a + 0.09), polar(0.75, a + 0.55));
+  }
+  arm.setFromPoints(ap);
+  arm.holes.push(new THREE.Path().absarc(0, 0, 0.2, 0, TAU, true));
+  balanceRot.add(mesh(extrude(arm, 0.3, 0.03).translate(0, 0, -2.85), goldMats));
+  const wgt = cylZ(0.17, 0, 0.32, 16);
+  for (let i = 0; i < 12; i++) {   // inertia screws on rim
+    const a = (i + 0.5) * TAU / 12, w = mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.42, 16), MAT.goldPolish, false);
+    w.position.set(Math.cos(a) * 4.34, Math.sin(a) * 4.34, -2.7); w.rotation.z = a - Math.PI / 2; balanceRot.add(w);
+    const sl = mesh(new THREE.BoxGeometry(0.05, 0.05, 0.36), MAT.slot, false); sl.position.set(Math.cos(a) * 4.56, Math.sin(a) * 4.56, -2.7); sl.rotation.z = a; balanceRot.add(sl);
+  }
+  balanceRot.add(mesh(cylZ(0.13, -4.15, 1.5, 12), MAT.steelPolish));
+  balanceRot.add(mesh(cylZ(0.85, -1.48, -1.3, 32), MAT.steelPolish));
+  const ip = mesh(cylZ(0.085, -1.32, -1.0, 12), MAT.ruby, false); ip.position.set(0.75, 0, 0); balanceRot.add(ip);
+  balanceRot.add(mesh(cylZ(0.42, -3.35, -3.0, 24), MAT.goldPolish));   // collet
+  balance.position.set(POS.BAL.x, POS.BAL.y, 0);
+  movement.add(balance);
+}
+JEWELS.count += 3; // two pallet stones + impulse jewel
+const hairMat = springMaterial(MAT.hairspring, 0.5, 3.05);
+const hairspring = mesh(extrude(spiralShape(0.5, 3.05, 12, 0.05, 72), 0.22, 0).translate(0, 0, -3.3), hairMat, false);
+hairspring.position.set(POS.BAL.x, POS.BAL.y, 0); movement.add(hairspring);
+
+/* ---------- Ratchet, crown wheel, click ---------- */
+const ratchet = new THREE.Group();
+ratchet.add(mesh(remapUV(extrude(gearShape({ teeth: 48, R: 3.6, m: 0.15, spokes: 0, ratchet: true }), 0.4, 0.03, 1, 8).translate(0, 0, -3.75), 3.8), goldMats));
+ratchet.add(screw(0, 0, -3.75, 1.9, -1));
+ratchet.position.set(POS.B.x, POS.B.y, 0); movement.add(ratchet);
+const crownWheel = new THREE.Group();
+crownWheel.add(mesh(remapUV(extrude(gearShape({ teeth: 30, R: 2.25, m: 0.15, rim: 0.4, hub: 0.7, spokes: 4, curl: 0.5, spokeW: 0.35 }), 0.4, 0.03, 1, 8).translate(0, 0, -3.75), 2.4), goldMats));
+crownWheel.add(screw(0, 0, -3.75, 1.2, -1));
+crownWheel.position.set(POS.CW.x, POS.CW.y, 0); movement.add(crownWheel);
+const click = new THREE.Group();
+{
+  const cp = polar(4.6, THREE.MathUtils.degToRad(150)).add(POS.B);
+  const s = strokeShape([[0, 0], [-0.6, 0.9], [-0.45, 1.75]], 0.42);
+  click.add(mesh(extrude(s, 0.3, 0.04).translate(0, 0, -3.62), steelMats));
+  click.add(screw(0, 0, -3.62, 0.8, -1));
+  click.position.set(cp.x, cp.y, 0); click.rotation.z = THREE.MathUtils.degToRad(-35);
+  movement.add(click);
+}
+
+/* ---------- Main plate (dial-side, perlage + polished anglage) ---------- */
+const mainPlate = new THREE.Group();
+{
+  mainPlate.add(mesh(extrude(circleShape(15.6, 13.9), 0.8, 0.08, 2, 128).translate(0, 0, 0.6), plateMats));
+  const strokes = [
+    [[0, 14.3], [1.6, 9.5], [POS.B.x, POS.B.y], [1.4, 2.6], [0, 0], [-0.2, -4], [0, -8], [-0.4, -11.2], [0, -14.3]],
+    [[-14.3, -1.5], [-11.5, -2.4], [POS.BAL.x, POS.BAL.y], [POS.PAL.x, POS.PAL.y], [POS.E.x, POS.E.y], [-4.6, -10.5], [-4.9, -13.6]],
+    [[14.2, -4.0], [8.0, -4.6], [POS.T.x, POS.T.y], [1.2, -2.0], [0, 0]],
+    [[-10.2, 10.1], [-6.0, 6.5], [-2.6, 2.6], [0, 0]],
+    [[13.9, 4.8], [9.4, 5.7], [POS.B.x, POS.B.y]],
+  ];
+  strokes.forEach((s, i) => mainPlate.add(mesh(extrude(strokeShape(s, 1.5 - i * 0.05), 0.78 - i * 0.004, 0.07, 2, 8).translate(0, 0, 0.61 + i * 0.002), plateMats)));
+  for (const k of ['B', 'C', 'T', 'F', 'E', 'PAL', 'BAL']) {
+    const r = k === 'B' ? 1.7 : k === 'C' ? 1.5 : 1.15;
+    mainPlate.add(mesh(extrude(circleShape(r), 0.9, 0.08, 2, 48).translate(POS[k].x, POS[k].y, 0.58), plateMats));
+    mainPlate.add(jewel(POS[k].x, POS[k].y, 1.48, 1, 0, k === 'B' ? 1.4 : 1));
+  }
+  // pillars
+  for (const a of [20, 112, 160, 200, 250, 300, 340]) {
+    const p = polar(14.7, THREE.MathUtils.degToRad(a));
+    mainPlate.add(mesh(cylZ(0.55, -2.55, 0.6, 24), MAT.steelPolish).translateX(p.x).translateY(p.y));
+  }
+  movement.add(mainPlate);
+}
+
+/* ---------- Bridges (back side, Côtes de Genève, blued screws, gold chatons) ---------- */
+const bridgeZ0 = -3.3, bridgeT = 0.75;
+function bridge(points, w, z0, t, bosses, screwsAt) {
+  const g = new THREE.Group();
+  g.add(mesh(extrude(strokeShape(points, w), t, 0.1, 3, 8).translate(0, 0, z0), bridgeMats));
+  for (const b of bosses) {
+    g.add(mesh(extrude(circleShape(b.r), t + 0.1, 0.1, 3, 48).translate(b.p.x, b.p.y, z0 - 0.08), bridgeMats));
+    if (b.jewel) g.add(jewel(b.p.x, b.p.y, z0 - 0.06, -1, 2, b.js || 1));
+  }
+  for (const s of screwsAt) g.add(screw(s[0], s[1], z0 - 0.02, 1, -1));
+  return g;
+}
+const footP = (deg, r = 14.4) => polar(r, THREE.MathUtils.degToRad(deg));
+const fp = (deg) => { const p = footP(deg); return [p.x, p.y]; };
+const barrelBridge = bridge([fp(5), [10.5, 1.6], [POS.CW.x, POS.CW.y], [5.6, 3.9], [POS.B.x, POS.B.y], [0, 8.4], fp(112)], 2.6, bridgeZ0, bridgeT,
+  [{ p: POS.B, r: 2.6 }, { p: POS.CW, r: 1.5 }], [fp(5), fp(112), [5.6, 3.9]]);
+const trainBridge = bridge([fp(135), [-4.5, 4.0], [0, 0], [POS.T.x, POS.T.y], [7.5, -7.8], fp(-40)], 2.0, bridgeZ0, bridgeT,
+  [{ p: POS.C, r: 1.6, jewel: true }, { p: POS.T, r: 1.35, jewel: true }], [fp(135), fp(-40)]);
+const escBridge = bridge([fp(-60), [3.2, -9.6], [POS.F.x, POS.F.y], [-1.9, -7.6], [POS.E.x, POS.E.y]], 1.7, bridgeZ0, bridgeT,
+  [{ p: POS.F, r: 1.3, jewel: true }, { p: POS.E, r: 1.15, jewel: true }], [fp(-60)]);
+const palletBridge = bridge([fp(-130), [-7.6, -8.2], [POS.PAL.x, POS.PAL.y]], 1.3, -2.2, 0.45,
+  [{ p: POS.PAL, r: 0.95, jewel: true, js: 0.8 }], [fp(-130)]);
+const balanceCock = bridge([fp(200), [-11.2, -4.2], [POS.BAL.x, POS.BAL.y]], 2.0, -4.0, 0.6,
+  [{ p: POS.BAL, r: 1.75, jewel: true, js: 1.2 }], [fp(200)]);
+{ // Incabloc-style lyre spring + regulator index + stud
+  const ly = new THREE.Group();
+  const lyre = mesh(new THREE.TorusGeometry(1.15, 0.06, 8, 48, Math.PI * 1.5), MAT.goldPolish, false);
+  lyre.rotation.z = Math.PI * 0.25; ly.add(lyre); ly.position.set(POS.BAL.x, POS.BAL.y, -4.14); balanceCock.add(ly);
+  const idx = mesh(extrude(strokeShape([[0, 0], [1.6, -0.6], [3.3, -0.4], [4.4, 0.3]], 0.35), 0.18, 0.03).translate(0, 0, -4.18), steelMats);
+  idx.position.set(POS.BAL.x, POS.BAL.y, 0); idx.rotation.z = THREE.MathUtils.degToRad(160); balanceCock.add(idx);
+  const stud = mesh(cylZ(0.3, -3.4, -3.0, 16), MAT.steelPolish); const sp = polar(3.05, 0).add(POS.BAL); stud.position.set(sp.x, sp.y, 0); balanceCock.add(stud);
+}
+// pillars for cock & pallet bridge
+for (const a of [200, -130]) { const p = footP(a); movement.add(mesh(cylZ(0.5, -3.4, 0.6, 20), MAT.steelPolish).translateX(p.x).translateY(p.y)); }
+const bridges = new THREE.Group(); bridges.add(barrelBridge, trainBridge, escBridge); movement.add(bridges);
+movement.add(palletBridge, balanceCock);
+// back-side jewel on barrel bridge is under ratchet; add centre jewel caps for show
+setLoad(0.5);
+
+/* ---------- Motion works (dial side) ---------- */
+const motion = new THREE.Group();
+const cannon = new THREE.Group();
+cannon.add(mesh(extrude(gearShape({ teeth: 12, R: 0.6, m: 0.1, spokes: 0 }), 0.5, 0.015, 1, 6).translate(0, 0, 1.6), steelMats));
+cannon.add(mesh(cylZ(0.42, 1.6, 3.95, 24), MAT.steelPolish));
+const thMW0 = phaseFor(POS.C, 0, 12, POS.MW, 36);
+const minuteWheel = makeWheel({ teeth: 36, R: 1.8, m: 0.1, z0: 1.62, z1: 1.86, hub: 0.45, spokes: 4, curl: 0.4, spokeW: 0.3,
+  pinion: { teeth: 8, R: 0.48, m: 0.12, z0: 1.62, z1: 2.5 }, arbor: { r: 0.12, z0: 1.4, z1: 2.6 } });
+const thHW0 = phaseFor(POS.MW, thMW0, 8, POS.C, 32);
+const hourWheel = makeWheel({ teeth: 32, R: 1.92, m: 0.12, z0: 2.22, z1: 2.46, hub: 0.62, spokes: 4, curl: 0.45, spokeW: 0.32 });
+hourWheel.add(mesh(cylZ(0.6, 2.2, 3.62, 32), MAT.goldPolish));
+motion.add(cannon, minuteWheel, hourWheel);
+minuteWheel.position.set(POS.MW.x, POS.MW.y, 0);
+movement.add(motion);
+
+/* ---------- Openworked chapter ring / dial ---------- */
+const dial = new THREE.Group();
+function dialDecal() {
+  const S = 2048, c = canvas(S), g = c.getContext('2d'), R = 16.95, k = (S / 2) / R, C = S / 2;
+  g.clearRect(0, 0, S, S); g.fillStyle = '#fff'; g.strokeStyle = '#fff';
+  const at = (r, th) => [C + Math.sin(th) * r * k, C - Math.cos(th) * r * k];
+  g.lineWidth = 0.06 * k; for (const r of [16.0, 16.75]) { g.beginPath(); g.arc(C, C, r * k, 0, TAU); g.stroke(); }
+  for (let i = 0; i < 60; i++) {
+    const th = i / 60 * TAU, major = i % 5 === 0;
+    for (let s = 1; s < 5; s++) { const t2 = (i + s / 5) / 60 * TAU; const [x, y] = at(16.38, t2); g.beginPath(); g.arc(x, y, 0.025 * k, 0, TAU); g.fill(); }
+    g.lineWidth = (major ? 0.16 : 0.07) * k;
+    const [x0, y0] = at(16.0, th), [x1, y1] = at(major ? 16.75 : 16.55, th);
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  }
+  const curved = (txt, r, center, size, flip) => {
+    g.font = `500 ${size * k}px Georgia, "Times New Roman", serif`;
+    const spacing = size * 0.92 / r; const n = txt.length; const start = center - spacing * (n - 1) / 2;
+    for (let i = 0; i < n; i++) {
+      const th = flip ? center + spacing * (n - 1) / 2 - i * spacing : start + i * spacing;
+      const [x, y] = at(r, th); g.save(); g.translate(x, y); g.rotate(flip ? th + Math.PI : th);
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt[i], 0, 0); g.restore();
+    }
+  };
+  curved('NOCTIS', 13.95, 0, 0.62, false);
+  curved('SWISS  MADE', 13.95, Math.PI, 0.34, true);
+  curved('SQUELETTE', 13.95, Math.PI * 1.5, 0.3, false);
+  curved('28800 A/h', 13.95, Math.PI * 0.5, 0.3, false);
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 16; return t;
+}
+function subDecal() {
+  const S = 512, c = canvas(S), g = c.getContext('2d'), R = 2.95, k = (S / 2) / R, C = S / 2;
+  g.fillStyle = '#fff'; g.strokeStyle = '#fff';
+  for (let i = 0; i < 60; i++) {
+    const th = i / 60 * TAU, major = i % 5 === 0; g.lineWidth = (major ? 0.07 : 0.03) * k;
+    g.beginPath(); g.moveTo(C + Math.sin(th) * 2.62 * k, C - Math.cos(th) * 2.62 * k); g.lineTo(C + Math.sin(th) * (major ? 2.92 : 2.82) * k, C - Math.cos(th) * (major ? 2.92 : 2.82) * k); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 16; return t;
+}
+{
+  dial.add(mesh(extrude(circleShape(17.0, 13.4), 0.35, 0.05, 2, 160).translate(0, 0, 2.75), [MAT.dialRing, MAT.rhodium]));
+  const pm = MAT.print.clone(); pm.alphaMap = dialDecal(); pm.map = null; pm.alphaTest = 0.02;
+  const dec = mesh(new THREE.RingGeometry(13.45, 16.95, 256, 1), pm, false, false); dec.position.z = 3.105; dial.add(dec);
+  // small seconds sub-dial
+  const sd = new THREE.Group();
+  sd.add(mesh(extrude(circleShape(2.95, 2.3), 0.17, 0.03, 1, 64).translate(0, 0, 2.86), [MAT.dialRing, MAT.rhodium]));
+  const sm = MAT.print.clone(); sm.alphaMap = subDecal();
+  const sdd = mesh(new THREE.RingGeometry(2.32, 2.95, 128, 1), sm, false, false); sdd.position.z = 3.035; sd.add(sdd);
+  sd.position.set(POS.F.x, POS.F.y, 0); dial.add(sd);
+  dial.add(mesh(extrude(strokeShape([[0, -10.85], [0, -13.6]], 0.7), 0.17, 0.03).translate(0, 0, 2.86), [MAT.dialRing, MAT.rhodium]));
+  // applied faceted indices with luminescent inlay
+  const idxGeo = extrude(new THREE.Shape([new V2(-0.36, 0), new V2(0.36, 0), new V2(0.36, 1.7), new V2(0, 1.86), new V2(-0.36, 1.7)]), 0.42, 0.09, 2);
+  const lumGeo = extrude(new THREE.Shape([new V2(-0.17, 0.2), new V2(0.17, 0.2), new V2(0.17, 1.45), new V2(-0.17, 1.45)]), 0.08, 0.02, 1).translate(0, 0, 0.4);
+  for (let h = 0; h < 12; h++) {
+    const th = -h / 12 * TAU, offs = h === 0 ? [-0.5, 0.5] : [0];
+    for (const o of offs) {
+      const ig = new THREE.Group();
+      ig.add(mesh(idxGeo, MAT.rhodium), mesh(lumGeo, MAT.lume, false));
+      ig.position.set(o, 14.25, 3.08);
+      const piv = new THREE.Group(); piv.add(ig); piv.rotation.z = th; dial.add(piv);
+    }
+  }
+  movement.add(dial);
+}
+
+/* ---------- Hands (skeletonised, lume-filled) ---------- */
+function handShapes(L, w, rh) {
+  const o = [new V2(0, L), new V2(w / 2, L - 1.5), new V2(w * 0.38, 1.4)];
+  for (let i = 0; i <= 20; i++) o.push(polar(rh, -0.25 - (Math.PI - 0.5) * i / 20));
+  o.push(new V2(-w * 0.38, 1.4), new V2(-w / 2, L - 1.5));
+  const outer = new THREE.Shape(o);
+  const iw = w / 2 - 0.2;
+  const inner = [new V2(0, L - 0.55), new V2(iw, L - 1.55), new V2(iw * 0.72, 2.0), new V2(-iw * 0.72, 2.0), new V2(-iw, L - 1.55)];
+  outer.holes.push(new THREE.Path(inner.slice().reverse()), new THREE.Path().absarc(0, 0, 0.32, 0, TAU, true));
+  return { outer, inner: new THREE.Shape(inner) };
+}
+function makeHand(L, w, z, rh) {
+  const g = new THREE.Group(), s = handShapes(L, w, rh);
+  g.add(mesh(extrude(s.outer, 0.14, 0.035, 1).translate(0, 0, z), MAT.rhodium));
+  g.add(mesh(extrude(s.inner, 0.1, 0.02, 1).translate(0, 0, z + 0.01), MAT.lume, false));
+  return g;
+}
+const hourHand = makeHand(9.2, 1.45, 3.55, 0.85);
+const minuteHand = makeHand(13.7, 1.15, 3.82, 0.75);
+minuteHand.add(mesh(lathe([[0, 3.95], [0.55, 3.95, 1], [0.5, 4.08], [0.3, 4.17], [0, 4.2]], 32), MAT.rhodium));
+const secondHand = new THREE.Group();
+{
+  const p = [new V2(0, 2.75), new V2(0.07, 0.35)];
+  for (let i = 0; i <= 16; i++) p.push(polar(0.28, -0.2 - (Math.PI - 0.4) * i / 16));
+  p.push(new V2(-0.07, 0.35));
+  const s = new THREE.Shape(p);
+  secondHand.add(mesh(extrude(s, 0.1, 0.02, 1).translate(0, 0, 3.32), MAT.blued));
+  const tail = mesh(extrude(circleShape(0.3, 0.12), 0.1, 0.02).translate(0, -0.95, 3.32), MAT.blued); secondHand.add(tail);
+  secondHand.add(mesh(extrude(strokeShape([[0, -0.2], [0, -0.7]], 0.12), 0.1, 0.01).translate(0, 0, 3.32), MAT.blued));
+  secondHand.add(mesh(cylZ(0.24, 3.3, 3.5, 24), MAT.blued));
+  secondHand.position.set(POS.F.x, POS.F.y, 0);
+}
+const hands = new THREE.Group(); hands.add(hourHand, minuteHand, secondHand); movement.add(hands);
+
+/* ---------- Case ---------- */
+const caseG = new THREE.Group(); watch.add(caseG);
+const caseMiddle = new THREE.Group();
+caseMiddle.add(mesh(lathe([[16.3, -4.9], [19.0, -4.9, 1], [19.9, -4.45], [20.6, -3.0], [20.85, -1.0], [20.75, 1.5], [20.3, 3.0], [19.7, 3.4, 1], [16.3, 3.4, 1], [16.3, -4.9]], 192), MAT.steelBrushed));
+caseMiddle.add(mesh(lathe([[15.65, -3.6], [16.3, -3.6, 1], [16.3, 2.7, 1], [15.65, 2.7, 1], [15.65, -3.6]], 128), MAT.black));
+{ // lugs
+  const lp = [[16.0, 3.0], [19.5, 2.9], [22.6, 2.0], [24.6, 0.6], [25.5, -1.2], [25.4, -2.9], [24.5, -3.5], [22.8, -3.2], [20.5, -3.0], [16.0, -3.6]].map(p => new V2(p[0], p[1]));
+  const lg = extrude(new THREE.Shape(lp), 2.4, 0.35, 4, 16);
+  lg.applyMatrix4(new THREE.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1)).translate(-1.2, 0, 0);
+  for (const flip of [0, 1]) for (const sx of [-11.25, 11.25]) {
+    const l = mesh(lg, MAT.steelPolish); const pv = new THREE.Group(); l.position.x = sx; pv.add(l); pv.rotation.z = flip * Math.PI; caseMiddle.add(pv);
+  }
+  for (const sy of [23.8, -23.8]) { const bar = mesh(new THREE.CylinderGeometry(0.45, 0.45, 20.2, 16).rotateZ(Math.PI / 2), MAT.steelPolish); bar.position.set(0, sy, -1.6); caseMiddle.add(bar); }
+}
+{ // crown & tube & stem
+  const cs = gearShape({ teeth: 26, R: 2.85, m: 0.16, spokes: 0 });
+  const crownGeo = extrude(cs, 3.0, 0.25, 4, 8).rotateY(Math.PI / 2).translate(21.6, 0, 0);
+  const crown = new THREE.Group();
+  crown.add(mesh(crownGeo, MAT.steelPolish));
+  crown.add(mesh(cylZ(1.9, 0, 0.12, 48).rotateY(Math.PI / 2).translate(24.62, 0, 0), MAT.goldPolish));
+  crown.add(mesh(cylZ(1.25, 0, 1.0, 32).rotateY(Math.PI / 2).translate(20.6, 0, 0), MAT.steelPolish));
+  crown.position.z = -0.75; caseMiddle.add(crown); caseMiddle.userData.crown = crown;
+  const stem = mesh(cylZ(0.38, 0, 12.2, 16).rotateY(Math.PI / 2).translate(8.6, 0, 0), MAT.steelPolish); stem.position.z = -0.75; caseMiddle.add(stem);
+  const wp = mesh(extrude(gearShape({ teeth: 12, R: 0.7, m: 0.12, spokes: 0 }), 1.1, 0.02).rotateY(Math.PI / 2).translate(8.7, 0, 0), steelMats); wp.position.z = -0.75; caseMiddle.add(wp);
+  caseMiddle.userData.stem = [stem, wp];
+}
+caseG.add(caseMiddle);
+const bezel = mesh(lathe([[17.55, 3.4], [20.1, 3.4, 1], [20.25, 3.65], [20.1, 4.1], [19.2, 4.95], [18.0, 5.38], [17.15, 5.42], [17.0, 5.3, 1], [17.0, 5.1, 1], [17.55, 5.1, 1], [17.55, 3.4]], 192), MAT.steelPolish);
+caseG.add(bezel);
+const crystal = mesh(lathe([[0, 4.35], [17.45, 4.35, 1], [17.5, 4.45], [17.5, 4.95], [17.3, 5.06], [12, 5.3], [6, 5.43], [0, 5.46]], 160), MAT.crystal, false, false);
+caseG.add(crystal);
+const caseback = new THREE.Group();
+caseback.add(mesh(lathe([[14.0, -5.65], [18.7, -5.65, 1], [19.15, -5.35], [19.2, -4.9, 1], [14.0, -4.9, 1], [14.0, -5.65]], 192), MAT.steelPolish));
+for (let i = 0; i < 6; i++) { const p = polar(16.75, i * TAU / 6 + Math.PI / 6); caseback.add(screw(p.x, p.y, -5.65, 1.7, -1)); }
+{ // engraved caseback text
+  const S = 1024, c = canvas(S), g = c.getContext('2d'), R = 18.6, k = (S / 2) / R, C = S / 2;
+  g.fillStyle = '#fff'; g.font = `600 ${0.62 * k}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const txt = 'NOCTIS GENÈVE · SAPPHIRE CRYSTAL · WATER RESISTANT 50 M · Nº 007/088 · ';
+  const r = 15.4, step = TAU / txt.length;
+  for (let i = 0; i < txt.length; i++) { const th = i * step; g.save(); g.translate(C + Math.sin(th) * r * k, C - Math.cos(th) * r * k); g.rotate(th); g.fillText(txt[i], 0, 0); g.restore(); }
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 16;
+  const em = new THREE.MeshStandardMaterial({ color: 0x3a3c40, metalness: 1, roughness: 0.6, alphaMap: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const ring = mesh(new THREE.RingGeometry(14.2, 18.6, 192, 1), em, false, false); ring.rotation.y = Math.PI; ring.position.z = -5.66; caseback.add(ring);
+}
+caseG.add(caseback);
+const backCrystal = mesh(lathe([[0, -5.5], [14.3, -5.5, 1], [14.4, -5.4], [14.4, -4.75], [14.3, -4.65, 1], [0, -4.65]], 128), MAT.crystal, false, false);
+caseG.add(backCrystal);
+
+/* ---------- Alligator strap ---------- */
+function strapGeometry(pts, W0, W1, T0, T1, tipRound = true, M = 28, N = 140) {
+  const curve = new THREE.CatmullRomCurve3(pts.map(p => new V3(0, p[0], p[1])), false, 'centripetal');
+  const len = curve.getLength(), C = new V3(0, 0, -16);
+  const pos = [], uv = [], idx = [];
+  for (let i = 0; i <= N; i++) {
+    const s = i / N, P0 = curve.getPointAt(s), T = curve.getTangentAt(s);
+    let Nn = new V3(0, -T.z, T.y).normalize(); if (Nn.dot(P0.clone().sub(C)) < 0) Nn.negate();
+    let W = lerp(W0, W1, Math.min(1, s * 1.3)), Th = lerp(T0, T1, s);
+    if (tipRound && s > 0.9) { const q = (s - 0.9) / 0.1; W *= Math.sqrt(Math.max(0, 1 - q * q)) * 0.98 + 0.02; }
+    const pad = 1 + 0.25 * Math.sin(Math.PI * Math.min(1, s * 1.6));
+    for (let j = 0; j <= M; j++) {
+      const a = j / M * TAU, ca = Math.cos(a), sa = Math.sin(a);
+      const x = (W / 2) * Math.sign(ca) * Math.pow(Math.abs(ca), 0.25);
+      const y = (Th / 2) * Math.sign(sa) * Math.pow(Math.abs(sa), 0.5) * (sa > 0 ? pad : 1);
+      pos.push(P0.x + x, P0.y + Nn.y * y, P0.z + Nn.z * y);
+      uv.push(x / W0 + 0.5, s * len / 30);
+    }
+  }
+  for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
+    const a = i * (M + 1) + j, b = a + M + 1;
+    idx.push(a, b, a + 1, b, b + 1, a + 1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  return { g, curve };
+}
+const strap = new THREE.Group();
+{
+  const top = [[23.0, -1.6], [27.4, -3.5], [30.7, -8.8], [31.6, -16], [29.9, -23], [25.6, -28.8], [19.8, -32.3]];
+  const bot = top.map(p => [-p[0], p[1]]); bot.push([-13.5, -34.4]);
+  const a = strapGeometry(top, 20, 18, 3.2, 2.4, false), b = strapGeometry(bot, 20, 16, 3.2, 2.2, true);
+  const flipWinding = (geo) => { const ix = geo.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } geo.computeVertexNormals(); };
+  flipWinding(b.g);
+  strap.add(mesh(a.g, MAT.leather), mesh(b.g, MAT.leather));
+  // pin buckle at the end of the top strap
+  const end = a.curve.getPointAt(1), tan = a.curve.getTangentAt(1);
+  const bk = new THREE.Group();
+  const pts = [];
+  for (let i = 0; i <= 64; i++) { const t = i / 64 * TAU; const x = 10.6 * Math.sign(Math.cos(t)) * Math.pow(Math.abs(Math.cos(t)), 0.3); const y = 4.2 * Math.sin(t) + 2.0; pts.push(new V3(x, y, 0)); }
+  const frame = mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 160, 0.62, 16, true), MAT.steelPolish);
+  bk.add(frame);
+  const tongue = mesh(new THREE.CylinderGeometry(0.42, 0.3, 6.2, 16), MAT.steelPolish); tongue.position.set(0, 3.0, 0.5); tongue.rotation.x = 0.12; bk.add(tongue);
+  bk.position.copy(end).addScaledVector(tan, -1.2);
+  { const bx = new V3(1, 0, 0), by = tan.clone().normalize(), bz = new V3().crossVectors(bx, by).normalize();
+    bk.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(bx, by, bz)); }
+  strap.add(bk);
+  // holes on the bottom strap
+  for (let i = 0; i < 5; i++) {
+    const s = 0.62 + i * 0.055, p = b.curve.getPointAt(s), t = b.curve.getTangentAt(s);
+    let n = new V3(0, -t.z, t.y).normalize(); if (n.dot(p.clone().sub(new V3(0, 0, -16))) < 0) n.negate();
+    const h = mesh(new THREE.CylinderGeometry(0.75, 0.75, 0.2, 24), MAT.slot, false, false);
+    h.position.copy(p).addScaledVector(n, 1.12); h.quaternion.setFromUnitVectors(new V3(0, 1, 0), n); strap.add(h);
+  }
+}
+watch.add(strap);
+
+/* ---------- Floor: mirror + vignette + contact shadow ---------- */
+const FLOOR_Y = -33.2;
+const mirror = new Reflector(new THREE.PlaneGeometry(1400, 1400), { clipBias: 0.003, textureWidth: innerWidth * 0.6, textureHeight: innerHeight * 0.6, color: 0x9a9a9a });
+mirror.rotation.x = -Math.PI / 2; mirror.position.y = FLOOR_Y; scene.add(mirror);
+function radialTex(stops) {
+  const c = canvas(512), g = c.getContext('2d'), gr = g.createRadialGradient(256, 256, 0, 256, 256, 256);
+  stops.forEach(s => gr.addColorStop(s[0], s[1])); g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const veil = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), new THREE.MeshBasicMaterial({
+  map: radialTex([[0, 'rgba(8,9,11,0.86)'], [0.04, 'rgba(8,9,11,0.9)'], [0.12, 'rgba(6,7,8,0.98)'], [0.3, 'rgba(4,4,5,1)'], [1, 'rgba(3,3,4,1)']]),
+  transparent: true, depthWrite: false }));
+veil.rotation.x = -Math.PI / 2; veil.position.y = FLOOR_Y + 0.02; scene.add(veil);
+const contact = new THREE.Mesh(new THREE.PlaneGeometry(90, 60), new THREE.MeshBasicMaterial({
+  map: radialTex([[0, 'rgba(0,0,0,0.85)'], [0.35, 'rgba(0,0,0,0.45)'], [1, 'rgba(0,0,0,0)']]), transparent: true, depthWrite: false }));
+contact.rotation.x = -Math.PI / 2; contact.position.set(0, FLOOR_Y + 0.05, -16); scene.add(contact);
+setLoad(0.7);
+
+/* =========================================================
+   PART DEFINITIONS
+   ========================================================= */
+const crownObj = caseMiddle.userData.crown;
+const DEF = [
+  [crystal, { id: 'crystal', name: '蓝宝石水晶镜面', en: 'Sapphire Crystal', side: 'both', explode: 27, glass: true,
+    desc: '合成蓝宝石整块切削，轻微穹顶弧面，内侧镀有多层防眩光涂层，呈现淡淡的蓝紫色反光，几乎无法被划伤。',
+    spec: { 材质: '合成刚玉 Al₂O₃', 硬度: '莫氏 9 级', 厚度: '1.1 mm', 镀膜: '内侧多层 AR' } }],
+  [bezel, { id: 'bezel', name: '抛光表圈', en: 'Polished Bezel', side: 'front', explode: 21,
+    desc: '316L 精钢冷锻成型，倾斜面经手工镜面抛光，与表壳中段的环形拉丝形成光影对比。',
+    spec: { 材质: '316L 精钢', 工艺: '镜面抛光', 外径: '40.5 mm' } }],
+  [caseMiddle, { id: 'case', name: '表壳中段与表耳', en: 'Case Middle & Lugs', side: 'both', explode: -33,
+    desc: '中段侧面采用环形拉丝处理，弧形表耳镜面抛光并向下贴合手腕。内置黑色 DLC 机芯固定圈。',
+    spec: { 直径: '42.0 mm', 厚度: '11.3 mm', 防水: '50 米', 耳距: '20 mm' } }],
+  [crownObj, { id: 'crown', name: '表冠（点击上链）', en: 'Winding Crown', side: 'both', explode: null, key: true,
+    desc: '带防滑坑纹的螺旋表冠，顶部镶嵌金质徽章。点击表冠或按 W 键即可为主发条上链，可观察棘轮与小钢轮联动。',
+    spec: { 直径: '5.7 mm', 功能: '上链 / 调时', 传动: '立轮 → 小钢轮 → 棘轮' } }],
+  [minuteHand, { id: 'minute', name: '分针', en: 'Minute Hand', side: 'front', explode: 18,
+    desc: '镂空剑形分针，镜面铑金属框体内填充 Super-LumiNova® C3 夜光涂料，与中心轮同轴，每小时一圈。',
+    spec: { 长度: '13.7 mm', 夜光: 'Super-LumiNova C3', 转速: '1 圈 / 60 分钟' } }],
+  [hourHand, { id: 'hour', name: '时针', en: 'Hour Hand', side: 'front', explode: 15.5,
+    desc: '与分针同款的镂空剑形设计，装于时轮管上，经跨轮 12:1 减速驱动。',
+    spec: { 长度: '9.2 mm', 夜光: 'Super-LumiNova C3', 转速: '1 圈 / 12 小时' } }],
+  [secondHand, { id: 'second', name: '小秒针', en: 'Small Seconds', side: 'front', explode: 13,
+    desc: '6 点位置小秒盘，火焰烧蓝钢针直接安装于四轮轴上，每秒 8 次跳动，呈现近乎连续的扫动。',
+    spec: { 材质: '烧蓝钢', 驱动: '四轮直连', 步进: '1/8 秒' } }],
+  [dial, { id: 'dial', name: '镂空表盘圈与夜光刻度', en: 'Chapter Ring & Lume Indices', side: 'front', explode: 10.5, key: true,
+    desc: '钌金属色太阳纹表盘圈，移印分钟刻度。镶贴式镜面刻度内嵌 Super-LumiNova® 夜光块，开启夜光模式可见其辉光。',
+    spec: { 材质: '黄铜镀钌', 刻度: '镶贴式 · 手工嵌夜光', 小秒盘: '6 点位置' } }],
+  [motion, { id: 'motion', name: '走时轮系（跨轮/时轮）', en: 'Motion Works', side: 'front', explode: 7,
+    desc: '位于表盘一侧，由分轮管（跨轮齿轴）、跨轮与时轮组成，将分针的转动以 12:1 的比例传递给时针。',
+    spec: { 减速比: '12 : 1', 构成: '分轮管 · 跨轮 · 时轮', 位置: '表盘侧' } }],
+  [mainPlate, { id: 'plate', name: '主夹板（底板）', en: 'Main Plate · Perlage', side: 'front', explode: 3.6, key: true,
+    desc: '机芯的骨架。经大面积手工镂空，表面饰以珍珠圆点纹（Perlage），所有边缘手工倒角抛光（Anglage）。',
+    spec: { 材质: '黄铜镀钌', 装饰: '珍珠纹 · 倒角抛光', 直径: '31.2 mm' } }],
+  [barrel, { id: 'barrel', name: '发条盒与主发条', en: 'Barrel & Mainspring', side: 'both', explode: 0.6, key: true,
+    desc: '镂空发条盒内的主发条储存能量，上链时内圈收紧。发条盒外齿驱动中心轮齿轴，约 8 小时旋转一圈。',
+    spec: { 齿数: '80', 动力储存: '42 小时', 发条材料: 'Nivaflex® 合金' } }],
+  [center, { id: 'center', name: '中心轮（二轮）', en: 'Centre Wheel', side: 'both', explode: -1.2, key: true,
+    desc: '位于机芯中央，每小时旋转一圈，轴心穿过底板延伸为分针轴，是整个轮系的核心传动件。',
+    spec: { 齿数: '80', 齿轴: '10 叶', 转速: '1 圈 / 小时' } }],
+  [third, { id: 'third', name: '过轮（三轮）', en: 'Third Wheel', side: 'both', explode: 0.2,
+    desc: '将中心轮的转速提高 8 倍并传递给秒轮。五根弧形轮辐经手工倒角，呈现优雅的镂空造型。',
+    spec: { 齿数: '75', 齿轴: '10 叶', 转速: '8 圈 / 小时' } }],
+  [fourth, { id: 'fourth', name: '秒轮（四轮）', en: 'Fourth Wheel', side: 'both', explode: -0.6, key: true,
+    desc: '每分钟恰好旋转一圈，轴心延伸至表盘一侧驱动小秒针，并以 16:1 驱动擒纵轮。',
+    spec: { 齿数: '96', 齿轴: '10 叶', 转速: '1 圈 / 分钟' } }],
+  [escape, { id: 'escape', name: '擒纵轮', en: 'Escape Wheel', side: 'both', explode: 0.4, key: true,
+    desc: '15 枚棒状锁齿的钢质擒纵轮。在擒纵叉控制下每次释放半个齿距，将动力以冲量形式交给摆轮。',
+    spec: { 齿数: '15（棒头齿）', 材质: '淬火钢', 步进: '12° / 振' } }],
+  [pallet, { id: 'pallet', name: '擒纵叉', en: 'Pallet Fork', side: 'both', explode: -1.6, key: true,
+    desc: '瑞士杠杆擒纵的核心，两枚红宝石叉瓦交替锁住擒纵轮；叉头与摆轮圆盘钉配合，每秒摆动 8 次。',
+    spec: { 叉瓦: '2 枚合成红宝石', 摆角: '±9°', 类型: '瑞士杠杆式' } }],
+  [balance, { id: 'balance', name: '摆轮', en: 'Balance Wheel', side: 'both', explode: -6.5, key: true,
+    desc: '机芯的“心脏”。带 12 枚惯性螺钉的三臂摆轮以 4 Hz 往复振荡，摆幅随动力储存变化（实时显示于面板）。',
+    spec: { 频率: '4 Hz / 28,800 A/h', 直径: '8.4 mm', 惯性螺钉: '12 枚' } }],
+  [hairspring, { id: 'hairspring', name: '游丝', en: 'Hairspring', side: 'back', explode: -8, key: true,
+    desc: '12 圈阿基米德螺旋的蓝色游丝，内端固定于摆轴内桩，外端固定于外桩。可观察其随摆轮摆动而“呼吸”。',
+    spec: { 圈数: '12', 材质: '顺磁合金', 颜色: '蓝色氧化层' } }],
+  [barrelBridge, { id: 'bBridge', name: '条盒夹板', en: 'Barrel Bridge', side: 'back', explode: -10.5, key: true,
+    desc: '承托发条盒与上链机构的夹板，表面饰日内瓦波纹（Côtes de Genève），并以火焰烧蓝螺丝固定。',
+    spec: { 装饰: '日内瓦波纹', 倒角: '手工 45°', 螺丝: '烧蓝钢' } }],
+  [trainBridge, { id: 'tBridge', name: '轮系夹板', en: 'Train Bridge', side: 'back', explode: -10.5,
+    desc: '流线型 S 形镂空夹板，同时支撑中心轮与过轮的上枢轴，金质套筒内嵌红宝石轴承并以两枚蓝钢螺丝锁紧。',
+    spec: { 支撑: '中心轮 · 三轮', 套筒: '18K 玫瑰金', 装饰: '日内瓦波纹' } }],
+  [escBridge, { id: 'eBridge', name: '秒轮与擒纵轮夹板', en: 'Fourth & Escape Bridge', side: 'back', explode: -10.5,
+    desc: '承托四轮与擒纵轮上枢轴的弧形夹板。', spec: { 支撑: '四轮 · 擒纵轮', 装饰: '日内瓦波纹' } }],
+  [palletBridge, { id: 'pBridge', name: '擒纵叉夹板', en: 'Pallet Bridge', side: 'back', explode: -4.2,
+    desc: '位于摆轮下方的小夹板，承托擒纵叉的上枢轴。', spec: { 支撑: '擒纵叉', 宝石: '1 枚' } }],
+  [balanceCock, { id: 'cock', name: '摆轮夹板与防震器', en: 'Balance Cock & Shock Absorber', side: 'back', explode: -13, key: true,
+    desc: '单边支撑的摆夹板，配置琴形弹簧防震器（Incabloc 式）与快慢针，用于保护摆轴并微调走时。',
+    spec: { 防震: '琴形弹簧', 调校: '快慢针', 宝石: '上钻 + 盖钻' } }],
+  [ratchet, { id: 'ratchet', name: '棘轮（大钢轮）', en: 'Ratchet Wheel', side: 'back', explode: -15, key: true,
+    desc: '固定在条盒轴上，上链时带动发条轴收紧主发条；止逆爪防止其倒转。',
+    spec: { 齿数: '48（锯齿）', 装饰: '太阳纹', 固定: '烧蓝钢螺丝' } }],
+  [crownWheel, { id: 'crownWheel', name: '小钢轮', en: 'Crown Wheel', side: 'back', explode: -15,
+    desc: '由柄轴上的立轮驱动，把表冠的旋转传递给棘轮。', spec: { 齿数: '30', 传动: '立轮 → 棘轮' } }],
+  [click, { id: 'click', name: '止逆爪', en: 'Click', side: 'back', explode: -15,
+    desc: '弹性止逆爪，上链时会随棘轮齿“咔嗒”跳动，保证主发条只能单向收紧。', spec: { 材质: '淬火钢', 功能: '防倒转' } }],
+  [caseback, { id: 'caseback', name: '底盖', en: 'Case Back', side: 'back', explode: -22,
+    desc: '六枚螺丝固定的透明底盖，环形刻有品牌、编号与防水深度信息。', spec: { 固定: '6 枚螺丝', 刻字: '限量 Nº 007/088' } }],
+  [backCrystal, { id: 'backCrystal', name: '蓝宝石底透', en: 'Sapphire Case Back', side: 'back', explode: -26, glass: true,
+    desc: '平面蓝宝石底透，可从背面欣赏摆轮、游丝与日内瓦波纹夹板。', spec: { 材质: '合成蓝宝石', 厚度: '0.85 mm' } }],
+  [strap, { id: 'strap', name: '鳄鱼皮表带', en: 'Alligator Strap', side: 'both', explode: null,
+    desc: '手工缝制的方格鳄鱼皮表带，米色撞线，配精钢针扣。', spec: { 宽度: '20 / 16 mm', 缝线: '手工鞍针', 扣: '316L 针扣' } }],
+];
+function collectMeshes(p) { p.meshes = []; p.obj.traverse(o => { if (o.isMesh) { const old = o.userData.part; if (old && old !== p && old.meshes) old.meshes.splice(old.meshes.indexOf(o), 1); o.userData.part = p; p.meshes.push(o); } }); }
+watch.updateMatrixWorld(true);
+for (const [obj, d] of DEF) {
+  const p = registerPart(obj, d);
+  const box = new THREE.Box3().setFromObject(obj); p.local = obj.worldToLocal(box.getCenter(new V3()));
+  collectMeshes(p);
+}
+{ // shared parts: jewels & screws (meshes spread across many assemblies)
+  const jp = { id: 'jewels', name: '红宝石轴承', en: 'Ruby Jewel Bearings', side: 'both', explode: null, key: true, multi: true,
+    desc: '合成红宝石轴承镶于 18K 玫瑰金套筒内，以极低的摩擦支撑各轮轴的枢轴，并具备储油的油池结构。',
+    spec: { 数量: JEWELS.count + ' 颗', 材质: '合成红宝石 Al₂O₃:Cr', 套筒: '18K 玫瑰金' } };
+  const sp = { id: 'screws', name: '火焰烧蓝螺丝', en: 'Flame-Blued Screws', side: 'both', explode: null, multi: true,
+    desc: '钢螺丝经约 290°C 加热形成蓝紫色氧化膜，兼具防锈与装饰作用，螺丝头经镜面抛光与倒角。',
+    spec: { 工艺: '火焰烧蓝 ≈290°C', 头部: '镜面抛光 + 倒角' } };
+  for (const d of [jp, sp]) {
+    const p = Object.assign({ obj: null, meshes: [] }, d);
+    movement.traverse(o => { if (o.isMesh && ((d.id === 'jewels' && (o.geometry === G.ruby || o.geometry === G.chaton || o.geometry === G.pivotTip)) || (d.id === 'screws' && (o.geometry === G.screwHead || o.geometry === G.slot)))) {
+      const old = o.userData.part; if (old && old.meshes) { const i = old.meshes.indexOf(o); if (i >= 0) old.meshes.splice(i, 1); }
+      o.userData.part = p; p.meshes.push(o);
+    } });
+    p.obj = p.meshes[0].parent; p.local = new V3();
+    if (d.id === 'jewels') { const m = p.meshes.find(m => m.geometry === G.ruby && m.parent.parent === mainPlate && Math.abs(m.parent.position.x - POS.T.x) < 0.01); if (m) p.obj = m.parent; }
+    PARTS.push(p); PART_BY_ID[p.id] = p;
+  }
+}
+let partCount = 0; watch.traverse(o => { if (o.isMesh) partCount++; });
+$('#jewelV').textContent = JEWELS.count + ' 颗';
+$('#partsV').textContent = partCount + ' 件';
+
+/* =========================================================
+   POST-PROCESSING / CONTROLS
+   ========================================================= */
+const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 });
+const composer = new EffectComposer(renderer, rt);
+composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new V2(innerWidth, innerHeight), 0.2, 0.45, 1.0);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.minDistance = 26; controls.maxDistance = 280;
+controls.maxPolarAngle = Math.PI * 0.56;
+controls.autoRotate = true; controls.autoRotateSpeed = 0.55;
+controls.target.set(0, -1, 0);
+controls.enabled = false;
+
+/* camera tween */
+const HOME = { pos: new V3(40, 13, 132), tgt: new V3(0, -2, 0) };
+let tween = null;
+function flyTo(pos, tgt, dur = 1.8) { tween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: tgt.clone(), d: dur, t: 0 }; }
+
+/* =========================================================
+   STATE
+   ========================================================= */
+const S = {
+  speed: 1, spread: 1, explode: 0, explodeTarget: 0, night: 0, nightTarget: 0, strapOn: true, strapT: 1,
+  labels: true, power: 0.72, simTime: 0, amp: 0, arbor: 0, windQueue: 0, lastBeat: 0, hovered: null, selected: null,
+};
+S.arbor = S.power * 8 * TAU;
+const now = new Date();
+const START_T = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds() + now.getMilliseconds() / 1000;
+const BEAT_OFFSET = 0.5 / 8;
+
+/* =========================================================
+   LABELS / HOVER / SELECTION
+   ========================================================= */
+const labelsEl = $('#labels'), svg = $('#leaders'), tip = $('#tip');
+const NS = 'http://www.w3.org/2000/svg';
+for (const p of PARTS) {
+  const el = document.createElement('div'); el.className = 'lbl'; el.innerHTML = `<em>●</em>${p.name}`;
+  el.style.opacity = 0; labelsEl.appendChild(el); p.el = el;
+  el.addEventListener('pointerenter', () => setHover(p)); el.addEventListener('pointerleave', () => setHover(null));
+  el.addEventListener('click', (e) => { e.stopPropagation(); select(p); });
+  const ln = document.createElementNS(NS, 'path'); ln.setAttribute('fill', 'none'); ln.setAttribute('stroke-width', '1'); svg.appendChild(ln); p.line = ln;
+  const dot = document.createElementNS(NS, 'circle'); dot.setAttribute('r', '2.6'); svg.appendChild(dot); p.dot = dot;
+  const b = document.createElement('button'); b.textContent = p.name.replace('（点击上链）', ''); b.onclick = () => select(p); $('#plist').appendChild(b); p.btn = b;
+}
+const hiCache = new Map();
+function hiMat(m) {
+  if (Array.isArray(m)) return m.map(hiMat);
+  if (m.userData.u || m === MAT.crystal) return m;
+  if (!hiCache.has(m)) { const c = m.clone(); if (c.emissive) { c.emissive = new THREE.Color(0xc9963a); c.emissiveIntensity = 0.32; } hiCache.set(m, c); }
+  return hiCache.get(m);
+}
+function applyHighlight(p, on) {
+  if (!p) return;
+  for (const m of p.meshes) {
+    if (on) { if (!m.userData.orig) m.userData.orig = m.material; m.material = hiMat(m.userData.orig); const mm = m.userData.orig; if (mm.userData && mm.userData.u) { mm.emissive.setHex(0x203a90); mm.emissiveIntensity = 1.2; } }
+    else if (m.userData.orig) { const mm = m.userData.orig; if (mm.userData && mm.userData.u) mm.emissive.setHex(0x000000); m.material = m.userData.orig; m.userData.orig = null; }
+  }
+}
+function setHover(p) {
+  if (S.hovered === p) return;
+  if (S.hovered && S.hovered !== S.selected) applyHighlight(S.hovered, false);
+  S.hovered = p;
+  if (p) applyHighlight(p, true);
+  renderer.domElement.style.cursor = p ? 'pointer' : 'grab';
+  tip.style.opacity = p ? 1 : 0; if (p) tip.textContent = p.name + ' · ' + p.en;
+}
+function anchorOf(p, out = new V3()) { return p.obj.localToWorld(out.copy(p.local)); }
+function select(p) {
+  if (S.selected && S.selected !== p) applyHighlight(S.selected, false);
+  S.selected = p;
+  PARTS.forEach(q => q.btn.classList.toggle('on', q === p));
+  const box = $('#part');
+  if (!p) {
+    box.innerHTML = '<div class="empty">将鼠标悬停于零件之上以高亮，点击零件查看其功能、材质与工艺细节。</div>';
+    flyTo(camera.position.clone().sub(controls.target).setLength(Math.max(90, camera.position.distanceTo(controls.target))).add(HOME.tgt), HOME.tgt, 1.4);
+    return;
+  }
+  applyHighlight(p, true);
+  box.innerHTML = `<div class="pn serif">${p.name}</div><div class="pe">${p.en}</div><div class="pd">${p.desc}</div><dl>${Object.entries(p.spec || {}).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+  if (p.id === 'crown') wind();
+  const a = anchorOf(p), dir = camera.position.clone().sub(controls.target).normalize();
+  const dist = p.id === 'case' || p.id === 'strap' ? 100 : 62;
+  const tgt = a.clone().lerp(HOME.tgt, 0.35);
+  flyTo(tgt.clone().addScaledVector(dir, dist), tgt, 1.5);
+}
+
+const ray = new THREE.Raycaster(), mouse = new V2(-9, -9);
+let mouseDirty = false, downPos = null;
+renderer.domElement.addEventListener('pointermove', (e) => {
+  mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); mouseDirty = true;
+  tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px';
+});
+renderer.domElement.addEventListener('pointerleave', () => { mouse.set(-9, -9); mouseDirty = true; });
+renderer.domElement.addEventListener('pointerdown', (e) => { downPos = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downPos || Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]) > 5) return;
+  const p = pick(); if (p) select(p);
+});
+renderer.domElement.addEventListener('dblclick', () => { if (!pick()) select(null); });
+function visibleChain(o) { while (o) { if (!o.visible) return false; o = o.parent; } return true; }
+function pick() {
+  ray.setFromCamera(mouse, camera);
+  const hits = ray.intersectObject(watch, true).filter(h => h.object.userData.part && visibleChain(h.object) && !(h.object.userData.part.id === 'strap' && S.strapT < 0.5));
+  if (!hits.length) return null;
+  const solid = hits.find(h => !h.object.userData.part.glass);
+  return (solid || hits[0]).object.userData.part;
+}
+
+/* =========================================================
+   UI WIRING
+   ========================================================= */
+const btn = (id, fn) => $(id).addEventListener('click', fn);
+function toggleExplode() {
+  S.explodeTarget = S.explodeTarget ? 0 : 1; $('#bExplode').classList.toggle('on', !!S.explodeTarget);
+  if (S.explodeTarget) flyTo(new V3(-118, 34, 92), new V3(0, -2, -4), 2.2);
+  else flyTo(HOME.pos, HOME.tgt, 2.0);
+}
+function toggleRotate() { controls.autoRotate = !controls.autoRotate; $('#bRotate').classList.toggle('on', controls.autoRotate); }
+function toggleLabels() { S.labels = !S.labels; $('#bLabels').classList.toggle('on', S.labels); }
+function toggleNight() { S.nightTarget = S.nightTarget ? 0 : 1; $('#bLume').classList.toggle('on', !!S.nightTarget); }
+function flipBack() {
+  const back = camera.position.clone().sub(controls.target).z > 0;
+  $('#bBack').classList.toggle('on', back);
+  flyTo(back ? new V3(-34, 12, -128) : HOME.pos, HOME.tgt, 2.2);
+}
+function toggleStrap() { S.strapOn = !S.strapOn; $('#bStrap').classList.toggle('on', !S.strapOn); }
+function wind() { S.windQueue = Math.min(S.windQueue + 0.12, 1.02 - S.power); $('#bWind').classList.add('on'); }
+btn('#bExplode', toggleExplode); btn('#bRotate', toggleRotate); btn('#bLabels', toggleLabels); btn('#bLume', toggleNight);
+btn('#bBack', flipBack); btn('#bStrap', toggleStrap); btn('#bWind', wind);
+btn('#bReset', () => { select(null); flyTo(HOME.pos, HOME.tgt, 1.8); $('#bBack').classList.remove('on'); });
+$('#speed').addEventListener('input', (e) => { S.speed = +e.target.value; $('#speedV').textContent = S.speed.toFixed(2) + '×'; });
+$('#spread').addEventListener('input', (e) => { S.spread = +e.target.value; $('#spreadV').textContent = Math.round(S.spread * 100) + '%'; });
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  const k = e.key.toLowerCase();
+  ({ e: toggleExplode, r: toggleRotate, l: toggleLabels, n: toggleNight, b: flipBack, s: toggleStrap, w: wind, '0': () => $('#bReset').click(), escape: () => select(null) })[k]?.();
+});
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  bloom.setSize(innerWidth, innerHeight);
+  mirror.getRenderTarget().setSize(innerWidth * 0.6 * renderer.getPixelRatio(), innerHeight * 0.6 * renderer.getPixelRatio());
+});
+
+/* =========================================================
+   ANIMATION
+   ========================================================= */
+const clock = new THREE.Clock();
+const tmpV = new V3(), tmpW = new V3(), camLocal = new V3();
+const lumeMats = [MAT.lume];
+let uiTimer = 0, labelOpacity = 0, intro = 0;
+
+function updateMechanism(dt) {
+  // power reserve & winding
+  if (S.windQueue > 0) {
+    const d = Math.min(S.windQueue, dt * 0.35); S.windQueue -= d; S.power = Math.min(1, S.power + d); S.arbor += d * 8 * TAU;
+    if (S.windQueue <= 1e-4) { S.windQueue = 0; $('#bWind').classList.remove('on'); }
+  }
+  S.power = Math.max(0, S.power - dt * S.speed / (42 * 3600));
+  const ampTarget = THREE.MathUtils.degToRad(205 + 95 * Math.sqrt(S.power));
+  S.amp = S.amp ? lerp(S.amp, ampTarget, Math.min(1, dt * 0.8)) : ampTarget;
+
+  S.simTime += dt * S.speed * (S.power > 0.002 ? 1 : 0);
+  const A = S.amp, phi = TAU * 4 * S.simTime, theta = A * Math.sin(phi);
+  const thE = 0.36, w = Math.asin(Math.min(thE / A, 0.99));
+  const m = Math.floor((phi + w) / Math.PI);
+  let pr = clamp((phi - m * Math.PI + w) / (2 * w), 0, 1); pr = pr * pr * (3 - 2 * pr);
+  const beats = m + pr;
+  if (m !== S.lastBeat) { S.lastBeat = m; $('#beatDot').classList.add('t'); setTimeout(() => $('#beatDot').classList.remove('t'), 45); }
+  const T = START_T + beats / 8 - BEAT_OFFSET;
+  const thC = -TAU * T / 3600;
+  for (const g of TRAIN) g.g.rotation.z = g.th0 + g.k * thC;
+  const drum = thB0 - thC / 8;
+  barrelDrum.rotation.z = drum;
+  barrelArbor.rotation.z = S.arbor; ratchet.rotation.z = S.arbor;
+  crownWheel.rotation.z = -S.arbor * 48 / 30;
+  crownObj.rotation.x = S.arbor * 48 / 30 * 30 / 12 * 0.25;
+  for (const s of caseMiddle.userData.stem) s.rotation.x = crownObj.rotation.x;
+  click.rotation.z = THREE.MathUtils.degToRad(-35) + 0.09 * Math.abs(Math.sin(S.arbor * 24));
+  mainspringMat.userData.u.uTwist.value = (S.arbor - drum) * 0.1;
+  mainspringMat.userData.u.uWind.value = S.power;
+  cannon.rotation.z = thC;
+  minuteWheel.rotation.z = thMW0 - thC / 3;
+  hourWheel.rotation.z = thHW0 + thC / 12;
+  minuteHand.rotation.z = thC; hourHand.rotation.z = thC / 12; secondHand.rotation.z = thC * 60;
+  balanceRot.rotation.z = theta;
+  hairMat.userData.u.uTwist.value = theta;
+  palletRot.rotation.z = -0.16 * clamp(theta / thE, -1, 1);
+  return T;
+}
+
+function updateLabels() {
+  const show = S.labels && intro >= 1;
+  labelOpacity = lerp(labelOpacity, show ? 1 : 0, 0.12);
+  watch.worldToLocal(camLocal.copy(camera.position));
+  const front = camLocal.z > 0, exploded = S.explode > 0.5;
+  const cW = tmpW.set(0, 0, 0).project(camera);
+  const cx = (cW.x * 0.5 + 0.5) * innerWidth, cy = (-cW.y * 0.5 + 0.5) * innerHeight;
+  for (const p of PARTS) {
+    const hot = p === S.hovered || p === S.selected;
+    const sideOK = exploded || p.side === 'both' || (p.side === 'front') === front;
+    let op = (p.key && sideOK ? labelOpacity : 0);
+    if (hot) op = 1;
+    if (p.id === 'strap' && S.strapT < 0.5) op = 0;
+    if (op < 0.02) { if (p.el.style.opacity !== '0') { p.el.style.opacity = 0; p.line.setAttribute('d', ''); p.dot.setAttribute('r', 0); } continue; }
+    anchorOf(p, tmpV).project(camera);
+    const x = (tmpV.x * 0.5 + 0.5) * innerWidth, y = (-tmpV.y * 0.5 + 0.5) * innerHeight;
+    let dx = x - cx, dy = y - cy; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+    const off = 70 + (hot ? 20 : 0);
+    const lx = x + dx * off, ly = y + dy * off * 0.8;
+    const w = p.el.offsetWidth, h = p.el.offsetHeight;
+    const bx = dx >= 0 ? lx : lx - w, by = ly - h / 2;
+    p.el.style.transform = `translate(${bx.toFixed(1)}px, ${by.toFixed(1)}px)`;
+    p.el.style.opacity = op.toFixed(3);
+    p.el.classList.toggle('hot', hot);
+    const col = hot ? 'rgba(243,220,174,0.95)' : 'rgba(212,178,122,0.55)';
+    p.line.setAttribute('d', `M${x.toFixed(1)},${y.toFixed(1)} L${lx.toFixed(1)},${ly.toFixed(1)}`);
+    p.line.setAttribute('stroke', col); p.line.style.opacity = op;
+    p.dot.setAttribute('cx', x.toFixed(1)); p.dot.setAttribute('cy', y.toFixed(1)); p.dot.setAttribute('r', hot ? 3.4 : 2.4);
+    p.dot.setAttribute('fill', col); p.dot.style.opacity = op;
+  }
+}
+
+function updateUI(T) {
+  const t = ((T % 86400) + 86400) % 86400, h = Math.floor(t / 3600), mi = Math.floor(t / 60) % 60, se = Math.floor(t) % 60;
+  $('#clock').textContent = `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}:${String(se).padStart(2, '0')}`;
+  const hrs = S.power * 42;
+  $('#prV').textContent = `${Math.round(S.power * 100)}% · ${Math.floor(hrs)} h ${String(Math.round((hrs % 1) * 60)).padStart(2, '0')} m`;
+  $('#prBar').style.width = (S.power * 100).toFixed(1) + '%';
+  $('#ampV').textContent = Math.round(THREE.MathUtils.radToDeg(S.amp)) + '°';
+  $('#beatTxt').textContent = S.speed > 0 ? `28,800 次/小时 · 4 Hz · ${S.speed < 1 ? '慢放 ' + S.speed.toFixed(2) + '×' : '实时'}` : '已暂停';
+}
+
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  // intro
+  if (intro < 1) { intro = Math.min(1, intro + dt / 3.4); const k = ease(intro);
+    camera.position.lerpVectors(new V3(78, 46, 230), HOME.pos, k); if (intro >= 1) controls.enabled = true; }
+  if (tween) {
+    tween.t += dt / tween.d; const k = ease(Math.min(1, tween.t));
+    camera.position.lerpVectors(tween.p0, tween.p1, k); controls.target.lerpVectors(tween.t0, tween.t1, k);
+    if (tween.t >= 1) tween = null;
+  }
+  // explode / strap / night easing
+  S.explode += (S.explodeTarget - S.explode) * Math.min(1, dt * 2.6);
+  const ek = ease(clamp(S.explode, 0, 1)) * S.spread;
+  for (const p of PARTS) if (p.explode !== null && p.explode !== undefined && p.obj.userData.baseZ !== undefined) p.obj.position.z = p.obj.userData.baseZ + p.explode * ek;
+  const sTarget = S.strapOn && S.explodeTarget === 0 ? 1 : 0;
+  S.strapT += (sTarget - S.strapT) * Math.min(1, dt * 3.5);
+  MAT.leather.opacity = S.strapT; strap.visible = S.strapT > 0.01; strap.scale.setScalar(0.92 + 0.08 * S.strapT);
+  MAT.leather.depthWrite = S.strapT > 0.98;
+  S.night += (S.nightTarget - S.night) * Math.min(1, dt * 2.2);
+  const n = S.night;
+  keyLight.intensity = lerp(2.6, 0.03, n); rimLight.intensity = lerp(1.2, 0.05, n); fillLight.intensity = lerp(0.5, 0.0, n);
+  scene.environmentIntensity = lerp(1, 0.07, n); scene.backgroundIntensity = lerp(1, 0.3, n);
+  for (const m of lumeMats) m.emissiveIntensity = lerp(0.12, 1.6, n);
+  hiCache.forEach((c, m) => { if (m === MAT.lume) c.emissiveIntensity = lerp(0.4, 1.8, n); });
+  MAT.ruby.emissiveIntensity = lerp(0.6, 0.05, n);
+  bloom.strength = lerp(0.2, 0.85, n); bloom.threshold = lerp(1.0, 0.55, n); bloom.radius = lerp(0.45, 0.35, n);
+
+  const T = updateMechanism(dt);
+  controls.update(dt);
+
+  if (mouseDirty) { mouseDirty = false; if (!tween) setHover(pick()); }
+  composer.render(dt);
+  updateLabels();
+  uiTimer += dt; if (uiTimer > 0.1) { uiTimer = 0; updateUI(T); }
+  requestAnimationFrame(frame);
+}
+
+setLoad(0.85);
+(async () => {
+  try { await renderer.compileAsync(scene, camera); } catch (e) { console.warn(e); }
+  setLoad(1);
+  // optional URL hooks for previews: ?intro=0&explode=1&night=1&back=1&select=balance
+  const Q = new URLSearchParams(location.search);
+  if (Q.get('intro') === '0') { intro = 1; camera.position.copy(HOME.pos); controls.enabled = true; }
+  if (Q.get('explode') === '1') { S.explodeTarget = S.explode = 1; S.strapT = 0; $('#bExplode').classList.add('on'); camera.position.set(-118, 34, 92); controls.target.set(0, -2, -4); }
+  if (Q.get('night') === '1') { S.nightTarget = S.night = 1; $('#bLume').classList.add('on'); }
+  if (Q.get('back') === '1') { camera.position.set(-34, 12, -128); $('#bBack').classList.add('on'); }
+  if (Q.get('select') && PART_BY_ID[Q.get('select')]) { const p = PART_BY_ID[Q.get('select')]; S.selected = p; applyHighlight(p, true); select(p); tween = null; }
+  if (Q.get('intro') === '0') controls.autoRotate = Q.get('rotate') !== '0' && controls.autoRotate;
+  const T0 = updateMechanism(0); updateUI(T0);
+  controls.update(); composer.render(0); updateLabels();
+  setTimeout(() => $('#loader').classList.add('done'), 350);
+  clock.getDelta();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
