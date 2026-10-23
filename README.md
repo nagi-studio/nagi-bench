@@ -128,7 +128,7 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | Claude Sonnet 4.6<br><sub>Anthropic</sub> | 03 | Claude Code · Max<br>Cursor · High |
 | Claude Opus 4.5<br><sub>Anthropic</sub> | 02 | Cursor · Thinking |
 | Claude Haiku 4.5<br><sub>Anthropic</sub> | 02 | Claude Code · Default |
-| GPT-6.1 Sol<br><sub>OpenAI</sub> | 14 | Codex CLI · High / xhigh |
+| GPT-6.1 Sol<br><sub>OpenAI</sub> | 20 | Codex CLI · High / Max / xhigh |
 | GPT-6 Astra<br><sub>OpenAI</sub> | 08 | Codex CLI · Max / xhigh |
 | GPT-6 Sol<br><sub>OpenAI</sub> | 07 | Codex CLI · xhigh |
 | GPT-5.6-Sol<br><sub>OpenAI</sub> | 11 | Codex CLI · ultra / max / xhigh |
