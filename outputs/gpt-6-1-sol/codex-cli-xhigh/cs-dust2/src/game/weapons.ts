@@ -1,0 +1,138 @@
+import type { Gun, HitZone, WeaponDef, WeaponId } from "./types";
+export const WEAPONS: Record<WeaponId, WeaponDef> = {
+  ak47: {
+    id: "ak47",
+    name: "AK-47",
+    short: "ASSAULT RIFLE",
+    slot: 1,
+    damage: 38,
+    interval: 0.108,
+    magazine: 30,
+    reserve: 90,
+    reload: 2.4,
+    recoil: 0.026,
+    spread: 0.009,
+    automatic: true,
+    range: 110,
+    penetration: 0.65,
+  },
+  m4a4: {
+    id: "m4a4",
+    name: "M4A4",
+    short: "ASSAULT RIFLE",
+    slot: 1,
+    damage: 31,
+    interval: 0.085,
+    magazine: 30,
+    reserve: 90,
+    reload: 2.2,
+    recoil: 0.012,
+    spread: 0.006,
+    automatic: true,
+    range: 110,
+    penetration: 0.6,
+  },
+  awp: {
+    id: "awp",
+    name: "AWP",
+    short: "SNIPER RIFLE",
+    slot: 1,
+    damage: 150,
+    interval: 1.55,
+    magazine: 5,
+    reserve: 30,
+    reload: 3.5,
+    recoil: 0.055,
+    spread: 0.035,
+    automatic: false,
+    range: 150,
+    penetration: 0.85,
+  },
+  glock: {
+    id: "glock",
+    name: "Glock-18",
+    short: "SIDEARM",
+    slot: 2,
+    damage: 24,
+    interval: 0.19,
+    magazine: 20,
+    reserve: 120,
+    reload: 1.8,
+    recoil: 0.012,
+    spread: 0.012,
+    automatic: false,
+    range: 70,
+    penetration: 0.4,
+  },
+  usp: {
+    id: "usp",
+    name: "USP-S",
+    short: "SUPPRESSED SIDEARM",
+    slot: 2,
+    damage: 27,
+    interval: 0.21,
+    magazine: 12,
+    reserve: 72,
+    reload: 2,
+    recoil: 0.01,
+    spread: 0.009,
+    automatic: false,
+    range: 75,
+    penetration: 0.45,
+  },
+  deagle: {
+    id: "deagle",
+    name: "Desert Eagle",
+    short: "HEAVY SIDEARM",
+    slot: 2,
+    damage: 30,
+    interval: 0.42,
+    magazine: 7,
+    reserve: 35,
+    reload: 2.1,
+    recoil: 0.034,
+    spread: 0.014,
+    automatic: false,
+    range: 90,
+    penetration: 0.7,
+  },
+  knife: {
+    id: "knife",
+    name: "Combat knife",
+    short: "MELEE",
+    slot: 3,
+    damage: 45,
+    interval: 0.55,
+    magazine: 0,
+    reserve: 0,
+    reload: 0,
+    recoil: 0,
+    spread: 0,
+    automatic: false,
+    range: 2.4,
+    penetration: 1,
+  },
+};
+export function gun(id: WeaponId): Gun {
+  const w = WEAPONS[id];
+  return { id, ammo: w.magazine, reserve: w.reserve };
+}
+export const ZONE_MULTIPLIERS: Record<HitZone, number> = {
+  head: 2,
+  chest: 1,
+  abdomen: 1.15,
+  arm: 0.75,
+  leg: 0.65,
+};
+export function damageFor(id: WeaponId, zone: HitZone, armor: number) {
+  const w = WEAPONS[id];
+  const raw = w.damage * ZONE_MULTIPLIERS[zone];
+  const reduction =
+    armor > 0 && zone !== "leg"
+      ? Math.min(armor, raw * (1 - w.penetration) * 0.65)
+      : 0;
+  return {
+    health: Math.round(raw - reduction),
+    armor: Math.ceil(reduction * 0.6),
+  };
+}
