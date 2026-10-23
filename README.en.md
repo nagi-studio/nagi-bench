@@ -176,15 +176,16 @@ More than a hundred model x harness x effort combinations have run these cases, 
 | GLM-5.1<br><sub>Zhipu AI</sub> | 01 | ZCode · Max |
 | GLM-5 Turbo<br><sub>Zhipu AI</sub> | 03 | ZCode · Thinking |
 | Qwen3.8-Max-Preview<br><sub>Alibaba</sub> | 06 | Qoder · Default<br>Qwen Studio Web · Thinking |
-| Qwen3.7-Max<br><sub>Alibaba</sub> | 03 | Qoder · Default |
-| Qwen 3.6 27B<br><sub>Alibaba</sub> | 01<br><sub>(showcase 01)</sub> | OMP · Default |
 | Qoder Ultimate<br><sub>Alibaba</sub> | 05 | Qoder · Default / Max |
 | Qwen 3.8 27B<br><sub>Alibaba</sub> | 01<br><sub>(showcase 01)</sub> | OMP · Default |
+| Qwen3.7-Max<br><sub>Alibaba</sub> | 03 | Qoder · Default |
+| Qwen 3.6 27B<br><sub>Alibaba</sub> | 01<br><sub>(showcase 01)</sub> | OMP · Default |
 | Step 3.7 Flash<br><sub>StepFun</sub> | 02 | Claude Code · High |
 | Spark X2.5<br><sub>iFlytek</sub> | 01 | Spark Web Harness · Reasoning |
 | Spark X2<br><sub>iFlytek</sub> | 01 | Web · Reasoning |
 | Inkling<br><sub>Thinking Machines Lab</sub> | 02 | Tinker Web · xHigh |
 | Inkling-Small<br><sub>Thinking Machines Lab</sub> | 03 | Tinker Web · xHigh |
+| Openrouter Test<br><sub>OpenRouter</sub> | 05 | Undisclosed · Max |
 <!-- registry:end -->
 
 </details>
