@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>神话境界 · Mythos Craft</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0a0d12;
+    font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-user-select:none;user-select:none}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair}
+
+  /* 准星 */
+  #cross{position:fixed;left:50%;top:50%;width:22px;height:22px;
+    transform:translate(-50%,-50%);pointer-events:none;z-index:20}
+  #cross i{position:absolute;background:rgba(255,255,255,.88);
+    box-shadow:0 0 3px rgba(0,0,0,.9)}
+  #cross i:nth-child(1){left:50%;top:0;width:2px;height:7px;margin-left:-1px}
+  #cross i:nth-child(2){left:50%;bottom:0;width:2px;height:7px;margin-left:-1px}
+  #cross i:nth-child(3){top:50%;left:0;height:2px;width:7px;margin-top:-1px}
+  #cross i:nth-child(4){top:50%;right:0;height:2px;width:7px;margin-top:-1px}
+  #cross b{position:absolute;left:50%;top:50%;width:2px;height:2px;
+    margin:-1px 0 0 -1px;background:rgba(255,255,255,.9)}
+
+  /* 底部物品栏 */
+  #hotbar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+    display:flex;gap:6px;z-index:20;pointer-events:auto}
+  .slot{width:58px;height:58px;border:2px solid rgba(255,255,255,.26);
+    background:rgba(12,16,22,.66);backdrop-filter:blur(6px);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    cursor:pointer;position:relative;transition:border-color .15s,transform .12s}
+  .slot:hover{border-color:rgba(255,255,255,.6)}
+  .slot.on{border-color:#ffd479;transform:translateY(-4px);
+    box-shadow:0 0 16px rgba(255,212,121,.4)}
+  .slot .sw{width:26px;height:26px;border:1px solid rgba(0,0,0,.5);
+    margin-bottom:3px;image-rendering:pixelated}
+  .slot .nm{font-size:10px;color:rgba(255,255,255,.86);letter-spacing:.04em}
+  .slot .no{position:absolute;left:3px;top:2px;font-size:9px;color:rgba(255,255,255,.5)}
+
+  /* 提示 */
+  #hud{position:fixed;left:16px;top:14px;z-index:20;color:#e8eef5;
+    font-size:12px;line-height:1.9;text-shadow:0 1px 4px rgba(0,0,0,.85)}
+  #hud .t{font-size:17px;letter-spacing:.14em;color:#ffd479;margin-bottom:2px}
+  #hud .d{font-size:10.5px;color:rgba(232,238,245,.62);letter-spacing:.06em}
+  #keys{position:fixed;right:16px;top:14px;z-index:20;text-align:right;
+    color:rgba(232,238,245,.58);font-size:10.5px;line-height:1.85;
+    text-shadow:0 1px 4px rgba(0,0,0,.85)}
+  #keys b{color:#ffd479;font-weight:600}
+
+  /* 中央提示条 */
+  #tip{position:fixed;left:50%;top:62%;transform:translateX(-50%);z-index:22;
+    color:#fff;font-size:13px;padding:7px 16px;background:rgba(0,0,0,.56);
+    border:1px solid rgba(255,255,255,.16);opacity:0;transition:opacity .3s;
+    pointer-events:none;letter-spacing:.03em}
+  #tip.on{opacity:1}
+
+  /* 开始遮罩 */
+  #start{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:16px;
+    background:radial-gradient(ellipse at 50% 40%,#1a2436 0%,#080b10 70%);
+    color:#e8eef5;text-align:center;transition:opacity .5s}
+  #start h1{font-size:34px;letter-spacing:.3em;font-weight:300;
+    background:linear-gradient(180deg,#fff5dd,#ffd479 55%,#c9962f);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  #start .sub{font-size:11px;letter-spacing:.42em;color:rgba(232,238,245,.5);
+    text-transform:uppercase}
+  #start .keys{margin-top:18px;font-size:12px;line-height:2.1;
+    color:rgba(232,238,245,.72)}
+  #start .keys b{display:inline-block;min-width:74px;color:#ffd479;font-weight:600}
+  #go{margin-top:26px;padding:13px 42px;border:1px solid #ffd479;
+    background:transparent;color:#ffd479;font-size:13px;letter-spacing:.24em;
+    cursor:pointer;font-family:inherit;transition:all .2s}
+  #go:hover{background:#ffd479;color:#141a22}
+  #err{position:fixed;inset:0;z-index:50;display:none;align-items:center;
+    justify-content:center;background:#080b10;color:#e8eef5;
+    font-size:13px;padding:36px;text-align:center;line-height:1.9}
+  @media (max-width:640px){
+    #keys{display:none}
+    .slot{width:48px;height:48px}
+    #hud .t{font-size:14px}
+  }
+</style>
+</head>
+<body>
+
+<div id="cross"><i></i><i></i><i></i><i></i><b></b></div>
+
+<div id="hud">
+  <div class="t">神话境界</div>
+  <div class="d">VOXEL REALM · <span id="pos">0, 0, 0</span></div>
+</div>
+
+<div id="keys">
+  <b>WASD</b> 移动 &nbsp; <b>空格</b> 跳跃<br />
+  <b>左键</b> 破坏 &nbsp; <b>右键</b> 放置<br />
+  <b>滚轮 / 1-5</b> 切换方块<br />
+  <b>Shift</b> 疾跑 &nbsp; <b>鼠标</b> 转视角
+</div>
+
+<div id="hotbar"></div>
+<div id="tip"></div>
+
+<div id="start">
+  <div class="sub">A Procedural Voxel World</div>
+  <h1>神话境界</h1>
+  <div class="keys">
+    <b>W A S D</b> 移动<br />
+    <b>空格</b> 跳跃 &nbsp;&nbsp; <b>Shift</b> 疾跑<br />
+    <b>鼠标移动</b> 环视 &nbsp;&nbsp; <b>左键</b> 破坏方块<br />
+    <b>右键</b> 放置方块 &nbsp;&nbsp; <b>滚轮 / 1-5</b> 切换<br />
+  </div>
+  <button id="go">点 击 进 入 世 界</button>
+</div>
+
+<div id="err"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(function () {
+  var errBox = document.getElementById('err');
+  function fail(msg) {
+    errBox.style.display = 'flex';
+    errBox.innerHTML = '<div><strong>无法启动</strong><br />' + msg + '</div>';
+    var s = document.getElementById('start');
+    if (s) s.style.display = 'none';
+  }
+  if (typeof THREE === 'undefined') {
+    fail('Three.js 未能加载。请检查网络是否可以访问 cdn.jsdelivr.net。');
+    return;
+  }
+  window.__mcFail = fail;
+})();
+</script>
+
+<script>
+if (typeof THREE !== 'undefined') {
+(function () {
+  'use strict';
+
+  /* =====================================================================
+     一、常量与配置
+     ===================================================================== */
+  const CHUNK = 16;            // 区块边长（方块数）
+  const VIEW = 4;              // 视野半径（区块）
+  const SEA_LEVEL = 14;        // 海平面高度
+  const REACH = 6.2;           // 交互距离
+  const GRAVITY = -26;
+  const JUMP_V = 8.4;
+  const WALK = 4.6;
+  const SPRINT = 7.4;
+  const EYE = 1.62;
+
+  // 方块定义：id -> 名称 / 顶面色 / 侧面色
+  const BLOCKS = [
+    null,
+    { id: 1, name: '草方块', top: 0x6aa84f, side: 0x8b6a43, bottom: 0x6b4f32 },
+    { id: 2, name: '泥土', top: 0x8b6a43, side: 0x7a5c3a, bottom: 0x6b4f32 },
+    { id: 3, name: '石头', top: 0x9a9a9a, side: 0x8c8c8c, bottom: 0x7e7e7e },
+    { id: 4, name: '沙块', top: 0xe0d2a0, side: 0xd6c48e, bottom: 0xc9b47c },
+    { id: 5, name: '神金石', top: 0xffd479, side: 0xe8b845, bottom: 0xcf9c2e },
+    { id: 6, name: '黑曜石', top: 0x2b2536, side: 0x231e2c, bottom: 0x1b1722 },
+    { id: 7, name: '云石', top: 0xf2f6fb, side: 0xe6ecf3, bottom: 0xd8dfe8 },
+    { id: 8, name: '玄木', top: 0x4a6b3c, side: 0x5c4630, bottom: 0x453020 },
+    { id: 9, name: '辉晶', top: 0x7fe8ff, side: 0x5ec8e0, bottom: 0x45a8c4 },
+    { id: 10, name: '水', top: 0x3f7fbf, side: 0x3a76b3, bottom: 0x356ca5, fluid: true }
+  ];
+
+  /* =====================================================================
+     二、柏林噪声（Perlin）
+     ===================================================================== */
+  function makePerm(seed) {
+    const p = new Uint8Array(512);
+    const base = [];
+    for (let i = 0; i < 256; i++) base[i] = i;
+    // 固定序列洗牌，保证同种子可复现
+    let s = seed >>> 0;
+    for (let i = 255; i > 0; i--) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const j = s % (i + 1);
+      const t = base[i]; base[i] = base[j]; base[j] = t;
+    }
+    for (let i = 0; i < 512; i++) p[i] = base[i & 255];
+    return p;
+  }
+  const PERM = makePerm(1337);
+
+  function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function grad2(hash, x, y) {
+    switch (hash & 7) {
+      case 0: return x + y; case 1: return -x + y;
+      case 2: return x - y; case 3: return -x - y;
+      case 4: return x; case 5: return -x;
+      case 6: return y; default: return -y;
+    }
+  }
+  // 经典 2D Perlin，返回约 [-1,1]
+  function perlin2(x, y) {
+    const xi = Math.floor(x) & 255, yi = Math.floor(y) & 255;
+    const xf = x - Math.floor(x), yf = y - Math.floor(y);
+    const u = fade(xf), v = fade(yf);
+    const aa = PERM[PERM[xi] + yi];
+    const ab = PERM[PERM[xi] + yi + 1];
+    const ba = PERM[PERM[xi + 1] + yi];
+    const bb = PERM[PERM[xi + 1] + yi + 1];
+    const x1 = lerp(grad2(aa, xf, yf), grad2(ba, xf - 1, yf), u);
+    const x2 = lerp(grad2(ab, xf, yf - 1), grad2(bb, xf - 1, yf - 1), u);
+    return lerp(x1, x2, v);
+  }
+  function fbm(x, y, oct, lac, gain) {
+    let amp = 1, freq = 1, sum = 0, norm = 0;
+    for (let i = 0; i < oct; i++) {
+      sum += perlin2(x * freq, y * freq) * amp;
+      norm += amp;
+      amp *= gain; freq *= lac;
+    }
+    return sum / norm;
+  }
+
+  /* =====================================================================
+     三、地形与神话地标生成
+     ===================================================================== */
+  // 高度图：大尺度大陆 + 山脊 + 细节。
+  // 竞技场的环形高台不并入噪声（噪声相消后差异不足 1 格，结构不可见），
+  // 改由 templePad 在 blockAt 中作为人造台基叠加。
+  function heightAt(wx, wz) {
+    const c = fbm(wx * 0.0055, wz * 0.0055, 5, 2.05, 0.5);      // 大陆
+    const m = fbm(wx * 0.021 + 91.3, wz * 0.021 - 37.7, 3, 2.1, 0.5); // 山峦
+    const d = fbm(wx * 0.085 + 411.2, wz * 0.085 + 55.1, 2, 2.0, 0.5); // 细节
+    let h = SEA_LEVEL + 3 + c * 34 + m * 11 + d * 3.2;
+    return Math.max(2, Math.min(46, Math.round(h)));
+  }
+
+  // 神殿台基：以原点为中心的三级同心圆台，逐级抬升
+  const STAGE = [
+    { r: 21, y: 0, id: 6 },   // 外环黑曜石地坪
+    { r: 13, y: 1, id: 7 },   // 中环云石台阶
+    { r: 6.5, y: 2, id: 6 }   // 内坛黑曜石高台
+  ];
+  function templePad(wx, wz) {
+    const rr = Math.sqrt(wx * wx + wz * wz);
+    for (let i = STAGE.length - 1; i >= 0; i--) {
+      if (rr <= STAGE[i].r) return STAGE[i];
+    }
+    return null;
+  }
+
+  // 地标：神殿（台基 + 立柱 + 祭坛 + 辉晶）、远山辉晶簇、玄木林
+  function landmarkAt(wx, wy, wz, h) {
+    const pad = templePad(wx, wz);
+
+    // --- 神殿台基：从地表实心填起，逐级抬升 ---
+    if (pad) {
+      const top = h + pad.y;
+      if (wy > top) return 0;
+      // 台基之内一律为实心建材
+      if (wy === top) return pad.id;
+      return 6;   // 基座填充统一黑曜石
+    }
+
+    const rr = Math.sqrt(wx * wx + wz * wz);
+
+    // --- 八根云石立柱，环绕中环台阶 ---
+    if (rr > 12 && rr < 15) {
+      const pa = Math.atan2(wz, wx);
+      const pr = 13.5;
+      const cx = Math.cos(pa) * pr, cz = Math.sin(pa) * pr;
+      const ph = heightAt(Math.round(cx), Math.round(cz));
+      if (Math.hypot(wx - cx, wz - cz) < 1.0) {
+        const base = ph + 1;
+        if (wy > base && wy <= base + 8) return 7;
+        if (wy === base) return 6;
+      }
+    }
+
+    // --- 内坛祭坛：神金石阶梯 ---
+    if (rr < 5.0) {
+      const ph = heightAt(0, 0);
+      const top = ph + 2;
+      if (wy === top) return 5;
+      if (wy === top - 1 && rr < 3.2) return 5;
+    }
+
+    // --- 辉晶簇：散布的晶柱 ---
+    const cs = fbm(wx * 0.16 + 700, wz * 0.16 - 300, 2, 2.0, 0.5);
+    if (cs > 0.50 && wy > h && wy <= h + 2 && ((wx * 7 + wz * 13) % 5 < 2)) return 9;
+
+    // --- 玄木：低海拔的树干与树冠 ---
+    if (h <= SEA_LEVEL + 2 && h > SEA_LEVEL - 2) {
+      const t = fbm(wx * 0.30 - 800, wz * 0.30 + 260, 1, 2, 0.5);
+      if (t > 0.44) {
+        if (wy === h + 1) return 8;             // 树干
+        if (wy > h + 1 && wy <= h + 3) return 8; // 冠
+      }
+    }
+    return 0;
+  }
+
+  function blockAt(wx, wy, wz) {
+    const h = heightAt(wx, wz);
+
+    // 台基下方需实心承托，否则台面会悬空
+    if (wy < h) {
+      const pad = templePad(wx, wz);
+      if (pad) return 6;
+      if (wy <= SEA_LEVEL) {
+        if (wy > h - 4) return 2;
+        return 3;
+      }
+      return 10; // 水
+    }
+    if (wy > h) return landmarkAt(wx, wy, wz, h);
+
+    const lm = landmarkAt(wx, wy, wz, h);
+    if (lm) return lm;
+    if (h <= SEA_LEVEL + 1) return 4;             // 沙滩
+    if (h >= 30) return 3;                         // 裸岩山顶
+    if (h >= 24) return 3;                         // 高山裸岩
+    return 1;                                      // 草地
+  }
+
+  /* =====================================================================
+     四、区块存储与网格构建
+     ===================================================================== */
+  const chunks = new Map();
+  const key = (cx, cz) => cx + ',' + cz;
+
+  function chunkData(cx, cz) {
+    const k = key(cx, cz);
+    let c = chunks.get(k);
+    if (c) return c;
+    const data = new Uint8Array(CHUNK * CHUNK * 64);
+    for (let lz = 0; lz < CHUNK; lz++) {
+      for (let lx = 0; lx < CHUNK; lx++) {
+        const wx = cx * CHUNK + lx, wz = cz * CHUNK + lz;
+        const h = heightAt(wx, wz);
+        const top = Math.min(63, h + 12);
+        for (let wy = 0; wy <= top; wy++) {
+          data[(wy * CHUNK + lz) * CHUNK + lx] = blockAt(wx, wy, wz);
+        }
+      }
+    }
+    c = { cx: cx, cz: cz, data: data, mesh: null, dirty: true };
+    chunks.set(k, c);
+    return c;
+  }
+
+  // 取世界方块（跨区块）。区块未加载时返回 -1 供逻辑区分，
+  // 避免射线拾取与碰撞把"未加载"误当成空气而穿墙。
+  function getBlock(wx, wy, wz) {
+    if (wy < 0 || wy > 63) return 0;
+    const cx = wx >> 4, cz = wz >> 4;
+    const c = chunks.get(key(cx, cz));
+    if (!c) return -1;
+    const lx = wx - cx * CHUNK, lz = wz - cz * CHUNK;
+    return c.data[(wy * CHUNK + lz) * CHUNK + lx];
+  }
+  function setBlock(wx, wy, wz, id) {
+    if (wy < 0 || wy > 63) return;
+    const cx = wx >> 4, cz = wz >> 4;
+    const c = chunks.get(key(cx, cz));
+    if (!c) return;
+    const lx = wx - cx * CHUNK, lz = wz - cz * CHUNK;
+    c.data[(wy * CHUNK + lz) * CHUNK + lx] = id;
+    c.dirty = true;
+  }
+
+  /* =====================================================================
+     五、Three.js 场景
+     ===================================================================== */
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x9fc8e8);
+  scene.fog = new THREE.FogExp2(0xa8cfe8, 0.0125);
+
+  const camera = new THREE.PerspectiveCamera(74, window.innerWidth / window.innerHeight, 0.1, 420);
+
+  // 光照：半球 + 方向光（附阴影）
+  scene.add(new THREE.HemisphereLight(0xbfe0ff, 0x5a4a34, 0.92));
+  const sun = new THREE.DirectionalLight(0xfff2d0, 1.05);
+  sun.position.set(60, 92, 38);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -46; sun.shadow.camera.right = 46;
+  sun.shadow.camera.top = 46; sun.shadow.camera.bottom = -46;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
+  sun.shadow.bias = -0.0009;
+  sun.shadow.normalBias = 0.05;
+  scene.add(sun);
+  scene.add(sun.target);
+
+  // 程序化贴图：按方块类型生成纹理
+  const texCache = {};
+  function makeTex(base, variance, kind) {
+    const key = base + '_' + kind;
+    if (texCache[key]) return texCache[key];
+    const S = 16, cv = document.createElement('canvas');
+    cv.width = cv.height = S;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#' + base.toString(16).padStart(6, '0');
+    g.fillRect(0, 0, S, S);
+    // 像素噪声
+    const img = g.getImageData(0, 0, S, S);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const n = (Math.random() - 0.5) * variance;
+      img.data[i] = Math.max(0, Math.min(255, img.data[i] + n));
+      img.data[i + 1] = Math.max(0, Math.min(255, img.data[i + 1] + n));
+      img.data[i + 2] = Math.max(0, Math.min(255, img.data[i + 2] + n));
+    }
+    g.putImageData(img, 0, 0);
+    if (kind === 'grass') {          // 草块顶面加草纹
+      g.fillStyle = 'rgba(90,150,60,.55)';
+      for (let i = 0; i < 7; i++) g.fillRect(Math.random() * S | 0, Math.random() * S | 0, 2, 1);
+    }
+    if (kind === 'brick') {          // 神殿石砖缝
+      g.strokeStyle = 'rgba(0,0,0,.22)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, 8); g.lineTo(S, 8); g.stroke();
+      g.beginPath(); g.moveTo(8, 0); g.lineTo(8, 8); g.stroke();
+    }
+    if (kind === 'crystal') {        // 辉晶纹
+      g.fillStyle = 'rgba(255,255,255,.42)';
+      g.beginPath(); g.moveTo(8, 2); g.lineTo(13, 8); g.lineTo(8, 14); g.lineTo(3, 8);
+      g.closePath(); g.fill();
+    }
+    const t = new THREE.CanvasTexture(cv);
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestMipmapNearestFilter;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    texCache[key] = t;
+    return t;
+  }
+
+  // 每种方块的贴图与六面材质。
+  // BoxGeometry 材质顺序：+x -x +y -y +z -z
+  const MAT = [];
+  for (let i = 1; i < BLOCKS.length; i++) {
+    const b = BLOCKS[i];
+    let kind = 'plain';
+    if (i === 5 || i === 7) kind = 'brick';
+    else if (i === 9) kind = 'crystal';
+    const side = makeTex(b.side, 24, i === 1 ? 'grass' : kind);
+    const top = makeTex(b.top, 22, i === 1 ? 'grass' : kind);
+    const bottom = makeTex(b.bottom, 22, 'plain');
+    if (b.fluid) {
+      MAT.push(new THREE.MeshLambertMaterial({
+        color: b.top, transparent: true, opacity: 0.72, depthWrite: false
+      }));
+    } else {
+      MAT.push([
+        new THREE.MeshLambertMaterial({ map: side }),
+        new THREE.MeshLambertMaterial({ map: side }),
+        new THREE.MeshLambertMaterial({ map: top }),
+        new THREE.MeshLambertMaterial({ map: bottom }),
+        new THREE.MeshLambertMaterial({ map: side }),
+        new THREE.MeshLambertMaterial({ map: side })
+      ]);
+    }
+  }
+  // MAT 索引 = 方块 id - 1
+
+  const blockGeo = new THREE.BoxGeometry(1, 1, 1);
+  const waterGeo = new THREE.BoxGeometry(1, 0.88, 1);
+
+  function buildChunkMesh(c) {
+    if (c.mesh) {
+      scene.remove(c.mesh);
+      c.mesh.traverse(function (o) {
+        // 仅移除水体登记，几何体为全局共享不可 dispose
+        if (o.isMesh && waterMeshes.has(o)) waterMeshes.delete(o);
+      });
+      c.mesh = null;
+    }
+    const buckets = new Map();
+    const cx0 = c.cx * CHUNK, cz0 = c.cz * CHUNK;
+
+    for (let wy = 0; wy < 64; wy++) {
+      for (let lz = 0; lz < CHUNK; lz++) {
+        for (let lx = 0; lx < CHUNK; lx++) {
+          const id = c.data[(wy * CHUNK + lz) * CHUNK + lx];
+          if (!id) continue;
+          let arr = buckets.get(id);
+          if (!arr) { arr = []; buckets.set(id, arr); }
+          arr.push(cx0 + lx + 0.5, wy + 0.5, cz0 + lz + 0.5);
+        }
+      }
+    }
+    // 水面单独合并
+    const group = new THREE.Group();
+    for (const [id, list] of buckets) {
+      const b = BLOCKS[id];
+      const inst = new THREE.InstancedMesh(
+        b.fluid ? waterGeo : blockGeo,
+        MAT[id - 1],
+        list.length / 3
+      );
+      const mtx = new THREE.Matrix4();
+      for (let i = 0; i < list.length; i += 3) {
+        mtx.makeTranslation(list[i], list[i + 1], list[i + 2]);
+        inst.setMatrixAt(i / 3, mtx);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      inst.castShadow = !b.fluid;
+      inst.receiveShadow = !b.fluid;
+      group.add(inst);
+      if (b.fluid) {
+        waterMeshes.push(inst);
+      }
+    }
+    c.mesh = group;
+    scene.add(group);
+    c.dirty = false;
+  }
+
+  /* =====================================================================
+     六、玩家与物理
+     ===================================================================== */
+  const player = {
+    // 出生于神殿台基之外并朝向原点，开局即可完整看到整座神殿
+    pos: new THREE.Vector3(30.5, 40, 30.5),
+    vel: new THREE.Vector3(),
+    yaw: Math.PI * 0.25, pitch: -0.14,
+    onGround: false,
+    bob: 0
+  };
+
+  // 找到出生点地面
+  function groundAt(x, z) {
+    for (let y = 60; y > 0; y--) {
+      const b = getBlock(Math.floor(x), y, Math.floor(z));
+      if (b > 0 && b !== 10) return y + 1.001;
+    }
+    return SEA_LEVEL + 2;
+  }
+  // 定位出生高度前必须先生成所在区块，否则 getBlock 全部返回 -1，
+  // 玩家会被放到默认海平面上方的高空。
+  chunkData(Math.floor(player.pos.x) >> 4, Math.floor(player.pos.z) >> 4);
+  player.pos.y = groundAt(player.pos.x, player.pos.z);
+
+  const keys = {};
+  let locked = false;
+  let selBlock = 1;
+  const HOTBAR = [1, 2, 3, 5, 9];
+
+  // 构建物品栏
+  const hotbar = document.getElementById('hotbar');
+  HOTBAR.forEach(function (id, i) {
+    const b = BLOCKS[id];
+    const d = document.createElement('div');
+    d.className = 'slot' + (i === 0 ? ' on' : '');
+    const col = '#' + b.top.toString(16).padStart(6, '0');
+    d.innerHTML = '<span class="no">' + (i + 1) + '</span>' +
+      '<span class="sw" style="background:' + col + '"></span>' +
+      '<span class="nm">' + b.name + '</span>';
+    d.addEventListener('click', function () { setSel(i); });
+    hotbar.appendChild(d);
+  });
+  function setSel(i) {
+    selBlock = HOTBAR[i];
+    [].forEach.call(hotbar.children, function (el, k) {
+      el.classList.toggle('on', k === i);
+    });
+  }
+
+  // 碰撞：AABB 与方块
+  const HALF = 0.3, PH = 1.75;
+  function collides(x, y, z) {
+    const x0 = Math.floor(x - HALF), x1 = Math.floor(x + HALF);
+    const y0 = Math.floor(y - PH), y1 = Math.floor(y);
+    const z0 = Math.floor(z - HALF), z1 = Math.floor(z + HALF);
+    for (let by = y0; by <= y1; by++) {
+      for (let bz = z0; bz <= z1; bz++) {
+        for (let bx = x0; bx <= x1; bx++) {
+          const b = getBlock(bx, by, bz);
+          if (b === -1) return true;   // 未加载区块当作实心
+          if (b > 0 && b !== 10) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function moveAxis(dx, dy, dz) {
+    const p = player.pos;
+    if (dx !== 0) {
+      const nx = p.x + dx;
+      if (!collides(nx, p.y, p.z)) p.x = nx; else { p.vel.x = 0; }
+    }
+    if (dz !== 0) {
+      const nz = p.z + dz;
+      if (!collides(p.x, p.y, nz)) p.z = nz; else { p.vel.z = 0; }
+    }
+    if (dy !== 0) {
+      const ny = p.y + dy;
+      if (!collides(p.x, ny, p.z)) p.y = ny;
+      else {
+        if (dy < 0) player.onGround = true;
+        p.vel.y = 0;
+      }
+    }
+  }
+
+  /* =====================================================================
+     七、射线选取（破坏 / 放置）
+     ===================================================================== */
+  const ray = new THREE.Raycaster();
+  ray.far = REACH;
+  const ndc = new THREE.Vector2();
+
+  function pick() {
+    ndc.set(0, 0);
+    ray.setFromCamera(ndc, camera);
+    // 逐格步进（DDA），精确命中方块
+    const origin = ray.ray.origin, dir = ray.ray.direction;
+    let x = Math.floor(origin.x), y = Math.floor(origin.y), z = Math.floor(origin.z);
+    const stepX = Math.sign(dir.x), stepY = Math.sign(dir.y), stepZ = Math.sign(dir.z);
+    const tDeltaX = stepX !== 0 ? Math.abs(1 / dir.x) : Infinity;
+    const tDeltaY = stepY !== 0 ? Math.abs(1 / dir.y) : Infinity;
+    const tDeltaZ = stepZ !== 0 ? Math.abs(1 / dir.z) : Infinity;
+    let tMaxX = stepX > 0 ? (x + 1 - origin.x) / dir.x : (x - origin.x) / dir.x;
+    let tMaxY = stepY > 0 ? (y + 1 - origin.y) / dir.y : (y - origin.y) / dir.y;
+    let tMaxZ = stepZ > 0 ? (z + 1 - origin.z) / dir.z : (z - origin.z) / dir.z;
+    let nx = 0, ny = 0, nz = 0;
+    for (let i = 0; i < 90; i++) {
+      const b = getBlock(x, y, z);
+      if (b > 0 && b !== 10) {
+        return { x: x, y: y, z: z, id: b, nx: nx, ny: ny, nz: nz };
+      }
+      if (tMaxX < tMaxY && tMaxX < tMaxZ) {
+        x += stepX; tMaxX += tDeltaX; nx = -stepX; ny = 0; nz = 0;
+      } else if (tMaxY < tMaxZ) {
+        y += stepY; tMaxY += tDeltaY; nx = 0; ny = -stepY; nz = 0;
+      } else {
+        z += stepZ; tMaxZ += tDeltaZ; nx = 0; ny = 0; nz = -stepZ;
+      }
+      if (Math.min(tMaxX, Math.min(tMaxY, tMaxZ)) > REACH) break;
+    }
+    return null;
+  }
+
+  let tipTimer = 0;
+  function showTip(msg) {
+    const t = document.getElementById('tip');
+    t.textContent = msg;
+    t.classList.add('on');
+    tipTimer = 2.2;
+  }
+
+  function breakBlock() {
+    const hit = pick();
+    if (!hit) return;
+    if (hit.id === 5 || hit.id === 6) showTip('神金石与黑曜石无法被破坏');
+    else {
+      setBlock(hit.x, hit.y, hit.z, 0);
+      showTip('破坏 ' + BLOCKS[hit.id].name);
+    }
+    markAround(hit.x, hit.y, hit.z);
+  }
+
+  function placeBlock() {
+    const hit = pick();
+    if (!hit) return;
+    const px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
+    if (py < 0 || py > 63) return;
+    // 不允许把方块放进玩家所站立的体积内
+    const p = player.pos;
+    const dx = Math.abs(px + 0.5 - p.x);
+    const dz = Math.abs(pz + 0.5 - p.z);
+    const overlapXZ = dx < 0.85 && dz < 0.85;
+    const inBody = py >= Math.floor(p.y) - 1 && py <= Math.floor(p.y) + 1;
+    if (overlapXZ && inBody) return;
+    const target = getBlock(px, py, pz);
+    if (target > 0) return;   // 已有方块则不可放置
+    setBlock(px, py, pz, selBlock);
+    markAround(px, py, pz);
+  }
+
+  // 标记需要重建网格的区块
+  function markAround(x, y, z) {
+    const cx = x >> 4, cz = z >> 4;
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const c = chunks.get(key(cx + dx, cz + dz));
+        if (c) c.dirty = true;
+      }
+    }
+  }
+
+  /* =====================================================================
+     八、输入
+     ===================================================================== */
+  const cv = renderer.domElement;
+
+  cv.addEventListener('click', function () {
+    if (!locked) cv.requestPointerLock();
+  });
+  document.addEventListener('pointerlockchange', function () {
+    locked = document.pointerLockElement === cv;
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!locked) return;
+    player.yaw -= e.movementX * 0.0024;
+    player.pitch -= e.movementY * 0.0024;
+    const lim = Math.PI / 2 - 0.02;
+    player.pitch = Math.max(-lim, Math.min(lim, player.pitch));
+  });
+  cv.addEventListener('mousedown', function (e) {
+    if (!locked) return;
+    if (e.button === 0) breakBlock();
+    else if (e.button === 2) placeBlock();
+  });
+  cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  cv.addEventListener('wheel', function (e) {
+    if (!locked) return;
+    e.preventDefault();
+    const cur = HOTBAR.indexOf(selBlock);
+    setSel((cur + (e.deltaY > 0 ? 1 : -1) + HOTBAR.length) % HOTBAR.length);
+  }, { passive: false });
+
+  document.addEventListener('keydown', function (e) {
+    keys[e.code] = true;
+    if (e.code >= 'Digit1' && e.code <= 'Digit5') {
+      setSel(parseInt(e.code.slice(5), 10) - 1);
+    }
+  });
+  document.addEventListener('keyup', function (e) { keys[e.code] = false; });
+
+  /* =====================================================================
+     九、区块加载与主循环
+     ===================================================================== */
+  let lastCx = 9999, lastCz = 9999;
+  function updateChunks() {
+    const pcx = Math.floor(player.pos.x) >> 4;
+    const pcz = Math.floor(player.pos.z) >> 4;
+    if (pcx === lastCx && pcz === lastCz) return;
+    lastCx = pcx; lastCz = pcz;
+    for (let dz = -VIEW; dz <= VIEW; dz++) {
+      for (let dx = -VIEW; dx <= VIEW; dx++) {
+        const c = chunkData(pcx + dx, pcz + dz);
+        if (c.dirty) buildChunkMesh(c);
+      }
+    }
+  }
+
+  // 收集所有水体网格，运行时统一做起伏动画
+  const waterMeshes = new Set();
+  function animateWater(t) {
+    const off = Math.sin(t * 0.9) * 0.05;
+    waterMeshes.forEach(function (m) { m.position.y = off; });
+  }
+
+  const clock = new THREE.Clock();
+  let first = true;
+
+  function loop() {
+    requestAnimationFrame(loop);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    const p = player.pos;
+
+    // --- 移动输入 ---
+    let fx = 0, fz = 0;
+    if (locked) {
+      if (keys.KeyW) fz -= 1;
+      if (keys.KeyS) fz += 1;
+      if (keys.KeyA) fx -= 1;
+      if (keys.KeyD) fx += 1;
+    }
+    const len = Math.hypot(fx, fz);
+    const spd = (keys.ShiftLeft || keys.ShiftRight) ? SPRINT : WALK;
+    if (len > 0) {
+      fx /= len; fz /= len;
+      const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
+      const wx = fx * cy - fz * sy;
+      const wz = fx * sy + fz * cy;
+      // 水平速度插值，保留惯性
+      p.x += wx * spd * dt;
+      p.z += wz * spd * dt;
+      p.bob += dt * spd * 1.5;
+    } else {
+      p.bob += dt * 0.6;
+    }
+
+    // --- 垂直物理 ---
+    if (locked && keys.Space && player.onGround) {
+      player.vel.y = JUMP_V;
+      player.onGround = false;
+    }
+    player.vel.y += GRAVITY * dt;
+    player.onGround = false;
+    moveAxis(0, player.vel.y * dt, 0);
+
+    // 掉出世界的兜底
+    if (p.y < -6) { p.y = groundAt(p.x, p.z) + 2; player.vel.y = 0; }
+
+    // --- 相机 ---
+    const bobA = locked && len > 0 ? Math.sin(p.bob * 2.1) * 0.045 : 0;
+    camera.position.set(p.x, p.y + EYE + bobA, p.z);
+    camera.rotation.set(0, 0, 0);
+    camera.rotateY(player.yaw);
+    camera.rotateX(player.pitch);
+
+    // --- 区块 ---
+    updateChunks();
+
+    // 跟随太阳的阴影相机
+    sun.position.set(p.x + 60, 92, p.z + 38);
+    sun.target.position.set(p.x, 0, p.z);
+    sun.target.updateMatrixWorld();
+
+    animateWater(clock.elapsedTime);
+    // HUD 坐标
+    document.getElementById('pos').textContent =
+      Math.floor(p.x) + ', ' + Math.floor(p.y) + ', ' + Math.floor(p.z);
+
+    // 提示淡出
+    if (tipTimer > 0) {
+      tipTimer -= dt;
+      if (tipTimer <= 0) document.getElementById('tip').classList.remove('on');
+    }
+
+    renderer.render(scene, camera);
+
+    if (first) {
+      first = false;
+      window.__mcReady = true;
+    }
+  }
+
+  /* =====================================================================
+     十、启动
+     ===================================================================== */
+  // 预生成出生点周边区块，避免开局空白
+  for (let dz = -VIEW; dz <= VIEW; dz++) {
+    for (let dx = -VIEW; dx <= VIEW; dx++) {
+      const c = chunkData(dx, dz);
+      buildChunkMesh(c);
+    }
+  }
+  lastCx = 0; lastCz = 0;
+
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  document.getElementById('go').addEventListener('click', function () {
+    const s = document.getElementById('start');
+    s.style.opacity = '0';
+    setTimeout(function () { s.style.display = 'none'; }, 520);
+    cv.requestPointerLock();
+  });
+
+  loop();
+})();
+}
+</script>
+</body>
+</html>
