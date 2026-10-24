@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mythos Craft</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #87b8d6; font-family: system-ui, sans-serif; }
+  #app { position: fixed; inset: 0; }
+  #crosshair {
+    position: fixed; left: 50%; top: 50%; width: 22px; height: 22px;
+    transform: translate(-50%, -50%); pointer-events: none; z-index: 5;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ""; position: absolute; background: rgba(255,255,255,0.85);
+  }
+  #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+  #hud {
+    position: fixed; left: 12px; bottom: 12px; z-index: 5; color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7); font-size: 13px; line-height: 1.5;
+    background: rgba(0,0,0,0.28); padding: 8px 12px; border-radius: 8px;
+  }
+  #hotbar {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 5;
+    display: flex; gap: 6px;
+  }
+  .slot {
+    width: 46px; height: 46px; border: 2px solid rgba(255,255,255,0.35); border-radius: 8px;
+    background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 11px; text-align: center; line-height: 1.05;
+  }
+  .slot.sel { border-color: #ffd34d; box-shadow: 0 0 10px rgba(255,211,77,0.7); }
+  #overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: rgba(8,14,22,0.82); color: #eaf2fb; text-align: center; cursor: pointer;
+  }
+  #overlay .box { max-width: 460px; padding: 24px; }
+  #overlay h1 { font-size: 22px; margin-bottom: 10px; }
+  #overlay p { font-size: 14px; opacity: 0.85; line-height: 1.6; }
+  #overlay .go { margin-top: 16px; font-size: 15px; color: #ffd34d; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="crosshair"></div>
+<div id="hotbar"></div>
+<div id="hud">
+  WASD 移动 · 空格跳跃 · 鼠标转向<br>
+  左键破坏 · 右键放置 · 1/2/3 切换方块
+</div>
+<div id="overlay"><div class="box">
+  <h1>神话境界 · Mythos Craft</h1>
+  <p>一个由柏林噪声生成的体素世界，散布着发光的远古神殿、水晶祭坛与浮空石桥。点击进入，开始探索与建造。</p>
+  <div class="go">点击此处开始（将锁定鼠标）</div>
+</div></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+// ---------- Perlin noise (classic 2D improved noise) ----------
+const perm = new Uint8Array(512);
+(() => {
+  const p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  let seed = 1337;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 255; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [p[i], p[j]] = [p[j], p[i]];
+  }
+  for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+})();
+const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+const lerp = (a, b, t) => a + t * (b - a);
+function grad(h, x, y) {
+  const u = (h & 1) ? -x : x;
+  const v = (h & 2) ? -y : y;
+  return u + v;
+}
+function noise2(x, y) {
+  const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+  x -= Math.floor(x); y -= Math.floor(y);
+  const u = fade(x), v = fade(y);
+  const aa = perm[perm[X] + Y], ab = perm[perm[X] + Y + 1];
+  const ba = perm[perm[X + 1] + Y], bb = perm[perm[X + 1] + Y + 1];
+  return lerp(
+    lerp(grad(aa, x, y), grad(ba, x - 1, y), u),
+    lerp(grad(ab, x, y - 1), grad(bb, x - 1, y - 1), u), v);
+}
+function fbm(x, y) {
+  let f = 0, amp = 1, freq = 1, sum = 0;
+  for (let i = 0; i < 4; i++) { f += amp * noise2(x * freq, y * freq); sum += amp; amp *= 0.5; freq *= 2; }
+  return f / sum;
+}
+
+// ---------- Block types ----------
+const AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, GOLD = 4, CRYSTAL = 5;
+const TYPE_NAMES = { 1: '草方块', 2: '泥土', 3: '石头', 4: '黄金矿', 5: '水晶' };
+const GEOM = new THREE.BoxGeometry(1, 1, 1);
+
+function makeTexture(draw) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 16;
+  const g = c.getContext('2d');
+  draw(g);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  return t;
+}
+const texGrassTop = makeTexture(g => {
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const n = Math.random();
+    g.fillStyle = n > 0.5 ? '#5aa83c' : (n > 0.25 ? '#4f9a35' : '#67b847');
+    g.fillRect(x, y, 1, 1);
+  }
+});
+const texGrassSide = makeTexture(g => {
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (y < 4) { g.fillStyle = Math.random() > 0.5 ? '#5aa83c' : '#4f9a35'; }
+    else { g.fillStyle = Math.random() > 0.5 ? '#8a5a32' : '#7a4f2c'; }
+    g.fillRect(x, y, 1, 1);
+  }
+});
+const texDirt = makeTexture(g => {
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    g.fillStyle = Math.random() > 0.5 ? '#8a5a32' : '#79502c'; g.fillRect(x, y, 1, 1);
+  }
+});
+const texStone = makeTexture(g => {
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    g.fillStyle = Math.random() > 0.5 ? '#8d8f93' : '#7c7e82'; g.fillRect(x, y, 1, 1);
+  }
+});
+const texGold = makeTexture(g => {
+  g.fillStyle = '#caa24c'; g.fillRect(0, 0, 16, 16);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (Math.random() > 0.7) { g.fillStyle = '#3a2f1a'; g.fillRect(x, y, 1, 1); }
+  }
+});
+const texCrystal = makeTexture(g => {
+  g.fillStyle = '#7fd6e0'; g.fillRect(0, 0, 16, 16);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (Math.random() > 0.6) { g.fillStyle = '#bff3ff'; g.fillRect(x, y, 1, 1); }
+  }
+});
+
+function makeMat(type) {
+  if (type === GRASS) return new THREE.MeshLambertMaterial({ map: texGrassSide, color: 0xffffff });
+  if (type === DIRT) return new THREE.MeshLambertMaterial({ map: texDirt });
+  if (type === STONE) return new THREE.MeshLambertMaterial({ map: texStone });
+  if (type === GOLD) return new THREE.MeshLambertMaterial({ map: texGold, emissive: 0x4a3a10, emissiveIntensity: 0.4 });
+  if (type === CRYSTAL) return new THREE.MeshLambertMaterial({ map: texCrystal, emissive: 0x2aa6c8, emissiveIntensity: 0.7, transparent: true, opacity: 0.92 });
+  return new THREE.MeshLambertMaterial({ color: 0xffffff });
+}
+
+// ---------- World ----------
+const SIZE = 48;            // world is SIZE x SIZE columns
+const world = new Map();     // "x,y,z" -> type
+const heightAt = new Map();  // "x,z" -> surface height
+const key = (x, y, z) => x + ',' + y + ',' + z;
+const colKey = (x, z) => x + ',' + z;
+
+function genWorld() {
+  for (let x = 0; x < SIZE; x++) {
+    for (let z = 0; z < SIZE; z++) {
+      const n = fbm(x * 0.08, z * 0.08);
+      const h = Math.floor(6 + n * 9); // 6..15
+      heightAt.set(colKey(x, z), h);
+      for (let y = 0; y <= h; y++) {
+        let t = STONE;
+        if (y === h) t = GRASS;
+        else if (y >= h - 2) t = DIRT;
+        // scattered gold ore deep down
+        if (t === STONE && Math.random() < 0.02) t = GOLD;
+        world.set(key(x, y, z), t);
+      }
+    }
+  }
+  // --- Mythic-fantasy structures ---
+  buildTemple(10, 8);
+  buildCrystalAltar(34, 30);
+  buildFloatingBridge(20, 18);
+  scatterCrystals();
+}
+function setB(x, y, z, t) { if (t === AIR) world.delete(key(x, y, z)); else world.set(key(x, y, z), t); }
+function getB(x, y, z) { return world.get(key(x, y, z)) || AIR; }
+
+// A small stepped temple with glowing gold pillars
+function buildTemple(cx, cz) {
+  const base = heightAt.get(colKey(cx, cz)) + 1;
+  for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+    setB(cx + dx, base, cz + dz, STONE);
+  }
+  for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+    setB(cx + dx, base + 1, cz + dz, STONE);
+  }
+  // pillars
+  for (const [dx, dz] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) {
+    for (let y = base + 2; y <= base + 5; y++) setB(cx + dx, y, cz + dz, GOLD);
+  }
+  // roof slab
+  for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+    setB(cx + dx, base + 6, cz + dz, STONE);
+  }
+}
+// Glowing crystal altar on a hill
+function buildCrystalAltar(cx, cz) {
+  const base = heightAt.get(colKey(cx, cz)) + 1;
+  for (let y = base; y <= base + 1; y++) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+    setB(cx + dx, y, cz + dz, STONE);
+  // central crystal cluster
+  setB(cx, base + 2, cz, CRYSTAL);
+  setB(cx + 1, base + 2, cz, CRYSTAL);
+  setB(cx, base + 3, cz, CRYSTAL);
+  setB(cx - 1, base + 2, cz + 1, CRYSTAL);
+}
+// A floating bridge of stone + crystal railings
+function buildFloatingBridge(cx, cz) {
+  const y = heightAt.get(colKey(cx, cz)) + 6;
+  for (let i = 0; i < 12; i++) {
+    setB(cx + i, y, cz, STONE);
+    setB(cx + i, y, cz + 1, STONE);
+    if (i % 2 === 0) setB(cx + i, y + 1, cz, CRYSTAL);
+  }
+}
+function scatterCrystals() {
+  for (let i = 0; i < 14; i++) {
+    const x = Math.floor(Math.random() * SIZE), z = Math.floor(Math.random() * SIZE);
+    const base = heightAt.get(colKey(x, z)) + 1;
+    const hh = 1 + Math.floor(Math.random() * 3);
+    for (let y = base; y <= base + hh; y++) setB(x, y, z, CRYSTAL);
+  }
+}
+
+// ---------- Renderer / scene ----------
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87b8d6);
+scene.fog = new THREE.Fog(0x87b8d6, 40, 110);
+
+const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 500);
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+sun.position.set(40, 80, 20);
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x4a6b3a, 0.8));
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+// ---------- Instanced meshes ----------
+const mats = {
+  [GRASS]: makeMat(GRASS), [DIRT]: makeMat(DIRT), [STONE]: makeMat(STONE),
+  [GOLD]: makeMat(GOLD), [CRYSTAL]: makeMat(CRYSTAL),
+};
+const meshes = {};
+const instanceInfo = {}; // type -> array of {x,y,z}
+let highlightMesh = null;
+
+function rebuild() {
+  for (const t of [GRASS, DIRT, STONE, GOLD, CRYSTAL]) {
+    if (meshes[t]) { scene.remove(meshes[t]); meshes[t].dispose(); }
+  }
+  instanceInfo = { [GRASS]: [], [DIRT]: [], [STONE]: [], [GOLD]: [], [CRYSTAL]: [] };
+  const counts = {};
+  for (const [k, t] of world) { if (counts[t] === undefined) counts[t] = 0; counts[t]++; }
+  for (const t of [GRASS, DIRT, STONE, GOLD, CRYSTAL]) {
+    const n = counts[t] || 0;
+    const m = new THREE.InstancedMesh(GEOM, mats[t], Math.max(n, 1));
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    meshes[t] = m; scene.add(m);
+  }
+  const dummy = new THREE.Object3D();
+  let idx = { [GRASS]: 0, [DIRT]: 0, [STONE]: 0, [GOLD]: 0, [CRYSTAL]: 0 };
+  for (const [k, t] of world) {
+    const [x, y, z] = k.split(',').map(Number);
+    dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
+    dummy.updateMatrix();
+    meshes[t].setMatrixAt(idx[t], dummy.matrix);
+    instanceInfo[t][idx[t]] = { x, y, z };
+    idx[t]++;
+  }
+  for (const t of [GRASS, DIRT, STONE, GOLD, CRYSTAL]) meshes[t].instanceMatrix.needsUpdate = true;
+}
+
+genWorld();
+rebuild();
+
+// ---------- Player / controls ----------
+const controls = new PointerLockControls(camera, renderer.domElement);
+scene.add(camera);
+const overlay = document.getElementById('overlay');
+overlay.addEventListener('click', () => controls.lock());
+controls.addEventListener('lock', () => overlay.style.display = 'none');
+controls.addEventListener('unlock', () => overlay.style.display = 'flex');
+
+const player = { vy: 0, onGround: false };
+function spawn() {
+  const cx = Math.floor(SIZE / 2), cz = Math.floor(SIZE / 2);
+  const h = heightAt.get(colKey(cx, cz)) + 1;
+  camera.position.set(cx + 0.5, h + 1.7, cz + 0.5);
+}
+spawn();
+
+const keys = {};
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Digit1') sel = GRASS; if (e.code === 'Digit2') sel = DIRT; if (e.code === 'Digit3') sel = STONE; updateHotbar(); });
+addEventListener('keyup', e => { keys[e.code] = false; });
+
+function groundTopAt(x, z) {
+  const h = heightAt.get(colKey(Math.floor(x), Math.floor(z)));
+  if (h === undefined) return -Infinity;
+  // return the y of the highest solid block at this column
+  for (let y = h; y >= 0; y--) if (getB(Math.floor(x), y, Math.floor(z)) !== AIR) return y + 1;
+  return -Infinity;
+}
+
+// ---------- Block targeting ----------
+const raycaster = new THREE.Raycaster();
+raycaster.far = 6;
+const center = new THREE.Vector2(0, 0);
+let target = null; // {type, x,y,z, nx,ny,nz}
+
+function makeHighlight() {
+  const g = new THREE.BoxGeometry(1.02, 1.02, 1.02);
+  const m = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
+  highlightMesh = new THREE.Mesh(g, m);
+  highlightMesh.visible = false;
+  scene.add(highlightMesh);
+}
+makeHighlight();
+
+function updateTarget() {
+  raycaster.setFromCamera(center, camera);
+  const hits = raycaster.intersectObjects(Object.values(meshes), false);
+  if (hits.length) {
+    const hit = hits[0];
+    const type = Number(Object.keys(meshes).find(t => meshes[t] === hit.object));
+    const info = instanceInfo[type][hit.instanceId];
+    if (info) {
+      const n = hit.face ? hit.face.normal : new THREE.Vector3(0, 1, 0);
+      target = { type, x: info.x, y: info.y, z: info.z, nx: n.x, ny: n.y, nz: n.z };
+      highlightMesh.position.set(info.x + 0.5, info.y + 0.5, info.z + 0.5);
+      highlightMesh.visible = true;
+      return;
+    }
+  }
+  target = null; highlightMesh.visible = false;
+}
+
+renderer.domElement.addEventListener('mousedown', e => {
+  if (!controls.isLocked || !target) return;
+  if (e.button === 0) { // break
+    setB(target.x, target.y, target.z, AIR);
+    rebuild();
+  } else if (e.button === 2) { // place
+    const px = Math.floor(camera.position.x), py = Math.floor(camera.position.y), pz = Math.floor(camera.position.z);
+    const nx = target.x + target.nx, ny = target.y + target.ny, nz = target.z + target.nz;
+    // do not place inside the player
+    if (!(nx === px && ny === py && nz === pz) && !(nx === px && ny === py - 1 && nz === pz)) {
+      setB(nx, ny, nz, sel);
+      rebuild();
+    }
+  }
+});
+addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------- Hotbar ----------
+let sel = GRASS;
+const hotbar = document.getElementById('hotbar');
+function updateHotbar() {
+  hotbar.innerHTML = '';
+  for (const t of [GRASS, DIRT, STONE]) {
+    const d = document.createElement('div');
+    d.className = 'slot' + (sel === t ? ' sel' : '');
+    d.textContent = TYPE_NAMES[t];
+    hotbar.appendChild(d);
+  }
+}
+updateHotbar();
+
+// ---------- Loop ----------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (controls.isLocked) {
+    const speed = 7;
+    if (keys['KeyW']) controls.moveForward(speed * dt);
+    if (keys['KeyS']) controls.moveForward(-speed * dt);
+    if (keys['KeyA']) controls.moveRight(-speed * dt);
+    if (keys['KeyD']) controls.moveRight(speed * dt);
+    // gravity
+    player.vy -= 22 * dt;
+    camera.position.y += player.vy * dt;
+    const gt = groundTopAt(camera.position.x, camera.position.z);
+    if (gt !== -Infinity && camera.position.y <= gt + 1.7) {
+      camera.position.y = gt + 1.7; player.vy = 0; player.onGround = true;
+    } else player.onGround = false;
+    if (keys['Space'] && player.onGround) { player.vy = 8; player.onGround = false; }
+    // keep inside world horizontally
+    camera.position.x = Math.max(0.5, Math.min(SIZE - 0.5, camera.position.x));
+    camera.position.z = Math.max(0.5, Math.min(SIZE - 0.5, camera.position.z));
+    updateTarget();
+  }
+  renderer.render(scene, camera);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
