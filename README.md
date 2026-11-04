@@ -35,8 +35,8 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 <table>
 <tr>
 <td width="50%" valign="top">
-<a href="https://bench.nagi.fun/#mythos-craft"><img src="https://bench.nagi.fun/readme/cases/mythos-craft.webp?v=2" alt="神化 MC 运行截图" width="100%"></a><br>
-<a href="https://bench.nagi.fun/#mythos-craft"><b>神化 MC</b></a> <sub>· 单文件 HTML</sub><br>
+<a href="https://bench.nagi.fun/#mythos-craft"><img src="https://bench.nagi.fun/readme/cases/mythos-craft.webp?v=2" alt="神话 MC 运行截图" width="100%"></a><br>
+<a href="https://bench.nagi.fun/#mythos-craft"><b>神话 MC</b></a> <sub>· 单文件 HTML</sub><br>
 <sub>一次生成一款《我的世界》式的可玩 3D 体素世界</sub><br>
 <sub><code>mythos-craft</code></sub>
 </td>
