@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mythos Craft — 神话MC 3D体素世界</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #070b19;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f8fafc;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .hud-panel {
+      background: rgba(10, 15, 29, 0.78);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+    }
+
+    .hotbar-slot {
+      width: 52px;
+      height: 52px;
+      background: rgba(15, 23, 42, 0.88);
+      border: 2px solid rgba(148, 163, 184, 0.35);
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+    }
+
+    .hotbar-slot:hover {
+      border-color: rgba(251, 191, 36, 0.6);
+      transform: translateY(-2px);
+    }
+
+    .hotbar-slot.active {
+      border-color: #fbbf24;
+      background: rgba(251, 191, 36, 0.24);
+      transform: translateY(-5px) scale(1.08);
+      box-shadow: 0 0 18px rgba(251, 191, 36, 0.5);
+    }
+
+    .hud-btn {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(251, 191, 36, 0.32);
+      transition: all 0.18s ease;
+    }
+
+    .hud-btn:hover {
+      background: rgba(251, 191, 36, 0.25);
+      border-color: #fbbf24;
+      transform: translateY(-1px);
+    }
+
+    .hud-btn.active {
+      background: rgba(251, 191, 36, 0.32);
+      border-color: #fde047;
+      color: #fef08a;
+      box-shadow: 0 0 12px rgba(251, 191, 36, 0.35);
+    }
+
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 22px;
+      height: 22px;
+      pointer-events: none;
+      z-index: 30;
+    }
+
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+    }
+
+    #crosshair::before {
+      top: 10px;
+      left: 2px;
+      width: 18px;
+      height: 2px;
+    }
+
+    #crosshair::after {
+      top: 2px;
+      left: 10px;
+      width: 2px;
+      height: 18px;
+    }
+
+    #click-lock-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 8, 18, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: opacity 0.25s ease;
+    }
+
+    #click-lock-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="w-full h-full relative">
+
+  <div id="game-container" class="w-full h-full absolute inset-0 cursor-crosshair"></div>
+
+  <div id="crosshair"></div>
+
+  <!-- Start / Lock Overlay -->
+  <div id="click-lock-overlay">
+    <div class="hud-panel rounded-2xl p-6 max-w-md text-center border-amber-400/40 shadow-2xl">
+      <div class="flex items-center justify-center gap-2 mb-2">
+        <span class="text-2xl">🏛</span>
+        <h2 class="text-2xl font-bold tracking-wider text-amber-300">MYTHOS CRAFT</h2>
+      </div>
+      <p class="text-sm text-slate-300 mb-4">神话体素世界 · 奥林匹斯天界神殿</p>
+      <div class="bg-slate-900/80 rounded-xl p-3 text-xs text-slate-300 text-left space-y-1.5 mb-5 border border-white/10 mono">
+        <div>• <span class="text-amber-300 font-semibold">WASD</span> 控制前后左右移动</div>
+        <div>• <span class="text-amber-300 font-semibold">空格 Space</span> 跳跃 / 飞行上升</div>
+        <div>• <span class="text-amber-300 font-semibold">Shift</span> 疾跑 / 飞行下降</div>
+        <div>• <span class="text-amber-300 font-semibold">鼠标左键</span> 破坏方块 · <span class="text-amber-300 font-semibold">右键</span> 放置方块</div>
+        <div>• <span class="text-amber-300 font-semibold">1-9 或 滚轮</span> 切换快捷栏方块</div>
+        <div>• <span class="text-amber-300 font-semibold">F 键</span> 切换神行飞行 / 重力步行</div>
+      </div>
+      <button class="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm tracking-wide shadow-lg shadow-amber-500/30 transition transform hover:-translate-y-0.5 active:translate-y-0">
+        点击进入神话世界 (Lock Cursor)
+      </button>
+    </div>
+  </div>
+
+  <!-- TOP LEFT: HUD STATUS & COORDINATES -->
+  <div class="absolute top-3 left-3 z-20 flex flex-col gap-2 pointer-events-none max-w-sm">
+    <div class="hud-panel rounded-xl px-4 py-2.5 pointer-events-auto">
+      <div class="flex items-center justify-between gap-4 border-b border-white/10 pb-1.5">
+        <div class="flex items-center gap-2">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]"></span>
+          <h1 class="text-sm md:text-base font-bold tracking-wide text-amber-200">MYTHOS CRAFT · 神话MC</h1>
+        </div>
+        <span id="fps-counter" class="mono text-xs text-emerald-300 font-semibold">60 FPS</span>
+      </div>
+      <div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-300 mono">
+        <div>坐标 Pos: <span id="pos-readout" class="text-amber-100 font-medium">0, 22, 22</span></div>
+        <div>区块 Chunks: <span id="chunk-readout" class="text-amber-100 font-medium">9 active</span></div>
+        <div>方块 Blocks: <span id="block-readout" class="text-amber-100 font-medium">0</span></div>
+        <div>状态 Mode: <span id="mode-readout" class="text-cyan-300 font-medium">重力步行 · WALK</span></div>
+      </div>
+      <div class="mt-2 pt-1.5 border-t border-white/10 text-[11px] text-slate-300 flex items-center justify-between">
+        <span>目标方块: <strong id="target-block-label" class="text-amber-300">无 (对准方块进行交互)</strong></span>
+      </div>
+    </div>
+
+    <!-- Controls Cheat Sheet -->
+    <div class="hud-panel rounded-xl px-3.5 py-2 text-[11px] text-slate-300 space-y-1 pointer-events-auto hidden sm:block">
+      <div class="text-amber-300 font-semibold mb-0.5">快捷键指南 · Controls</div>
+      <div>• <span class="text-white font-medium">WASD</span> 移动 · <span class="text-white font-medium">Space</span> 跳跃 · <span class="text-white font-medium">Shift</span> 疾跑</div>
+      <div>• <span class="text-white font-medium">鼠标左键</span> 破坏方块 · <span class="text-white font-medium">鼠标右键</span> 放置方块</div>
+      <div>• <span class="text-white font-medium">F键</span> 飞行/步行模式 · <span class="text-white font-medium">T键</span> 切换天色 (昼/暮/夜)</div>
+      <div>• <span class="text-white font-medium">1–9 / 滚轮</span> 选择方块 · <span class="text-white font-medium">ESC</span> 释放鼠标锁定</div>
+    </div>
+  </div>
+
+  <!-- TOP RIGHT: MYTHIC LANDMARK TELEPORTS & QUICK ACTIONS -->
+  <div class="absolute top-3 right-3 z-20 flex flex-col gap-2 items-end pointer-events-none">
+    <div class="hud-panel rounded-xl p-2.5 pointer-events-auto flex flex-col gap-2">
+      <div class="text-[11px] font-semibold uppercase tracking-wider text-amber-300 px-1">神话奇观传送 · Mythic Realms</div>
+      <div class="flex flex-wrap gap-1.5 justify-end">
+        <button data-tp="olympus" class="tp-btn hud-btn rounded-lg px-2.5 py-1 text-xs font-medium text-amber-100">奥林匹斯浮空神殿</button>
+        <button data-tp="spires" class="tp-btn hud-btn rounded-lg px-2.5 py-1 text-xs font-medium text-cyan-200">以太水晶尖塔</button>
+        <button data-tp="yggdrasil" class="tp-btn hud-btn rounded-lg px-2.5 py-1 text-xs font-medium text-emerald-200">世界树庇护所</button>
+        <button data-tp="abyss" class="tp-btn hud-btn rounded-lg px-2.5 py-1 text-xs font-medium text-purple-200">深渊泰坦方尖碑</button>
+        <button data-tp="overview" class="tp-btn hud-btn rounded-lg px-2.5 py-1 text-xs font-medium text-sky-200">全景俯瞰视角</button>
+      </div>
+      <div class="flex flex-wrap gap-1.5 justify-end pt-1.5 border-t border-white/10">
+        <button id="btn-fly-mode" class="hud-btn rounded-lg px-2.5 py-1 text-xs">模式: 重力步行 (F)</button>
+        <button id="btn-time-cycle" class="hud-btn rounded-lg px-2.5 py-1 text-xs">天色: 黄金神域 (T)</button>
+        <button id="btn-break-action" class="hud-btn rounded-lg px-2.5 py-1 text-xs">破坏 (左键)</button>
+        <button id="btn-place-action" class="hud-btn rounded-lg px-2.5 py-1 text-xs">放置 (右键)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM CENTER: 9-SLOT VOXEL HOTBAR -->
+  <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 pointer-events-auto">
+    <div id="selected-block-banner" class="px-3.5 py-1 rounded-full bg-black/80 border border-amber-400/50 text-xs font-semibold text-amber-200 shadow-lg">
+      1 · 翠绿草方块 (Grass Block)
+    </div>
+    <div id="hotbar" class="hud-panel rounded-2xl p-1.5 flex items-center gap-1.5 shadow-2xl"></div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. MULTI-OCTAVE PERLIN NOISE GENERATOR
+    // =========================================================================
+    class PerlinNoise {
+      constructor(seed = 1337) {
+        this.p = new Uint8Array(512);
+        const perm = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) perm[i] = i;
+        let s = seed;
+        for (let i = 255; i > 0; i--) {
+          s = (s * 16807) % 2147483647;
+          const j = s % (i + 1);
+          const tmp = perm[i];
+          perm[i] = perm[j];
+          perm[j] = tmp;
+        }
+        for (let i = 0; i < 512; i++) this.p[i] = perm[i & 255];
+      }
+      fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+      lerp(t, a, b) { return a + t * (b - a); }
+      grad(hash, x, y) {
+        const h = hash & 7;
+        const u = h < 4 ? x : y;
+        const v = h < 4 ? y : x;
+        return ((h & 1) ? -u : u) + ((h & 2) ? -2.0 * v : 2.0 * v);
+      }
+      noise2D(x, y) {
+        const X = Math.floor(x) & 255;
+        const Y = Math.floor(y) & 255;
+        x -= Math.floor(x);
+        y -= Math.floor(y);
+        const u = this.fade(x);
+        const v = this.fade(y);
+        const A = this.p[X] + Y, B = this.p[X + 1] + Y;
+        return this.lerp(
+          v,
+          this.lerp(u, this.grad(this.p[A], x, y), this.grad(this.p[B], x - 1, y)),
+          this.lerp(u, this.grad(this.p[A + 1], x, y - 1), this.grad(this.p[B + 1], x - 1, y - 1))
+        );
+      }
+      fbm(x, z) {
+        let total = 0;
+        let amp = 1.0;
+        let freq = 0.026;
+        let maxVal = 0;
+        for (let i = 0; i < 4; i++) {
+          total += this.noise2D(x * freq, z * freq) * amp;
+          maxVal += amp;
+          amp *= 0.5;
+          freq *= 2.05;
+        }
+        return total / maxVal;
+      }
+    }
+
+    const perlin = new PerlinNoise(4096);
+
+    // =========================================================================
+    // 2. VOXEL BLOCK TYPES & PIXEL-ART TEXTURE SYSTEM
+    // =========================================================================
+    const BLOCK_TYPES = [
+      { id: 1, key: 'grass',     name: '翠绿草方块 (Grass Block)',      top: '#4da634', side: '#6b4c35', bottom: '#5c3e28', style: 'grass' },
+      { id: 2, key: 'dirt',      name: '沃土方块 (Dirt)',               top: '#6e4e32', side: '#6e4e32', bottom: '#6e4e32', style: 'noise' },
+      { id: 3, key: 'stone',     name: '深岩方石 (Cobblestone)',        top: '#7c858e', side: '#737c85', bottom: '#687078', style: 'brick' },
+      { id: 4, key: 'marble',    name: '神殿白大理石 (Olympus Marble)', top: '#f1f5f9', side: '#e2e8f0', bottom: '#cbd5e1', style: 'pillar' },
+      { id: 5, key: 'goldbrick', name: '鎏金符文神砖 (Runic Gold)',     top: '#f59e0b', side: '#d97706', bottom: '#b45309', style: 'rune', emissive: 0x78350f },
+      { id: 6, key: 'aether',    name: '以太星辉水晶 (Aether Crystal)', top: '#22d3ee', side: '#06b6d4', bottom: '#0891b2', style: 'crystal', emissive: 0x0e7490 },
+      { id: 7, key: 'wood',      name: '世界树古木 (Ancient Oak Wood)', top: '#b4834e', side: '#5c3a21', bottom: '#b4834e', style: 'bark' },
+      { id: 8, key: 'leaves',    name: '星辉神叶 (Starlight Foliage)',  top: '#10b981', side: '#059669', bottom: '#047857', style: 'leaves', emissive: 0x064e3b },
+      { id: 9, key: 'obsidian',  name: '深渊黑曜石 (Abyssal Obsidian)', top: '#2e1065', side: '#1e1b4b', bottom: '#0f172a', style: 'obsidian', emissive: 0x3b0764 }
+    ];
+
+    const BLOCK_BY_ID = {};
+    BLOCK_TYPES.forEach((b) => { BLOCK_BY_ID[b.id] = b; });
+
+    function hexToRgb(hex) {
+      const n = parseInt(hex.replace('#', ''), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    function createPixelCanvas(baseHex, style, isSideGrass = false) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 16;
+      canvas.height = 16;
+      const ctx = canvas.getContext('2d');
+      const [r, g, b] = hexToRgb(baseHex);
+
+      for (let y = 0; y < 16; y++) {
+        for (let x = 0; x < 16; x++) {
+          let pr = r, pg = g, pb = b;
+          const hash = ((x * 37 + y * 91) % 29) - 14;
+
+          if (isSideGrass && y < 3 + ((x * 7) % 3)) {
+            const [gr, gg, gb] = hexToRgb('#4da634');
+            pr = gr + hash; pg = gg + hash; pb = gb + hash;
+          } else if (style === 'brick') {
+            const row = Math.floor(y / 4);
+            const isMortar = (y % 4 === 0) || ((x + row * 4) % 8 === 0);
+            const delta = isMortar ? -26 : hash;
+            pr += delta; pg += delta; pb += delta;
+          } else if (style === 'pillar') {
+            const flute = (x % 4 === 0) ? -18 : (x % 4 === 2 ? 12 : 0);
+            const border = (y === 0 || y === 15) ? -24 : 0;
+            pr += flute + border; pg += flute + border; pb += flute + border;
+          } else if (style === 'rune') {
+            const isBorder = x === 0 || x === 15 || y === 0 || y === 15;
+            const isGlyph = (x >= 4 && x <= 11 && y >= 4 && y <= 11) && ((x + y) % 3 === 0);
+            const delta = isBorder ? -35 : (isGlyph ? 42 : hash);
+            pr += delta; pg += delta; pb += delta;
+          } else if (style === 'crystal') {
+            const diag = ((x + y) % 5 === 0) ? 50 : hash;
+            pr += diag; pg += diag; pb += diag;
+          } else if (style === 'bark') {
+            const stripe = ((x * 3) % 4 === 0) ? -24 : hash * 0.7;
+            pr += stripe; pg += stripe; pb += stripe;
+          } else if (style === 'obsidian') {
+            const fleck = ((x * 13 + y * 29) % 19 === 0) ? 70 : hash;
+            pr += fleck; pg += fleck * 0.4; pb += fleck * 1.35;
+          } else {
+            pr += hash; pg += hash; pb += hash;
+          }
+
+          if (x === 0 || y === 0) {
+            pr -= 10; pg -= 10; pb -= 10;
+          }
+
+          ctx.fillStyle = `rgb(${Math.max(0, Math.min(255, Math.round(pr)))},${Math.max(0, Math.min(255, Math.round(pg)))},${Math.max(0, Math.min(255, Math.round(pb)))})`;
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+      return canvas;
+    }
+
+    function canvasToNearestTexture(canvas) {
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.generateMipmaps = false;
+      return tex;
+    }
+
+    const BLOCK_MATERIALS = {};
+    const BLOCK_PREVIEW_URLS = {};
+
+    BLOCK_TYPES.forEach((b) => {
+      const topCanvas = createPixelCanvas(b.top, b.style, false);
+      const sideCanvas = createPixelCanvas(b.side, b.style, b.style === 'grass');
+      const botCanvas = createPixelCanvas(b.bottom, b.style, false);
+
+      BLOCK_PREVIEW_URLS[b.id] = sideCanvas.toDataURL();
+
+      const topMat = new THREE.MeshLambertMaterial({ map: canvasToNearestTexture(topCanvas) });
+      const sideMat = new THREE.MeshLambertMaterial({ map: canvasToNearestTexture(sideCanvas) });
+      const botMat = new THREE.MeshLambertMaterial({ map: canvasToNearestTexture(botCanvas) });
+
+      if (b.emissive) {
+        [topMat, sideMat, botMat].forEach((m) => {
+          m.emissive = new THREE.Color(b.emissive);
+          m.emissiveIntensity = 0.45;
+        });
+      }
+
+      BLOCK_MATERIALS[b.id] = [sideMat, sideMat, topMat, botMat, sideMat, sideMat];
+    });
+
+    // =========================================================================
+    // 3. THREE.JS SCENE, SKYBOX & LIGHTING
+    // =========================================================================
+    const container = document.getElementById('game-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x6fb1fc);
+    scene.fog = new THREE.FogExp2(0x8ec5fc, 0.009);
+
+    const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 250);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    const hemiLight = new THREE.HemisphereLight(0xfffbeb, 0x334155, 0.82);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfef3c7, 0.95);
+    sunLight.position.set(60, 110, 45);
+    scene.add(sunLight);
+
+    // Glowing Celestial Sun
+    const sunDisc = new THREE.Mesh(
+      new THREE.BoxGeometry(10, 10, 10),
+      new THREE.MeshBasicMaterial({ color: 0xfde047 })
+    );
+    sunDisc.position.set(85, 115, -90);
+    scene.add(sunDisc);
+
+    // First-Person Held Item / Arm Camera Attachment
+    const handPivot = new THREE.Group();
+    camera.add(handPivot);
+    scene.add(camera);
+
+    const handBlockMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.38, 0.38, 0.38),
+      BLOCK_MATERIALS[1]
+    );
+    handBlockMesh.position.set(0.48, -0.42, -0.68);
+    handBlockMesh.rotation.set(0.35, -0.65, 0.2);
+    handPivot.add(handBlockMesh);
+
+    function updateHeldBlock(blockId) {
+      if (BLOCK_MATERIALS[blockId]) {
+        handBlockMesh.material = BLOCK_MATERIALS[blockId];
+      }
+    }
+
+    let swingProgress = 0;
+    function triggerSwing() {
+      swingProgress = 1.0;
+    }
+
+    // =========================================================================
+    // 4. SPATIAL VOXEL WORLD STORAGE & PROCEDURAL CHUNK SYSTEM
+    // =========================================================================
+    const CHUNK_SIZE = 14;
+    const RENDER_RADIUS = 2; // 5x5 chunks around player
+    const worldBlocks = new Map();
+    const removedBlocks = new Set();
+    const placedBlocks = new Set();
+    const generatedChunks = new Set();
+
+    function posKey(x, y, z) {
+      return `${x},${y},${z}`;
+    }
+
+    function setVoxel(x, y, z, id, forceOverwrite = true) {
+      const key = posKey(x, y, z);
+      if (id === 0) {
+        worldBlocks.delete(key);
+        removedBlocks.add(key);
+        placedBlocks.delete(key);
+      } else {
+        if (!forceOverwrite && worldBlocks.has(key)) return;
+        worldBlocks.set(key, id);
+        removedBlocks.delete(key);
+        placedBlocks.add(key);
+      }
+    }
+
+    function getVoxel(x, y, z) {
+      return worldBlocks.get(posKey(x, y, z)) || 0;
+    }
+
+    function getTerrainHeight(x, z) {
+      const base = perlin.fbm(x, z);
+      const h = Math.floor(10 + base * 14);
+      return Math.max(4, Math.min(32, h));
+    }
+
+    function generateChunk(cx, cz) {
+      const ckey = `${cx},${cz}`;
+      if (generatedChunks.has(ckey)) return false;
+      generatedChunks.add(ckey);
+
+      const startX = cx * CHUNK_SIZE;
+      const startZ = cz * CHUNK_SIZE;
+
+      for (let x = startX; x < startX + CHUNK_SIZE; x++) {
+        for (let z = startZ; z < startZ + CHUNK_SIZE; z++) {
+          const surfaceY = getTerrainHeight(x, z);
+
+          for (let y = 1; y <= surfaceY; y++) {
+            const key = posKey(x, y, z);
+            if (removedBlocks.has(key) || placedBlocks.has(key)) continue;
+
+            if (y === surfaceY) {
+              worldBlocks.set(key, 1); // Grass
+            } else if (y >= surfaceY - 3) {
+              worldBlocks.set(key, 2); // Dirt
+            } else {
+              worldBlocks.set(key, 3); // Stone
+            }
+          }
+
+          // Scattered natural trees on ground far from central temples
+          const isFar = Math.hypot(x, z) > 18;
+          if (isFar && ((x * 47 + z * 83) % 97 === 0) && surfaceY >= 9 && surfaceY <= 22) {
+            const ty = surfaceY + 1;
+            for (let th = 0; th < 5; th++) {
+              setVoxel(x, ty + th, z, 7, false);
+            }
+            for (let lx = -2; lx <= 2; lx++) {
+              for (let lz = -2; lz <= 2; lz++) {
+                for (let ly = 3; ly <= 5; ly++) {
+                  if (Math.abs(lx) + Math.abs(lz) + (ly - 4) <= 3) {
+                    setVoxel(x + lx, ty + ly, z + lz, 8, false);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    // =========================================================================
+    // 5. BUILT-IN MYTHIC-FANTASY ARCHITECTURE & LANDMARKS
+    // =========================================================================
+    function buildMythicWorldMonuments() {
+      // -----------------------------------------------------------------------
+      // MONUMENT 1: OLYMPUS CELESTIAL FLOATING TEMPLE (Center: 0, 18, 0)
+      // -----------------------------------------------------------------------
+      const oy = 18;
+      // Inverted-cone floating island bedrock
+      for (let x = -12; x <= 12; x++) {
+        for (let z = -12; z <= 12; z++) {
+          const dist = Math.hypot(x, z);
+          if (dist <= 12.2) {
+            setVoxel(x, oy - 1, z, 4, true); // Marble rim
+            if (dist <= 10.5) setVoxel(x, oy - 2, z, 3, true);
+            if (dist <= 8.2) setVoxel(x, oy - 3, z, 3, true);
+            if (dist <= 5.8) setVoxel(x, oy - 4, z, 9, true);
+            if (dist <= 3.2) setVoxel(x, oy - 5, z, 6, true); // Crystal core bottom
+          }
+        }
+      }
+
+      // Stepped Temple Stylobate Floor with Golden Border
+      for (let x = -8; x <= 8; x++) {
+        for (let z = -8; z <= 8; z++) {
+          const isEdge = Math.abs(x) === 8 || Math.abs(z) === 8;
+          setVoxel(x, oy, z, isEdge ? 5 : 4, true);
+        }
+      }
+
+      // 16 Classical Fluted Marble Columns
+      const pillarCoords = [
+        [-7, -7], [-3, -7], [0, -7], [3, -7], [7, -7],
+        [-7,  7], [-3,  7], [0,  7], [3,  7], [7,  7],
+        [-7, -3], [-7,  0], [-7,  3],
+        [ 7, -3], [ 7,  0], [ 7,  3]
+      ];
+      pillarCoords.forEach(([px, pz]) => {
+        setVoxel(px, oy + 1, pz, 5, true); // Gold base
+        for (let h = 2; h <= 7; h++) {
+          setVoxel(px, oy + h, pz, 4, true); // Marble column
+        }
+        setVoxel(px, oy + 8, pz, 5, true); // Gold capital
+      });
+
+      // Temple Entablature & Gilded Pediment Roof
+      for (let x = -8; x <= 8; x++) {
+        for (let z = -8; z <= 8; z++) {
+          if (Math.abs(x) >= 6 || Math.abs(z) >= 6) {
+            setVoxel(x, oy + 9, z, 4, true);
+          }
+        }
+      }
+      for (let step = 0; step <= 4; step++) {
+        const span = 7 - step * 1.5;
+        for (let x = -Math.floor(span); x <= Math.floor(span); x++) {
+          for (let z = -7; z <= 7; z++) {
+            if (Math.abs(z) === 7 || Math.abs(x) === Math.floor(span)) {
+              setVoxel(x, oy + 10 + step, z, step === 4 ? 5 : 4, true);
+            }
+          }
+        }
+      }
+
+      // Central Promethean Shrine: Golden Altar & Heart of Aether
+      for (let x = -2; x <= 2; x++) {
+        for (let z = -2; z <= 2; z++) {
+          setVoxel(x, oy + 1, z, 5, true);
+        }
+      }
+      setVoxel(0, oy + 2, 0, 9, true);
+      setVoxel(0, oy + 3, 0, 6, true);
+      setVoxel(0, oy + 4, 0, 6, true);
+
+      // Four Corner Brazier Stands
+      const braziers = [[-4, -4], [4, -4], [-4, 4], [4, 4]];
+      braziers.forEach(([bx, bz]) => {
+        setVoxel(bx, oy + 1, bz, 5, true);
+        setVoxel(bx, oy + 2, bz, 5, true);
+        setVoxel(bx, oy + 3, bz, 6, true); // Glowing crystal flame
+      });
+
+      // Celestial Light Bridge / Ascending Bifrost Stairway (South from temple)
+      for (let s = 1; s <= 9; s++) {
+        for (let x = -2; x <= 2; x++) {
+          setVoxel(x, oy - s, 8 + s, Math.abs(x) === 2 ? 5 : 6, true);
+        }
+      }
+
+      // Floating Celestial Halo Ring hovering overhead
+      for (let i = 0; i < 28; i++) {
+        const a = (i / 28) * Math.PI * 2;
+        const hx = Math.round(Math.cos(a) * 12);
+        const hz = Math.round(Math.sin(a) * 12);
+        setVoxel(hx, oy + 16, hz, i % 2 === 0 ? 5 : 6, true);
+      }
+
+      // -----------------------------------------------------------------------
+      // MONUMENT 2: TWIN AETHER CRYSTAL SPIRES (North Flanks: -14, y, -12 & 14, y, -12)
+      // -----------------------------------------------------------------------
+      const spires = [[-14, -12], [14, -12]];
+      spires.forEach(([sx, sz]) => {
+        for (let h = 0; h <= 18; h++) {
+          const rad = Math.max(0, Math.floor(2.5 - h * 0.12));
+          for (let rx = -rad; rx <= rad; rx++) {
+            for (let rz = -rad; rz <= rad; rz++) {
+              if (Math.abs(rx) + Math.abs(rz) <= rad) {
+                setVoxel(sx + rx, oy + h, sz + rz, (h % 3 === 0) ? 5 : 6, true);
+              }
+            }
+          }
+        }
+        setVoxel(sx, oy + 19, sz, 6, true);
+        setVoxel(sx, oy + 20, sz, 6, true);
+      });
+
+      // -----------------------------------------------------------------------
+      // MONUMENT 3: FOUR FLOATING RUNIC OBELISKS (Diagonal cardinal orbits)
+      // -----------------------------------------------------------------------
+      const obelisks = [[-16, 14], [16, 14], [-16, -14], [16, -14]];
+      obelisks.forEach(([ox, oz], idx) => {
+        const by = oy + 4 + (idx % 2) * 3;
+        for (let h = 0; h <= 8; h++) {
+          setVoxel(ox, by + h, oz, (h === 0 || h === 8) ? 5 : (h === 4 ? 6 : 9), true);
+          if (h >= 2 && h <= 6) {
+            setVoxel(ox + 1, by + h, oz, 9, true);
+            setVoxel(ox - 1, by + h, oz, 9, true);
+          }
+        }
+      });
+
+      // -----------------------------------------------------------------------
+      // MONUMENT 4: YGGDRASIL WORLD TREE (East: 28, y, -20)
+      // -----------------------------------------------------------------------
+      const tx = 28, tz = -20;
+      const ty = getTerrainHeight(tx, tz) + 1;
+
+      // Sacred Root Mound
+      for (let rx = -5; rx <= 5; rx++) {
+        for (let rz = -5; rz <= 5; rz++) {
+          if (Math.hypot(rx, rz) <= 5.2) {
+            setVoxel(tx + rx, ty, tz + rz, 7, true);
+          }
+        }
+      }
+
+      // Colossal Trunk
+      for (let h = 1; h <= 15; h++) {
+        for (let rx = -1; rx <= 1; rx++) {
+          for (let rz = -1; rz <= 1; rz++) {
+            if (Math.abs(rx) + Math.abs(rz) <= 1 || h < 6) {
+              setVoxel(tx + rx, ty + h, tz + rz, 7, true);
+            }
+          }
+        }
+      }
+
+      // Vast Bioluminescent Starlight Canopy
+      for (let lx = -8; lx <= 8; lx++) {
+        for (let lz = -8; lz <= 8; lz++) {
+          for (let ly = 12; ly <= 20; ly++) {
+            const d = Math.hypot(lx, lz, (ly - 15) * 1.3);
+            if (d <= 7.5 && d >= 4.5) {
+              const isCrystal = ((lx * 7 + lz * 13 + ly) % 13 === 0);
+              setVoxel(tx + lx, ty + ly, tz + lz, isCrystal ? 6 : 8, true);
+            }
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // MONUMENT 5: ABYSSAL TITAN PORTAL (West: -28, y, -18)
+      // -----------------------------------------------------------------------
+      const ax = -28, az = -18;
+      const ay = getTerrainHeight(ax, az) + 1;
+
+      // Obsidian Ritual Platform
+      for (let x = -5; x <= 5; x++) {
+        for (let z = -5; z <= 5; z++) {
+          setVoxel(ax + x, ay, az + z, (Math.abs(x) === 5 || Math.abs(z) === 5) ? 5 : 9, true);
+        }
+      }
+
+      // Twin Obsidian Gate Pillars & Portal Core
+      for (let h = 1; h <= 12; h++) {
+        setVoxel(ax - 3, ay + h, az, h % 3 === 0 ? 5 : 9, true);
+        setVoxel(ax + 3, ay + h, az, h % 3 === 0 ? 5 : 9, true);
+        if (h >= 2 && h <= 9) {
+          setVoxel(ax - 2, ay + h, az, 9, true);
+          setVoxel(ax + 2, ay + h, az, 9, true);
+          for (let px = -1; px <= 1; px++) {
+            setVoxel(ax + px, ay + h, az, 6, true);
+          }
+        }
+      }
+      for (let px = -3; px <= 3; px++) {
+        setVoxel(ax + px, ay + 10, az, 5, true);
+        setVoxel(ax + px, ay + 11, az, 9, true);
+      }
+    }
+
+    // Build initial chunks and monuments
+    for (let cx = -RENDER_RADIUS; cx <= RENDER_RADIUS; cx++) {
+      for (let cz = -RENDER_RADIUS; cz <= RENDER_RADIUS; cz++) {
+        generateChunk(cx, cz);
+      }
+    }
+    buildMythicWorldMonuments();
+
+    // =========================================================================
+    // 6. INSTANCED MESH VOXEL RENDERING ENGINE (60+ FPS)
+    // =========================================================================
+    const MAX_INSTANCES_PER_TYPE = 35000;
+    const unitBoxGeom = new THREE.BoxGeometry(1, 1, 1);
+    const instancedMeshes = {};
+    const instanceCoordLookup = {};
+    const dummyMatrix = new THREE.Matrix4();
+
+    BLOCK_TYPES.forEach((b) => {
+      const im = new THREE.InstancedMesh(unitBoxGeom, BLOCK_MATERIALS[b.id], MAX_INSTANCES_PER_TYPE);
+      im.count = 0;
+      im.frustumCulled = false;
+      scene.add(im);
+      instancedMeshes[b.id] = im;
+      instanceCoordLookup[b.id] = [];
+    });
+
+    function rebuildInstancedMeshes() {
+      BLOCK_TYPES.forEach((b) => {
+        instancedMeshes[b.id].count = 0;
+        instanceCoordLookup[b.id].length = 0;
+      });
+
+      const maxDist = (RENDER_RADIUS + 1) * CHUNK_SIZE;
+      let totalVisible = 0;
+
+      worldBlocks.forEach((id, key) => {
+        const parts = key.split(',');
+        const x = parseInt(parts[0], 10);
+        const y = parseInt(parts[1], 10);
+        const z = parseInt(parts[2], 10);
+
+        if (Math.abs(x - player.pos.x) > maxDist || Math.abs(z - player.pos.z) > maxDist) return;
+
+        // Culling completely enclosed interior blocks
+        if (
+          worldBlocks.has(`${x+1},${y},${z}`) &&
+          worldBlocks.has(`${x-1},${y},${z}`) &&
+          worldBlocks.has(`${x},${y+1},${z}`) &&
+          worldBlocks.has(`${x},${y-1},${z}`) &&
+          worldBlocks.has(`${x},${y},${z+1}`) &&
+          worldBlocks.has(`${x},${y},${z-1}`)
+        ) {
+          return;
+        }
+
+        const im = instancedMeshes[id];
+        if (!im || im.count >= MAX_INSTANCES_PER_TYPE) return;
+
+        const idx = im.count;
+        dummyMatrix.makeTranslation(x, y, z);
+        im.setMatrixAt(idx, dummyMatrix);
+        instanceCoordLookup[id].push([x, y, z]);
+        im.count++;
+        totalVisible++;
+      });
+
+      BLOCK_TYPES.forEach((b) => {
+        instancedMeshes[b.id].instanceMatrix.needsUpdate = true;
+      });
+
+      document.getElementById('block-readout').textContent = totalVisible.toLocaleString();
+      document.getElementById('chunk-readout').textContent = `${generatedChunks.size} active`;
+    }
+
+    // =========================================================================
+    // 7. PLAYER PHYSICS & FIRST PERSON CONTROLS
+    // =========================================================================
+    const player = {
+      pos: new THREE.Vector3(0, 20.6, 21),
+      vel: new THREE.Vector3(0, 0, 0),
+      yaw: 0.0,
+      pitch: 0.05,
+      flyMode: false,
+      onGround: false
+    };
+
+    const keys = {};
+    let selectedBlockId = 1;
+    let isPointerLocked = false;
+    let isDraggingLook = false;
+    let dragMoved = false;
+    let lastMouseX = 0, lastMouseY = 0;
+
+    rebuildInstancedMeshes();
+
+    // 3D Highlight Wireframe Box on Targeted Block
+    const highlightBox = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02)),
+      new THREE.LineBasicMaterial({ color: 0xfde047, linewidth: 2.5 })
+    );
+    highlightBox.visible = false;
+    scene.add(highlightBox);
+
+    // Particle Debris System for Block Destruction
+    const breakParticles = [];
+    const particleGeom = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+
+    function spawnBreakParticles(x, y, z, blockId) {
+      const mat = BLOCK_MATERIALS[blockId] ? BLOCK_MATERIALS[blockId][0] : BLOCK_MATERIALS[1][0];
+      for (let i = 0; i < 15; i++) {
+        const m = new THREE.Mesh(particleGeom, mat);
+        m.position.set(
+          x + (Math.random() - 0.5) * 0.6,
+          y + (Math.random() - 0.5) * 0.6,
+          z + (Math.random() - 0.5) * 0.6
+        );
+        m.userData.vel = new THREE.Vector3(
+          (Math.random() - 0.5) * 5.0,
+          Math.random() * 4.5 + 1.2,
+          (Math.random() - 0.5) * 5.0
+        );
+        m.userData.life = 0.6;
+        scene.add(m);
+        breakParticles.push(m);
+      }
+    }
+
+    // Procedural Web Audio API Synthesizer
+    let audioCtx = null;
+    function playVoxelSound(type) {
+      try {
+        if (!audioCtx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) audioCtx = new AC();
+        }
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        if (type === 'break') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(260, now);
+          osc.frequency.exponentialRampToValueAtTime(70, now + 0.09);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+        } else if (type === 'place') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(360, now);
+          osc.frequency.exponentialRampToValueAtTime(500, now + 0.07);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+        } else if (type === 'jump') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.exponentialRampToValueAtTime(320, now + 0.12);
+          gain.gain.setValueAtTime(0.06, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        }
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.13);
+      } catch (err) {}
+    }
+
+    // Raycast from Center Crosshair to Select Blocks
+    const raycaster = new THREE.Raycaster();
+    raycaster.near = 0.1;
+    raycaster.far = 8.0;
+    let currentTargetHit = null;
+
+    function updateVoxelRaycast() {
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      const meshList = BLOCK_TYPES.map((b) => instancedMeshes[b.id]);
+      const hits = raycaster.intersectObjects(meshList, false);
+
+      if (hits.length > 0) {
+        const hit = hits[0];
+        const blockType = BLOCK_TYPES.find((b) => instancedMeshes[b.id] === hit.object);
+        if (blockType && hit.instanceId !== undefined) {
+          const coords = instanceCoordLookup[blockType.id][hit.instanceId];
+          if (coords) {
+            const [bx, by, bz] = coords;
+            const normal = hit.face ? hit.face.normal : new THREE.Vector3(0, 1, 0);
+            currentTargetHit = {
+              x: bx,
+              y: by,
+              z: bz,
+              nx: Math.round(normal.x),
+              ny: Math.round(normal.y),
+              nz: Math.round(normal.z),
+              blockId: blockType.id
+            };
+            highlightBox.position.set(bx, by, bz);
+            highlightBox.visible = true;
+            document.getElementById('target-block-label').textContent =
+              `${blockType.name} [${bx}, ${by}, ${bz}]`;
+            return;
+          }
+        }
+      }
+      currentTargetHit = null;
+      highlightBox.visible = false;
+      document.getElementById('target-block-label').textContent = '无 (走近并对准方块)';
+    }
+
+    function breakTargetedBlock() {
+      triggerSwing();
+      if (!currentTargetHit) return;
+      const { x, y, z, blockId } = currentTargetHit;
+      setVoxel(x, y, z, 0, true);
+      spawnBreakParticles(x, y, z, blockId);
+      playVoxelSound('break');
+      rebuildInstancedMeshes();
+      updateVoxelRaycast();
+    }
+
+    function placeBlockAtTarget() {
+      triggerSwing();
+      if (!currentTargetHit) return;
+      const px = currentTargetHit.x + currentTargetHit.nx;
+      const py = currentTargetHit.y + currentTargetHit.ny;
+      const pz = currentTargetHit.z + currentTargetHit.nz;
+
+      // Prevent placing a block inside player body
+      if (
+        Math.abs(px - player.pos.x) < 0.72 &&
+        Math.abs(pz - player.pos.z) < 0.72 &&
+        py >= Math.floor(player.pos.y - 1.6) &&
+        py <= Math.ceil(player.pos.y + 0.2)
+      ) {
+        return;
+      }
+
+      setVoxel(px, py, pz, selectedBlockId, true);
+      playVoxelSound('place');
+      rebuildInstancedMeshes();
+      updateVoxelRaycast();
+    }
+
+    // =========================================================================
+    // 8. INPUT LISTENERS (KEYBOARD, MOUSE, HOTBAR)
+    // =========================================================================
+    const lockOverlay = document.getElementById('click-lock-overlay');
+
+    lockOverlay.addEventListener('click', () => {
+      renderer.domElement.requestPointerLock();
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+      isPointerLocked = document.pointerLockElement === renderer.domElement;
+      if (isPointerLocked) {
+        lockOverlay.classList.add('hidden');
+      } else {
+        lockOverlay.classList.remove('hidden');
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+      if (e.code.startsWith('Digit')) {
+        const num = parseInt(e.code.replace('Digit', ''), 10);
+        if (num >= 1 && num <= BLOCK_TYPES.length) {
+          selectHotbarSlot(num);
+        }
+      } else if (e.code === 'KeyF') {
+        toggleFlyMode();
+      } else if (e.code === 'KeyT') {
+        cycleTimeOfDay();
+      } else if (e.code === 'KeyQ') {
+        breakTargetedBlock();
+      } else if (e.code === 'KeyE') {
+        placeBlockAtTarget();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      keys[e.code] = false;
+    });
+
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      if (isPointerLocked) {
+        if (e.button === 0) breakTargetedBlock();
+        else if (e.button === 2) placeBlockAtTarget();
+        return;
+      }
+      isDraggingLook = true;
+      dragMoved = false;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      const sensitivity = 0.0022;
+      if (isPointerLocked) {
+        player.yaw -= e.movementX * sensitivity;
+        player.pitch = Math.max(-1.48, Math.min(1.48, player.pitch - e.movementY * sensitivity));
+      } else if (isDraggingLook) {
+        const dx = e.clientX - lastMouseX;
+        const dy = e.clientY - lastMouseY;
+        if (Math.hypot(dx, dy) > 4) dragMoved = true;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        player.yaw -= dx * 0.004;
+        player.pitch = Math.max(-1.48, Math.min(1.48, player.pitch - dy * 0.004));
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (!isPointerLocked && isDraggingLook) {
+        isDraggingLook = false;
+        if (!dragMoved && e.target === renderer.domElement) {
+          if (e.button === 0) breakTargetedBlock();
+          else if (e.button === 2) placeBlockAtTarget();
+        }
+      }
+    });
+
+    renderer.domElement.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (!isPointerLocked && !dragMoved) placeBlockAtTarget();
+    });
+
+    window.addEventListener('wheel', (e) => {
+      const dir = e.deltaY > 0 ? 1 : -1;
+      let next = ((selectedBlockId - 1 + dir + BLOCK_TYPES.length) % BLOCK_TYPES.length) + 1;
+      selectHotbarSlot(next);
+    });
+
+    // Build 9-Slot Hotbar UI
+    const hotbarEl = document.getElementById('hotbar');
+    BLOCK_TYPES.forEach((b, idx) => {
+      const slot = document.createElement('button');
+      slot.dataset.id = b.id;
+      slot.className = `hotbar-slot rounded-xl flex flex-col items-center justify-center relative ${b.id === 1 ? 'active' : ''}`;
+      slot.innerHTML = `
+        <span class="absolute top-0.5 left-1.5 text-[10px] mono text-slate-300 font-bold">${idx + 1}</span>
+        <img src="${BLOCK_PREVIEW_URLS[b.id]}" alt="${b.name}" class="w-8 h-8 rounded-sm border border-black/40" style="image-rendering: pixelated;" />
+      `;
+      slot.addEventListener('click', () => selectHotbarSlot(b.id));
+      hotbarEl.appendChild(slot);
+    });
+
+    function selectHotbarSlot(id) {
+      selectedBlockId = id;
+      const b = BLOCK_BY_ID[id];
+      document.getElementById('selected-block-banner').textContent = `${id} · ${b.name}`;
+      document.querySelectorAll('.hotbar-slot').forEach((el) => {
+        el.classList.toggle('active', parseInt(el.dataset.id, 10) === id);
+      });
+      updateHeldBlock(id);
+    }
+
+    function toggleFlyMode() {
+      player.flyMode = !player.flyMode;
+      player.vel.set(0, 0, 0);
+      const btn = document.getElementById('btn-fly-mode');
+      btn.classList.toggle('active', player.flyMode);
+      btn.textContent = player.flyMode ? '模式: 神行飞行 (F)' : '模式: 重力步行 (F)';
+      document.getElementById('mode-readout').textContent = player.flyMode ? '神行飞行 · FLY' : '重力步行 · WALK';
+    }
+
+    document.getElementById('btn-fly-mode').addEventListener('click', toggleFlyMode);
+    document.getElementById('btn-break-action').addEventListener('click', breakTargetedBlock);
+    document.getElementById('btn-place-action').addEventListener('click', placeBlockAtTarget);
+
+    // Day / Dusk / Night Presets
+    const TIME_PRESETS = [
+      { name: '黄金神域 (Golden Day)', bg: 0x6fb1fc, fog: 0x8ec5fc, sun: 0xfef3c7, hemi: 0.82 },
+      { name: '诸神黄昏 (Mythic Dusk)', bg: 0x3b1d5e, fog: 0xf97316, sun: 0xfb923c, hemi: 0.58 },
+      { name: '星界永夜 (Starry Night)', bg: 0x070b19, fog: 0x0f172a, sun: 0x38bdf8, hemi: 0.35 }
+    ];
+    let timeIdx = 0;
+
+    function cycleTimeOfDay() {
+      timeIdx = (timeIdx + 1) % TIME_PRESETS.length;
+      const t = TIME_PRESETS[timeIdx];
+      scene.background.setHex(t.bg);
+      scene.fog.color.setHex(t.fog);
+      sunLight.color.setHex(t.sun);
+      hemiLight.intensity = t.hemi;
+      document.getElementById('btn-time-cycle').textContent = `天色: ${t.name.split(' ')[0]} (T)`;
+    }
+
+    document.getElementById('btn-time-cycle').addEventListener('click', cycleTimeOfDay);
+
+    // Teleport Locations
+    const TELEPORTS = {
+      olympus:   { x: 0,   y: 20.6, z: 21,  yaw: 0.0,   pitch: 0.05 },
+      spires:    { x: 0,   y: 22.0, z: -10, yaw: 3.14,  pitch: 0.2 },
+      yggdrasil: { x: 28,  y: 22.0, z: -4,  yaw: 0.0,   pitch: 0.12 },
+      abyss:     { x: -28, y: 19.0, z: -4,  yaw: 0.0,   pitch: 0.08 },
+      overview:  { x: 0,   y: 44.0, z: 46,  yaw: 0.0,   pitch: -0.42 }
+    };
+
+    document.querySelectorAll('.tp-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const t = TELEPORTS[btn.dataset.tp];
+        if (!t) return;
+        player.pos.set(t.x, t.y, t.z);
+        player.vel.set(0, 0, 0);
+        player.yaw = t.yaw;
+        player.pitch = t.pitch;
+        ensureNearbyChunks();
+      });
+    });
+
+    function ensureNearbyChunks() {
+      const pcx = Math.floor(player.pos.x / CHUNK_SIZE);
+      const pcz = Math.floor(player.pos.z / CHUNK_SIZE);
+      let added = false;
+      for (let dx = -RENDER_RADIUS; dx <= RENDER_RADIUS; dx++) {
+        for (let dz = -RENDER_RADIUS; dz <= RENDER_RADIUS; dz++) {
+          if (generateChunk(pcx + dx, pcz + dz)) added = true;
+        }
+      }
+      rebuildInstancedMeshes();
+    }
+
+    // =========================================================================
+    // 9. MAIN GAME LOOP
+    // =========================================================================
+    let lastTime = performance.now();
+    let lastChunkX = 0, lastChunkZ = 0;
+    let frameCount = 0, fpsTimer = 0;
+    let walkBobTimer = 0;
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      frameCount++;
+      fpsTimer += dt;
+      if (fpsTimer >= 0.5) {
+        document.getElementById('fps-counter').textContent = `${Math.round(frameCount / fpsTimer)} FPS`;
+        frameCount = 0;
+        fpsTimer = 0;
+      }
+
+      // Camera Orientation
+      const euler = new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ');
+      camera.quaternion.setFromEuler(euler);
+
+      // Movement Directions
+      const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
+      const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw)).normalize();
+
+      const isSprinting = keys['ShiftLeft'] || keys['ShiftRight'];
+      const baseSpeed = player.flyMode ? 15.0 : 7.2;
+      const moveSpeed = baseSpeed * (isSprinting ? 1.5 : 1.0);
+
+      const moveVec = new THREE.Vector3();
+      if (keys['KeyW'] || keys['ArrowUp']) moveVec.add(forward);
+      if (keys['KeyS'] || keys['ArrowDown']) moveVec.sub(forward);
+      if (keys['KeyD'] || keys['ArrowRight']) moveVec.add(right);
+      if (keys['KeyA'] || keys['ArrowLeft']) moveVec.sub(right);
+      if (moveVec.lengthSq() > 0) moveVec.normalize();
+
+      if (player.flyMode) {
+        player.pos.addScaledVector(moveVec, moveSpeed * dt);
+        if (keys['Space']) player.pos.y += 10.0 * dt;
+        if (isSprinting) player.pos.y -= 10.0 * dt;
+      } else {
+        // Walking physics with gravity and step-up collision
+        const nextPos = player.pos.clone().addScaledVector(moveVec, moveSpeed * dt);
+
+        // Check horizontal collision & auto step-up (1 block height)
+        const checkX = Math.round(nextPos.x);
+        const checkZ = Math.round(nextPos.z);
+        const footY = Math.floor(player.pos.y - 1.6);
+        const bodyBlock = getVoxel(checkX, footY + 1, checkZ);
+        const headBlock = getVoxel(checkX, footY + 2, checkZ);
+
+        if (bodyBlock !== 0 || headBlock !== 0) {
+          // If 1 block high and space above is free: step up!
+          if (bodyBlock !== 0 && headBlock === 0 && getVoxel(checkX, footY + 3, checkZ) === 0) {
+            player.pos.y += 1.05;
+            player.pos.x = nextPos.x;
+            player.pos.z = nextPos.z;
+          }
+          // otherwise blocked horizontally
+        } else {
+          player.pos.x = nextPos.x;
+          player.pos.z = nextPos.z;
+        }
+
+        // Gravity
+        player.vel.y -= 25.0 * dt;
+        if (keys['Space'] && player.onGround) {
+          player.vel.y = 9.4;
+          player.onGround = false;
+          playVoxelSound('jump');
+        }
+        player.pos.y += player.vel.y * dt;
+
+        // Ground detection
+        const standingX = Math.round(player.pos.x);
+        const standingZ = Math.round(player.pos.z);
+        const blockBelowY = Math.floor(player.pos.y - 1.62);
+        const blockUnderfoot = getVoxel(standingX, blockBelowY, standingZ);
+
+        if (blockUnderfoot !== 0) {
+          player.pos.y = blockBelowY + 2.62;
+          player.vel.y = 0;
+          player.onGround = true;
+        } else {
+          player.onGround = false;
+          if (player.pos.y < -10) {
+            // Void recovery
+            player.pos.set(0, 24, 21);
+            player.vel.set(0, 0, 0);
+          }
+        }
+      }
+
+      camera.position.copy(player.pos);
+
+      // Held Item Walking Bob & Swing Animation
+      if (moveVec.lengthSq() > 0 && player.onGround) {
+        walkBobTimer += dt * 10;
+      } else {
+        walkBobTimer += dt * 2;
+      }
+      const bobX = Math.cos(walkBobTimer) * 0.02;
+      const bobY = Math.abs(Math.sin(walkBobTimer)) * 0.025;
+
+      if (swingProgress > 0) {
+        swingProgress = Math.max(0, swingProgress - dt * 6.5);
+      }
+      const swingAngle = Math.sin(swingProgress * Math.PI) * 0.6;
+
+      handBlockMesh.position.set(0.48 + bobX, -0.42 + bobY - swingAngle * 0.2, -0.68 - swingAngle * 0.15);
+      handBlockMesh.rotation.set(0.35 + swingAngle, -0.65 - swingAngle * 0.4, 0.2 + swingAngle * 0.5);
+
+      // Infinite Chunk Streaming
+      const curCX = Math.floor(player.pos.x / CHUNK_SIZE);
+      const curCZ = Math.floor(player.pos.z / CHUNK_SIZE);
+      if (curCX !== lastChunkX || curCZ !== lastChunkZ) {
+        lastChunkX = curCX;
+        lastChunkZ = curCZ;
+        ensureNearbyChunks();
+      }
+
+      // Update Particle Debris
+      for (let i = breakParticles.length - 1; i >= 0; i--) {
+        const p = breakParticles[i];
+        p.userData.life -= dt;
+        if (p.userData.life <= 0) {
+          scene.remove(p);
+          breakParticles.splice(i, 1);
+        } else {
+          p.userData.vel.y -= 14.0 * dt;
+          p.position.addScaledVector(p.userData.vel, dt);
+          p.rotation.x += dt * 4;
+          p.rotation.y += dt * 5;
+        }
+      }
+
+      // Update Raycast Target & HUD
+      updateVoxelRaycast();
+      document.getElementById('pos-readout').textContent =
+        `${Math.round(player.pos.x)}, ${Math.round(player.pos.y)}, ${Math.round(player.pos.z)}`;
+
+      renderer.render(scene, camera);
+    }
+
+    // Responsive Canvas Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Start Loop
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
