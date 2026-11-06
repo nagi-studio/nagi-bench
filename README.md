@@ -115,7 +115,7 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 
 | 模型 / 厂商 | 产出 | 运行环境 · 思考配额 |
 |---|---|---|
-| Claude Opus 5.5<br><sub>Anthropic</sub> | 18 | Claude Code · Max / xhigh / High |
+| Claude Opus 5.5<br><sub>Anthropic</sub> | 22 | Claude Code · Max / xhigh / High<br>Kiro · High |
 | Claude Sonnet 5.5<br><sub>Anthropic</sub> | 17 | Claude Code · High / Max / xhigh |
 | Claude Haiku 5.5<br><sub>Anthropic</sub> | 06 | Claude Code · High |
 | Claude Fable 5.1<br><sub>Anthropic</sub> | 06 | Claude Code · High |
@@ -129,7 +129,7 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | Claude Opus 4.5<br><sub>Anthropic</sub> | 02 | Cursor · Thinking |
 | Claude Haiku 4.5<br><sub>Anthropic</sub> | 02 | Claude Code · Default |
 | GPT-6.1 Sol<br><sub>OpenAI</sub> | 20 | Codex CLI · High / Max / xhigh |
-| GPT-6 Astra<br><sub>OpenAI</sub> | 08 | Codex CLI · Max / xhigh |
+| GPT-6 Astra<br><sub>OpenAI</sub> | 09 | Codex CLI · Max / xhigh<br>Pi · xhigh |
 | GPT-6 Sol<br><sub>OpenAI</sub> | 07 | Codex CLI · xhigh |
 | GPT-5.6-Sol<br><sub>OpenAI</sub> | 11 | Codex CLI · ultra / max / xhigh |
 | GPT-5.6-Terra<br><sub>OpenAI</sub> | 05 | Codex CLI · ultra / xhigh |
@@ -156,6 +156,7 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | Grok Build<br><sub>xAI</sub> | 02 | Grok Build TUI · Max |
 | Grok 4.3<br><sub>xAI</sub> | 02 | Cursor · Default |
 | Composer 2.5<br><sub>xAI</sub> | 05 | Cursor · Max / Default<br>Grok Build TUI · Default |
+| Hy4<br><sub>Tencent</sub> | 06 | WorkBuddy · High |
 | Hy4 Preview<br><sub>Tencent</sub> | 09<br><sub>（仅展示 06）</sub> | WorkBuddy · High / Default |
 | Nex-N2-Pro<br><sub>Nex-AGI</sub> | 02 | Claude Code · Max |
 | Mistral Medium 3.5<br><sub>Mistral AI</sub> | 02 | Vibe · Thinking |
@@ -177,9 +178,10 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | GLM-5.1<br><sub>Zhipu AI</sub> | 01 | ZCode · Max |
 | GLM-5 Turbo<br><sub>Zhipu AI</sub> | 03 | ZCode · Thinking |
 | Qwen3.8-Max-Preview<br><sub>Alibaba</sub> | 06 | Qoder · Default<br>Qwen Studio Web · Thinking |
+| Qwen3.8-Max<br><sub>Alibaba</sub> | 05<br><sub>（仅展示 05）</sub> | Qwen Work Assistant · Auto |
+| Qwen3.7-Max<br><sub>Alibaba</sub> | 03 | Qoder · Default |
 | Qoder Ultimate<br><sub>Alibaba</sub> | 05 | Qoder · Default / Max |
 | Qwen 3.8 27B<br><sub>Alibaba</sub> | 01<br><sub>（仅展示 01）</sub> | OMP · Default |
-| Qwen3.7-Max<br><sub>Alibaba</sub> | 03 | Qoder · Default |
 | Qwen 3.6 27B<br><sub>Alibaba</sub> | 01<br><sub>（仅展示 01）</sub> | OMP · Default |
 | Step 3.7 Flash<br><sub>StepFun</sub> | 02 | Claude Code · High |
 | Spark X2.5<br><sub>iFlytek</sub> | 01 | Spark Web Harness · Reasoning |
