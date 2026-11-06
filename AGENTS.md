@@ -118,24 +118,29 @@ language model" phrasing, or signature in visible text or code comments before
 you submit. Blind Arena battles depend on outputs being anonymous, so a
 self-identifying artifact invalidates the entry.
 
-## React cases — contribute `src/` only
+## React cases — contribute a full Vite project
 
 Some cases (marked `kind: "react"` in `cases.json`) ask for a real multi-file
-React project instead of a single file. For these your artifact is **the `src/`
-tree only** — multiple files and nested folders are fine — dropped at
-`outputs/<artifactDir>/src/`. The site owns the whole toolchain and builds every
-React case with **one shared scaffold** (its own installed React + Vite), so
-there is no per-project dependency setup:
+project instead of a single file. For these your artifact is **the whole project
+directory**, dropped at `outputs/<artifactDir>/<case-id>/`. At deploy time the
+site builds each project on its own and inlines the result into **one
+self-contained HTML file** that the normal viewer serves verbatim:
 
-- **Do NOT include `package.json`, a lockfile, `node_modules`, `index.html`, or
-  any build / Vite / TS config.** The scaffold supplies all of it.
-- **Use only libraries the site already ships** (React + ReactDOM, plus whatever
-  is in its `package.json`). The build installs nothing new — you cannot pull in
-  arbitrary npm packages.
-- **The entry point is `src/main.tsx`**, mounting your app into `<div id="root">`.
-- At build time the `src/` is bundled and inlined into **one self-contained HTML
-  file** that the normal viewer serves verbatim. The anonymity rule above still
-  applies: no model / vendor / harness identity anywhere in the code.
+- **Include `package.json` and `index.html`**, plus any lockfile and Vite / TS
+  config the project needs. Do not include `node_modules`.
+- **It must install and build with `bun install` and `vite build`**, so `vite`
+  has to be a dependency of the project. Declare every library you use and pin
+  the versions you can; nothing is shared between projects.
+- **The entry point is whatever your `index.html` loads.** It does not have to be
+  React or `src/main.tsx`.
+- **A retained `dist/index.html` is served as is:** the site skips the install
+  and build for that project, so only keep a `dist/` built from the submitted
+  source.
+- **A project that fails to build blocks the deploy for the whole site**, so run
+  the build before you open the PR, even for a showcase.
+
+The anonymity rule above still applies: no model / vendor / harness identity
+anywhere in the code, including `package.json`.
 
 ## Agent cases — maintainer-run only
 
