@@ -115,7 +115,7 @@ More than a hundred model x harness x effort combinations have run these cases, 
 
 | Model / Vendor | Runs | Harness · Effort |
 |---|---|---|
-| Claude Opus 5.5<br><sub>Anthropic</sub> | 32 | Claude Code · Max / xhigh / High / Medium<br>Kiro · High |
+| Claude Opus 5.5<br><sub>Anthropic</sub> | 39 | Claude Code · Max / xhigh / High / Medium / Low<br>Kiro · High |
 | Claude Sonnet 5.5<br><sub>Anthropic</sub> | 17 | Claude Code · High / Max / xhigh |
 | Claude Haiku 5.5<br><sub>Anthropic</sub> | 06 | Claude Code · High |
 | Claude Fable 5.2<br><sub>Anthropic</sub> | 07 | Claude Code · High |
