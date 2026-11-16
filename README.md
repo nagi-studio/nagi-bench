@@ -178,7 +178,7 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | GLM-5.2<br><sub>Zhipu AI</sub> | 05 | ZCode · Max<br>Qoder · Max |
 | GLM-5.1<br><sub>Zhipu AI</sub> | 01 | ZCode · Max |
 | GLM-5 Turbo<br><sub>Zhipu AI</sub> | 03 | ZCode · Thinking |
-| Qwen4-Max<br><sub>Alibaba</sub> | 14 | Claude Code · High / Max |
+| Qwen4-Max<br><sub>Alibaba</sub> | 13 | Claude Code · High / Max |
 | Qwen3.8-Max-Preview<br><sub>Alibaba</sub> | 06 | Qoder · Default<br>Qwen Studio Web · Thinking |
 | Qwen3.8-Max<br><sub>Alibaba</sub> | 05<br><sub>（仅展示 05）</sub> | Qwen Work Assistant · Auto |
 | Qwen3.7-Max<br><sub>Alibaba</sub> | 03 | Qoder · Default |
