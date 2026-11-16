@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>神话 MC · Mythos Craft</title>
+<style>
+  :root{--gold:#e3c68a;--txt:#efe9dc;--dim:#9b9284}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#05070c;color:var(--txt);
+    font-family:"Helvetica Neue",Helvetica,"PingFang SC","Microsoft YaHei",Arial,sans-serif;user-select:none}
+  canvas{display:block;width:100%;height:100%}
+  #hud{position:fixed;inset:0;pointer-events:none}
+  #cross{position:absolute;left:50%;top:50%;width:20px;height:20px;transform:translate(-50%,-50%);
+    opacity:.85;filter:drop-shadow(0 0 2px #000)}
+  #cross:before,#cross:after{content:"";position:absolute;background:#fff}
+  #cross:before{left:9px;top:0;width:2px;height:20px}
+  #cross:after{top:9px;left:0;height:2px;width:20px}
+  #info{position:absolute;left:16px;top:14px;font-size:12px;line-height:1.85;letter-spacing:.05em;
+    text-shadow:0 1px 3px #000}
+  #info b{color:var(--gold);font-weight:500}
+  #info .dim{color:var(--dim)}
+  #bar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:4px;
+    background:rgba(10,12,16,.55);border:1px solid rgba(227,198,138,.22);padding:4px;border-radius:3px;
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .slot{width:52px;height:52px;border:1px solid rgba(255,255,255,.10);border-radius:2px;position:relative;
+    background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}
+  .slot.on{border-color:var(--gold);box-shadow:0 0 0 1px rgba(227,198,138,.35),0 0 12px rgba(227,198,138,.18)}
+  .slot .sw{width:30px;height:30px;border-radius:2px;image-rendering:pixelated;box-shadow:inset 0 -8px 12px rgba(0,0,0,.35)}
+  .slot .n{position:absolute;right:3px;bottom:1px;font-size:9px;color:var(--dim)}
+  #tip{position:absolute;left:50%;bottom:84px;transform:translateX(-50%);font-size:12px;letter-spacing:.08em;
+    color:var(--txt);text-shadow:0 1px 4px #000;opacity:0;transition:opacity .4s;text-align:center}
+  #start{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 50% 38%,#16202e,#05070c 72%);text-align:center;cursor:pointer}
+  #start h1{margin:0;font-size:30px;font-weight:300;letter-spacing:.42em;color:var(--gold)}
+  #start h2{margin:10px 0 26px;font-size:13px;font-weight:300;letter-spacing:.24em;color:var(--dim)}
+  #start p{margin:5px 0;font-size:12.5px;color:#c9c0b1;letter-spacing:.08em;line-height:2}
+  #start .go{margin-top:26px;padding:11px 30px;border:1px solid rgba(227,198,138,.5);color:var(--gold);
+    font-size:12px;letter-spacing:.3em;border-radius:2px}
+  #start small{display:block;margin-top:18px;color:#6f685d;font-size:11px;letter-spacing:.1em}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="cross"></div>
+  <div id="info"></div>
+  <div id="tip"></div>
+  <div id="bar"></div>
+</div>
+<div id="start">
+  <h1>MYTHOS CRAFT</h1>
+  <h2>神 话 世 界 · 神 话 创 造</h2>
+  <p>W A S D 移动　·　空格跳跃　·　鼠标环视</p>
+  <p>左键破坏方块　·　右键放置方块　·　滚轮或数字键切换方块</p>
+  <div class="go">点 击 开 始</div>
+  <small>Perlin 噪声无限地形 · 程序化像素贴图 · 内置神话建筑与地貌</small>
+</div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>if(!window.THREE){document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"><\/script>');}</script>
+<script>
+(function(){
+'use strict';
+if(!window.THREE){document.getElementById('start').innerHTML='THREE.JS LOAD FAILED';return;}
+var T=THREE;
+
+/* ================= block registry ================= */
+var TILE=16, ATLAS=128;
+function px(ctx,x,y,color){ctx.fillStyle=color;ctx.fillRect(x,y,1,1);}
+function noiseTile(ctx,base,palette,density,seed){
+  var s=seed||1;
+  for(var y=0;y<TILE;y++)for(var x=0;x<TILE;x++){
+    var n=(Math.sin(x*12.9898+y*78.233+s*3.17)*43758.5453)%1;
+    n=Math.abs(n);
+    var c=palette[Math.floor(n*palette.length)];
+    if(n<density) c=base;
+    px(ctx,x,y,c);
+  }
+}
+function buildAtlas(){
+  var c=document.createElement('canvas'); c.width=c.height=ATLAS;
+  var g=c.getContext('2d'); g.clearRect(0,0,ATLAS,ATLAS);
+  var COLS=ATLAS/TILE;
+  function cell(i,fn){ g.save(); g.translate(i%COLS*TILE, Math.floor(i/COLS)*TILE); fn(g,0,0); g.restore(); }
+  function ctxSave(){g.save();}
+  function ctxRestore(){g.restore();}
+  /* 0 grass top */
+  cell(0,function(g,x,y){
+    noiseTile(g,'#4f8a3c',['#5c9c44','#478032','#69a84e','#3f7530'],0.18,7);
+    for(var i=0;i<26;i++){var a=(i*97%TILE),b=(i*61%TILE);px(g,a,b,'#6fb254');}
+  });
+  /* 1 grass side */
+  cell(1,function(g,x,y){
+    noiseTile(g,'#8a6a44',['#93724b','#7d5f3c','#9c7a50'],0.2,11);
+    for(var i=0;i<TILE;i++){
+      var h=3+((i*7)%4);
+      for(var k=0;k<h;k++) px(g,i,k,'#4f8a3c');
+      px(g,i,h-1,'#3f7530');
+    }
+  });
+  /* 2 dirt */
+  cell(2,function(g,x,y){ noiseTile(g,'#8a6a44',['#93724b','#7d5f3c','#a07e54'],0.35,3); });
+  /* 3 stone */
+  cell(3,function(g,x,y){
+    noiseTile(g,'#8d8d93',['#96969c','#83838a','#a1a1a7','#7a7a81'],0.3,5);
+    for(var i=0;i<9;i++){var a=(i*13)%TILE,b=(i*29)%TILE;px(g,a,b,'#6e6e75');px(g,(a+1)%TILE,b,'#6e6e75');}
+  });
+  /* 4 cobble */
+  cell(4,function(g,x,y){
+    noiseTile(g,'#7b7b82',['#8a8a91','#707077','#96969d'],0.5,9);
+    for(var i=0;i<14;i++){var a=(i*11)%TILE,b=(i*23)%TILE;
+      px(g,a,b,'#5c5c63');px(g,(a+1)%TILE,b,'#5c5c63');px(g,a,(b+1)%TILE,'#5c5c63');}
+  });
+  /* 5 sand */
+  cell(5,function(g,x,y){ noiseTile(g,'#ded0a4',['#e7dab0','#d4c598','#f0e4bc'],0.3,13); });
+  /* 6 log side */
+  cell(6,function(g,x,y){
+    noiseTile(g,'#6b4c2c',['#75542f','#5f4226','#7d5b34'],0.25,17);
+    for(var i=0;i<TILE;i+=4) for(var k=0;k<TILE;k++) px(g,i,k,'#4d351d');
+  });
+  /* 7 log top */
+  cell(7,function(g,x,y){
+    g.fillStyle='#8b6539'; g.fillRect(x,y,TILE,TILE);
+    for(var r=1;r<4;r++){g.fillStyle=r%2?'#7a5832':'#9a7444';
+      g.fillRect(x+2+r*3,y+2+r*3,TILE-4-r*6,TILE-4-r*6);}
+    g.fillStyle='#5a4025'; g.fillRect(x+6,y+6,4,4);
+  });
+  /* 8 leaves */
+  cell(8,function(g,x,y){
+    noiseTile(g,'#3f7a35',['#4a8c3c','#356b2c','#579b45'],0.5,23);
+    for(var i=0;i<40;i++){var a=(i*17)%TILE,b=(i*31)%TILE; if((i%3)===0)px(g,a,b,'#2e5f27');}
+  });
+  /* 9 planks */
+  cell(9,function(g,x,y){
+    noiseTile(g,'#b08a52',['#bb9358','#a67f4b','#c09c62'],0.25,29);
+    for(var i=0;i<=TILE;i+=4){for(var k=0;k<TILE;k++)px(g,i,k,'#8d6b3d');}
+  });
+  /* 10 water */
+  cell(10,function(g,x,y){
+    noiseTile(g,'#2f6ea8',['#3a7cb8','#275f95','#4689c4'],0.2,31);
+  });
+  /* 11 snow */
+  cell(11,function(g,x,y){ noiseTile(g,'#eef2f6',['#ffffff','#dde5ee','#f6f9fc'],0.25,37); });
+  /* 12 obsidian */
+  cell(12,function(g,x,y){
+    noiseTile(g,'#1b1526',['#241c33','#15101f','#2d2340'],0.3,41);
+    for(var i=0;i<7;i++){var a=(i*19)%TILE,b=(i*37)%TILE;px(g,a,b,'#4a3a6b');}
+  });
+  /* 13 crystal */
+  cell(13,function(g,x,y){
+    noiseTile(g,'#7fe4ff',['#a8f0ff','#5fd4f5','#d3f7ff'],0.25,43);
+    for(var i=0;i<10;i++){var a=(i*7)%TILE,b=(i*23)%TILE;px(g,a,b,'#ffffff');}
+  });
+  /* 14 marble */
+  cell(14,function(g,x,y){
+    noiseTile(g,'#e8e6df',['#f4f2ec','#d8d5cc','#ffffff'],0.3,47);
+    for(var i=0;i<6;i++){var a=(i*13)%TILE,b=(i*19)%TILE;px(g,a,b,'#b9b6ad');px(g,(a+1)%TILE,b,'#c6c3ba');}
+  });
+  /* 15 gold block */
+  cell(15,function(g,x,y){
+    noiseTile(g,'#e0b445',['#f0c85a','#c99b33','#ffdc78'],0.25,53);
+    for(var i=0;i<4;i++){var a=i*4;for(var k=0;k<TILE;k++)px(g,a,k,'#a87f22');}
+  });
+  /* 16 brick */
+  cell(16,function(g,x,y){
+    noiseTile(g,'#9c5340',['#a85e49','#8e4936','#b56a53'],0.3,59);
+    for(var i=0;i<TILE;i+=4)for(var k=0;k<TILE;k++)px(g,(k+i)%TILE,k,'#cfc4b6');
+  });
+  /* 17 glowstone */
+  cell(17,function(g,x,y){
+    noiseTile(g,'#e8c86a',['#f6dc8e','#d8b04e','#fff0b8'],0.3,61);
+    for(var i=0;i<12;i++){var a=(i*5)%TILE,b=(i*11)%TILE;px(g,a,b,'#fffbe0');}
+  });
+  /* 18 moss stone */
+  cell(18,function(g,x,y){
+    noiseTile(g,'#6e7a64',['#7b8872','#616d59','#8a9781'],0.3,67);
+    for(var i=0;i<30;i++){var a=(i*23)%TILE,b=(i*31)%TILE;px(g,a,b,'#4f7a3f');}
+  });
+  /* 19 rune stone */
+  cell(19,function(g,x,y){
+    noiseTile(g,'#4a4658',['#565268','#3f3b4e','#615d72'],0.3,71);
+    g.fillStyle='#9fd8ff';
+    g.fillRect(x+3,y+4,1,8); g.fillRect(x+8,y+2,1,12); g.fillRect(x+11,y+6,1,6);
+    g.fillRect(x+3,y+11,9,1);
+  });
+  /* 20 dark wood */
+  cell(20,function(g,x,y){
+    noiseTile(g,'#3d2b20',['#463126','#33241b','#4e372a'],0.25,73);
+    for(var i=0;i<TILE;i+=4)for(var k=0;k<TILE;k++)px(g,i,k,'#281c15');
+  });
+  /* 21 lava */
+  cell(21,function(g,x,y){
+    noiseTile(g,'#d8500f',['#f26a12','#b93c08','#ff8a20'],0.4,79);
+    for(var i=0;i<14;i++){var a=(i*13)%TILE,b=(i*29)%TILE;px(g,a,b,'#ffd05a');}
+  });
+  /* 22 ice */
+  cell(22,function(g,x,y){
+    noiseTile(g,'#a8d4ef',['#bce2f5','#95c6e8','#d0eeff'],0.25,83);
+    for(var i=0;i<8;i++){var a=(i*13)%TILE,b=(i*29)%TILE;px(g,a,b,'#ffffff');}
+  });
+  /* 23 gold rune */
+  cell(23,function(g,x,y){
+    noiseTile(g,'#cfa23c',['#e0b552','#b8902f','#f0ca6e'],0.3,89);
+    g.fillStyle='#fff2c4';
+    g.fillRect(x+4,y+3,8,1); g.fillRect(x+7,y+3,2,10); g.fillRect(x+3,y+9,10,1);
+  });
+  var tex=new T.CanvasTexture(c);
+  tex.magFilter=T.NearestFilter; tex.minFilter=T.NearestMipmapNearestFilter;
+  tex.colorSpace=T.SRGBColorSpace;
+  return tex;
+}
+var ATLAS_TEX=buildAtlas();
+
+var B={ AIR:0, GRASS:1, DIRT:2, STONE:3, COBBLE:4, SAND:5, LOG:6, LEAF:7, PLANK:8,
+  WATER:9, SNOW:10, OBSIDIAN:11, CRYSTAL:12, MARBLE:13, GOLD:14, BRICK:15, GLOW:16,
+  MOSS:17, RUNE:18, DARKWOOD:19, LAVA:20, ICE:21, GOLDRUNE:22 };
+/* tiles: [top, bottom, side] */
+var DEF={
+  1:[0,2,1], 2:[2,2,2], 3:[3,3,3], 4:[4,4,4], 5:[5,5,5], 6:[7,7,6], 7:[8,8,8],
+  8:[9,9,9], 9:[10,10,10], 10:[11,11,11], 11:[12,12,12], 12:[13,13,13], 13:[14,14,14],
+  14:[15,15,15], 15:[16,16,16], 16:[17,17,17], 17:[18,18,18], 18:[19,19,19], 19:[20,20,20],
+  20:[21,21,21], 21:[22,22,22], 22:[23,23,23]
+};
+var SOLID={}, TRANSP={}, EMIS={};
+for(var k=1;k<=22;k++){ SOLID[k]=true; TRANSP[k]=(k===9||k===12||k===21); EMIS[k]=(k===16||k===22||k===12); }
+var HOTBAR=[1,3,4,5,6,7,8,13,14,11,18,16,12,20,15,22];
+
+/* ================= noise ================= */
+function mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;var t=Math.imul(seed^seed>>>15,1|seed);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+var rnd=mulberry(20261106);
+var perm=new Uint8Array(512);
+(function(){var p=[];for(var i=0;i<256;i++)p[i]=i;
+  for(var i=255;i>0;i--){var j=Math.floor(rnd()*(i+1));var t=p[i];p[i]=p[j];p[j]=t;}
+  for(var i=0;i<512;i++)perm[i]=p[i&255];})();
+function fade(t){return t*t*t*(t*(t*6-15)+10);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function grad2(h,x,y){switch(h&3){case 0:return x+y;case 1:return -x+y;case 2:return x-y;default:return -x-y;}}
+function perlin(x,y){
+  var X=Math.floor(x)&255, Y=Math.floor(y)&255;
+  var xf=x-Math.floor(x), yf=y-Math.floor(y);
+  var u=fade(xf), v=fade(yf);
+  var aa=perm[perm[X]+Y], ab=perm[perm[X]+Y+1], ba=perm[perm[X+1]+Y], bb=perm[perm[X+1]+Y+1];
+  var x1=lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u);
+  var x2=lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u);
+  return lerp(x1,x2,v);
+}
+function fbm(x,y,oct,lac,gain){
+  oct=oct||4;lac=lac||2;gain=gain||0.5;
+  var a=1,f=1,s=0,n=0;
+  for(var i=0;i<oct;i++){s+=a*perlin(x*f,y*f);n+=a;a*=gain;f*=lac;}
+  return s/n;
+}
+function hash2(x,y){var h=Math.imul(x,374761393)+Math.imul(y,668265263);h=(h^(h>>>13));return (h>>>0)/4294967296;}
+
+/* ================= world ================= */
+var CS=16, WH=64, SEA=14;
+function terrainHeight(wx,wz){
+  var base=fbm(wx*0.012,wz*0.012,4)*1.0;
+  var m=fbm(wx*0.031+41.7,wz*0.031-17.3,3)*0.55;
+  var r=Math.sqrt(wx*wx+wz*wz);
+  var mountain=Math.max(0, fbm(wx*0.006-9.1,wz*0.006+3.4,3)*1.4-0.35);
+  var h=SEA+6+base*22+m*7+mountain*26;
+  /* a river valley carving through the lowlands */
+  var rv=Math.abs(fbm(wx*0.004+77.7,wz*0.004-55.1,2));
+  if(rv<0.055 && h<SEA+7) h-= (0.055-rv)*150;
+  return Math.max(1,Math.min(WH-6,Math.floor(h)));
+}
+function biomeAt(wx,wz,h){
+  var temp=fbm(wx*0.004+300,wz*0.004-120,3);
+  var moist=fbm(wx*0.005-210,wz*0.005+90,3);
+  if(h>34+temp*8) return 'snow';
+  if(h>27+temp*6) return 'mountain';
+  if(h<SEA+1) return 'beach';
+  if(moist>0.12) return 'forest';
+  if(moist<-0.12) return 'plain';
+  return 'hills';
+}
+var world={};
+function chunkKey(cx,cz){return cx+','+cz;}
+function getChunk(cx,cz){
+  var k=chunkKey(cx,cz);
+  if(world[k]) return world[k];
+  var data=new Uint8Array(CS*CS*WH);
+  var ch={cx:cx,cz:cz,data:data,mesh:null,water:null,dirty:true};
+  world[k]=ch;
+  generateChunk(ch);
+  return ch;
+}
+function idx(x,y,z){return (y*CS+z)*CS+x;}
+function inChunk(x,z){return x>=0&&x<CS&&z>=0&&z<CS;}
+
+function generateChunk(ch){
+  var baseX=ch.cx*CS, baseZ=ch.cz*CS;
+  /* terrain columns */
+  for(var lz=0;lz<CS;lz++)for(var lx=0;lx<CS;lx++){
+    var wx=baseX+lx, wz=baseZ+lz;
+    var h=terrainHeight(wx,wz);
+    var bi=biomeAt(wx,wz,h);
+    for(var y=0;y<=h;y++){
+      var b;
+      if(y===0) b=B.OBSIDIAN;
+      else if(y===h){
+        b = bi==='beach'?B.SAND : bi==='snow'?B.SNOW : bi==='mountain'?(h>40?B.SNOW:B.STONE):B.GRASS;
+      }else if(y>h-4) b = bi==='beach'?B.SAND:bi==='snow'?B.SNOW:B.DIRT;
+      else if(y>20+Math.floor(fbm(wx*0.02,wz*0.02,2)*6)) b=B.STONE;
+      else b=B.STONE;
+      ch.data[idx(lx,y,lz)]=b;
+    }
+    for(var y=h+1;y<=SEA;y++) ch.data[idx(lx,y,lz)]=B.WATER;
+    /* surface decoration */
+    if(bi==='forest'||bi==='hills'||bi==='plain'){
+      var r=hash2(wx*7+13,wz*13-7);
+      if(r>0.994 && h>SEA+1){
+        var th=4+Math.floor(hash2(wx,wz)*4);
+        for(var t=1;t<=th;t++){ if(h+t<WH) ch.data[idx(lx,h+t,lz)]=B.LOG; }
+        var top=h+th;
+        for(var dy=-2;dy<=2;dy++)for(var dz=-2;dz<=2;dz++)for(var dx=-2;dx<=2;dx++){
+          if(dx*dx+dy*dy+dz*dz>6) continue;
+          var yy=top+dy, xx=lx+dx, zz=lz+dz;
+          if(!inChunk(xx,zz)||yy<0||yy>=WH) continue;
+          if(ch.data[idx(xx,yy,zz)]===B.AIR) ch.data[idx(xx,yy,zz)]=B.LEAF;
+        }
+      }else if(r>0.986 && h>SEA+1 && h<28){
+        for(var dx=-1;dx<=1;dx++)for(var dz=-1;dz<=1;dz++){
+          var xx=lx+dx, zz=lz+dz;
+          if(!inChunk(xx,zz)) continue;
+          if(ch.data[idx(xx,h+1,zz)]===B.AIR) ch.data[idx(xx,h+1,zz)]=B.MOSS;
+        }
+      }
+    }
+  }
+  /* structures */
+  var R=64;
+  var r0=Math.floor(baseX/R), r1=Math.floor((baseX+CS-1)/R);
+  var s0=Math.floor(baseZ/R), s1=Math.floor((baseZ+CS-1)/R);
+  for(var rx=r0;rx<=r1;rx++)for(var rz=s0;rz<=s1;rz++){
+    var h2=hash2(rx*7919+13,rz*104729+7);
+    var type=Math.floor(h2*7);
+    if(h2<0.12) continue;
+    var jx=rx*R+Math.floor(hash2(rx,rz)*20)+18;
+    var jz=rz*R+Math.floor(hash2(rx+5,rz-3)*20)+18;
+    emitStructure(type,jx,jz,function(wx,wy,wz,b){
+      var lx2=wx-baseX, lz2=wz-baseZ;
+      if(lx2<0||lx2>=CS||lz2<0||lz2>=CS) return;
+      if(wy<0||wy>=WH) return;
+      if(b===B.AIR){ ch.data[idx(lx2,wy,lz2)]=B.AIR; }
+      else ch.data[idx(lx2,wy,lz2)]=b;
+    });
+  }
+}
+
+/* ---- mythic structures ---- */
+function emitStructure(type,cx,cz,put){
+  var gh=terrainHeight(cx,cz);
+  if(type===0){ /* 世界之树 */
+    var h=16+Math.floor(hash2(cx,cz)*10);
+    var r=2;
+    for(var y=0;y<h;y++){
+      var w=Math.max(0,r-(y>h*0.72?(y-h*0.72)*0.55:0));
+      for(var dx=-Math.ceil(w);dx<=Math.ceil(w);dx++)for(var dz=-Math.ceil(w);dz<=Math.ceil(w);dz++){
+        if(Math.abs(dx)===Math.ceil(w)&&Math.abs(dz)===Math.ceil(w)) continue;
+        put(cx+dx,gh+y,cz+dz,B.LOG);
+      }
+    }
+    var top=gh+h;
+    for(var dy=-4;dy<=4;dy++)for(var dz=-6;dz<=6;dz++)for(var dx=-6;dx<=6;dx++){
+      var d=Math.sqrt(dx*dx+dz*dz)+Math.abs(dy)*0.8;
+      if(d>6.4) continue;
+      if(dy<-1 && hash2(cx+dx*3,cz+dz*5+dy)>0.6) continue;
+      put(cx+dx,top+dy,cz+dz,B.LEAF);
+    }
+    for(var i=0;i<10;i++){
+      var a=i/10*Math.PI*2, rr=4+hash2(cx+i,cz-i)*3;
+      put(cx+Math.round(Math.cos(a)*rr),gh+1,cz+Math.round(Math.sin(a)*rr),B.MOSS);
+    }
+  }else if(type===1){ /* 浮空神殿 */
+    var y0=gh+22;
+    for(var dx=-7;dx<=7;dx++)for(var dz=-7;dz<=7;dz++){
+      if(Math.abs(dx)+Math.abs(dz)>11) continue;
+      put(cx+dx,y0,cz+dz,B.MARBLE);
+    }
+    for(var dx=-6;dx<=6;dx+=4)for(var dz=-6;dz<=6;dz+=4){
+      if(Math.abs(dx)+Math.abs(dz)>10) continue;
+      for(var y=y0+1;y<=y0+7;y++) put(cx+dx,y,cz+dz,B.MARBLE);
+      put(cx+dx,y0+8,cz+dz,B.GOLD);
+    }
+    for(var dx=-5;dx<=5;dx++)for(var dz=-5;dz<=5;dz++){
+      if(dx*dx+dz*dz>26) continue;
+      put(cx+dx,y0+9,cz+dz,B.GOLDRUNE);
+    }
+    for(var dx=-3;dx<=3;dx++)for(var dz=-3;dz<=3;dz++) put(cx+dx,y0+8,cz+dz,B.GOLD);
+    for(var k=0;k<40;k++){
+      var a2=k/40*Math.PI*2;
+      put(cx+Math.round(Math.cos(a2)*11),y0-1-Math.floor(k/12),cz+Math.round(Math.sin(a2)*11),B.CRYSTAL);
+    }
+  }else if(type===2){ /* 巨石环阵 */
+    for(var i=0;i<9;i++){
+      var a=i/9*Math.PI*2, rr=8;
+      var mx=cx+Math.round(Math.cos(a)*rr), mz=cz+Math.round(Math.sin(a)*rr);
+      var hh=6+Math.floor(hash2(mx,mz)*5);
+      for(var y=0;y<hh;y++){
+        put(mx,terrainHeight(mx,mz)+y,mz,B.OBSIDIAN);
+        put(mx+1,terrainHeight(mx,mz)+y,mz,B.OBSIDIAN);
+        put(mx,terrainHeight(mx,mz)+y,mz+1,B.OBSIDIAN);
+      }
+      put(mx,terrainHeight(mx,mz)+hh,mz,B.CRYSTAL);
+    }
+  }else if(type===3){ /* 阶梯金字塔 */
+    var steps=7;
+    for(var s2=0;s2<steps;s2++){
+      var w=steps-s2;
+      for(var dx=-w;dx<=w;dx++)for(var dz=-w;dz<=w;dz++){
+        var yy=gh+s2;
+        var b2=(s2%2===0)?B.BRICK:B.SAND;
+        if(Math.abs(dx)===w||Math.abs(dz)===w) put(cx+dx,yy,cz+dz,b2);
+      }
+    }
+    for(var dx=-1;dx<=1;dx++)for(var dz=-1;dz<=1;dz++) put(cx+dx,gh+steps,cz+dz,B.GOLDRUNE);
+    for(var i=0;i<6;i++){
+      var ax=cx-6+i*2, az=cz+6;
+      for(var y=0;y<4;y++) put(ax,gh+y,az,B.RUNE);
+    }
+  }else if(type===4){ /* 残破柱廊 */
+    for(var i=0;i<6;i++){
+      var px=cx-10+i*4;
+      var ph=5+Math.floor(hash2(px,cz)*5);
+      for(var y=0;y<ph;y++){
+        put(px,terrainHeight(px,cz)+y,cz,B.MARBLE);
+        put(px,terrainHeight(px,cz)+y,cz+1,B.MARBLE);
+      }
+      if(hash2(px+3,cz+3)>0.4){
+        for(var dx=-2;dx<=2;dx++)for(var dz=-2;dz<=2;dz++) put(px+dx,terrainHeight(px,cz)+ph,cz+dz,B.MARBLE);
+      }
+    }
+    for(var dx=-11;dx<=11;dx++) put(cx+dx,gh,cz+3,B.COBBLE);
+  }else if(type===5){ /* 持杖巨像 */
+    var by=gh;
+    for(var y=0;y<10;y++)for(var dx=-2;dx<=2;dx++)for(var dz=-2;dz<=2;dz++){
+      if(Math.abs(dx)+Math.abs(dz)>3) continue;
+      put(cx+dx,by+y,cz+dz,B.MOSS);
+    }
+    for(var dx=-1;dx<=1;dx++)for(var dz=-1;dz<=1;dz++) put(cx+dx,by+10,cz+dz,B.MOSS);
+    for(var dx=-1;dx<=1;dx++) for(var dz=-1;dz<=1;dz++) put(cx+dx,by+11,cz+dz,B.MOSS);
+    put(cx+3,by+6,cz,B.MOSS); put(cx+3,by+7,cz,B.MOSS);
+    put(cx+3,by+8,cz,B.MOSS); put(cx+3,by+9,cz,B.MOSS);
+    for(var y=0;y<12;y++) put(cx+4,by+y,cz,B.DARKWOOD);
+    put(cx+4,by+12,cz,B.GOLD);
+    for(var dx=-2;dx<=2;dx++)for(var dz=-2;dz<=2;dz++) put(cx+dx,by+11,cz+dz,B.MARBLE);
+  }else{ /* 地下结晶洞窟 */
+    var depth=3+Math.floor(hash2(cx,cz)*8);
+    for(var dx=-4;dx<=4;dx++)for(var dz=-4;dz<=4;dz++){
+      if(dx*dx+dz*dz>16) continue;
+      for(var y=gh-depth;y<gh-depth+4;y++){
+        if(hash2(cx+dx*13+y,cz+dz*17)>0.55) continue;
+        put(cx+dx,y,cz+dz,B.CRYSTAL);
+      }
+    }
+    for(var dx=-4;dx<=4;dx++)for(var dz=-4;dz<=4;dz++){
+      if(dx*dx+dz*dz<=16) put(cx+dx,gh-depth+3,cz+dz,B.OBSIDIAN);
+    }
+  }
+}
+
+/* ================= meshing ================= */
+var scene=new T.Scene();
+var camera=new T.PerspectiveCamera(74,innerWidth/innerHeight,0.08,900);
+var canvas=document.getElementById('c');
+var renderer=new T.WebGLRenderer({canvas:canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=T.SRGBColorSpace;
+renderer.toneMapping=T.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
+
+var skyUniforms={
+  topColor:{value:new T.Color(0x3a76c8)},
+  bottomColor:{value:new T.Color(0xd8e6f2)},
+  offset:{value:20}, exponent:{value:0.8}
+};
+var skyMat=new T.ShaderMaterial({
+  uniforms:skyUniforms, side:T.BackSide, depthWrite:false,
+  vertexShader:'varying vec3 vWorld; void main(){ vWorld=(modelMatrix*vec4(position,1.0)).xyz; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader:'uniform vec3 topColor; uniform vec3 bottomColor; uniform float offset; uniform float exponent; varying vec3 vWorld;'+
+    'void main(){ float h=normalize(vWorld+vec3(0.0,offset,0.0)).y; gl_FragColor=vec4(mix(bottomColor,topColor,max(pow(max(h,0.0),exponent),0.0)),1.0); }'
+});
+scene.add(new T.Mesh(new T.SphereGeometry(420,32,20),skyMat));
+var fog=new T.Fog(0xbcd2e6,60,260);
+scene.fog=fog;
+
+var sunLight=new T.DirectionalLight(0xfff3dc,1.25);
+sunLight.position.set(60,90,40); scene.add(sunLight);
+var amb=new T.HemisphereLight(0xbcd8ff,0x4a4234,0.62); scene.add(amb);
+scene.add(new T.AmbientLight(0xffffff,0.18));
+
+var blockMat=new T.MeshLambertMaterial({map:ATLAS_TEX, transparent:false, vertexColors:true});
+var waterMat=new T.MeshLambertMaterial({map:ATLAS_TEX, transparent:true, opacity:0.72, depthWrite:false, vertexColors:true});
+var emissiveMat=new T.MeshBasicMaterial({map:ATLAS_TEX, vertexColors:true});
+
+var DIRS=[
+  {n:[0,1,0], v:[0,1,0]}, {n:[0,-1,0],v:[0,-1,0]},
+  {n:[1,0,0], v:[1,0,0]}, {n:[-1,0,0],v:[-1,0,0]},
+  {n:[0,0,1], v:[0,0,1]}, {n:[0,0,-1],v:[0,0,-1]}
+];
+var FACES=[
+  {d:0, corners:[[0,1,0],[0,1,1],[1,1,1],[1,1,0]], tile:'top',   shade:1.0,  uv:[[0,0],[1,0],[1,1],[0,1]]},
+  {d:1, corners:[[0,0,1],[0,0,0],[1,0,0],[1,0,1]], tile:'bottom',shade:0.55, uv:[[0,0],[1,0],[1,1],[0,1]]},
+  {d:2, corners:[[1,0,1],[1,0,0],[1,1,0],[1,1,1]], tile:'side',  shade:0.82, uv:[[0,0],[1,0],[1,1],[0,1]]},
+  {d:3, corners:[[0,0,0],[0,0,1],[0,1,1],[0,1,0]], tile:'side',  shade:0.72, uv:[[0,0],[1,0],[1,1],[0,1]]},
+  {d:4, corners:[[0,0,1],[1,0,1],[1,1,1],[0,1,1]], tile:'side',  shade:0.88, uv:[[0,0],[1,0],[1,1],[0,1]]},
+  {d:5, corners:[[1,0,0],[0,0,0],[0,1,0],[1,1,0]], tile:'side',  shade:0.66, uv:[[0,0],[1,0],[1,1],[0,1]]}
+];
+var COLS=ATLAS/TILE;
+
+function buildMesh(ch){
+  var baseX=ch.cx*CS, baseZ=ch.cz*CS;
+  var pos=[], nor=[], uv=[], col=[], idxArr=[], wpos=[], wnor=[], wuv=[], wcol=[], widx=[];
+  var gx=0;
+  function blockAt(x,y,z){
+    if(y<0) return B.OBSIDIAN;
+    if(y>=WH) return B.AIR;
+    var cx=Math.floor(x/CS), cz=Math.floor(z/CS), lx=x-cx*CS, lz=z-cz*CS;
+    var c=world[chunkKey(cx,cz)];
+    if(!c){ c=getChunk(cx,cz); }
+    return c.data[idx(lx,y,lz)];
+  }
+  for(var y=0;y<WH;y++)for(var z=0;z<CS;z++)for(var x=0;x<CS;x++){
+    var b=ch.data[idx(x,y,z)];
+    if(b===B.AIR) continue;
+    var isWater=(b===B.WATER);
+    var isEmis=EMIS[b];
+    var def=DEF[b]||[0,0,0];
+    for(var fi=0;fi<6;fi++){
+      var f=FACES[fi], d=DIRS[f.d];
+      var nb=blockAt(baseX+x+d.n[0], y+d.n[1], baseZ+z+d.n[2]);
+      if(nb!==B.AIR && nb!==B.WATER && nb!==b){
+        if(!TRANSP[b]) continue;
+      }
+      if(isWater && nb===b) continue;
+      var tile=f.tile==='top'?def[0]:(f.tile==='bottom'?def[1]:def[2]);
+      var base=gx;
+      for(var ci=0;ci<4;ci++){
+        var c3=f.corners[ci];
+        var vx=baseX+x+c3[0]-0.5, vy=y+c3[1]-0.5, vz=baseZ+z+c3[2]-0.5;
+        /* per-vertex ambient occlusion from the 3 neighbours of the corner */
+        var s1=sideSolid(baseX+x+d.n[0]+ (c3[0]?1:-1), y+d.n[1], baseZ+z+d.n[2], b);
+        var s2=sideSolid(baseX+x, y+d.n[1]+(c3[1]?1:-1), baseZ+z+d.n[2]+(c3[2]?1:-1), b);
+        var s3=sideSolid(baseX+x+d.n[0], y+d.n[1]+(c3[1]?1:-1), baseZ+z+d.n[2]+(c3[2]?1:-1), b);
+        var occ=(s1?1:0)+(s2?1:0)+(s3?1:0);
+        var ao=(s1&&s2)?0.58:(1-occ*0.13);
+        var shade=f.shade*ao;
+        if(isWater) shade=0.95;
+        var uvx=f.uv[ci][0], uvy=f.uv[ci][1];
+        var tx=(tile%COLS)*TILE/ATLAS + uvx*TILE/ATLAS;
+        var ty=1-((Math.floor(tile/COLS)+1)*TILE/ATLAS) + uvy*TILE/ATLAS;
+        if(isEmis){ wpos.push(vx,vy,vz); wnor.push(d.v[0],d.v[1],d.v[2]); wuv.push(tx,ty);
+          wcol.push(shade,shade,shade); }
+        else { pos.push(vx,vy,vz); nor.push(d.v[0],d.v[1],d.v[2]); uv.push(tx,ty);
+          col.push(shade,shade,shade); }
+      }
+      if(isEmis){ widx.push(base,base+1,base+2, base,base+2,base+3); }
+      else { idxArr.push(base,base+1,base+2, base,base+2,base+3); }
+      gx+=4;
+    }
+  }
+  function sideSolid(wx,wy,wz,self){
+    if(wy<0) return true;
+    if(wy>=WH) return false;
+    var cx=Math.floor(wx/CS), cz=Math.floor(wz/CS), lx=wx-cx*CS, lz=wz-cz*CS;
+    var c=world[chunkKey(cx,cz)]||getChunk(cx,cz);
+    var b=c.data[idx(lx,wy,lz)];
+    if(b===self) return true;
+    if(b===B.AIR) return false;
+    return !TRANSP[b];
+  }
+  if(ch.mesh){ scene.remove(ch.mesh); ch.mesh.geometry.dispose(); ch.mesh=null; }
+  if(ch.water){ scene.remove(ch.water); ch.water.geometry.dispose(); ch.water=null; }
+  if(ch.glow){ scene.remove(ch.glow); ch.glow.geometry.dispose(); ch.glow=null; }
+  if(idxArr.length){
+    var g=new T.BufferGeometry();
+    g.setAttribute('position',new T.Float32BufferAttribute(pos,3));
+    g.setAttribute('normal',new T.Float32BufferAttribute(nor,3));
+    g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));
+    g.setAttribute('color',new T.Float32BufferAttribute(col,3));
+    g.setIndex(idxArr);
+    var m=new T.Mesh(g,blockMat); m.position.set(0,0,0);
+    scene.add(m); ch.mesh=m;
+  }
+  if(wpos.length){
+    var g2=new T.BufferGeometry();
+    g2.setAttribute('position',new T.Float32BufferAttribute(wpos,3));
+    g2.setAttribute('normal',new T.Float32BufferAttribute(wnor,3));
+    g2.setAttribute('uv',new T.Float32BufferAttribute(wuv,2));
+    g2.setIndex(widx);
+    var m2=new T.Mesh(g2,emissiveMat); scene.add(m2); ch.glow=m2;
+  }
+}
+
+/* ================= player ================= */
+var player={x:0.5,y:40,z:0.5,vx:0,vy:0,vz:0,yaw:0,pitch:0,onGround:false,sel:0};
+var keys={};
+function blockAtWorld(wx,wy,wz){
+  if(wy<0) return B.OBSIDIAN;
+  if(wy>=WH) return B.AIR;
+  var cx=Math.floor(wx/CS), cz=Math.floor(wz/CS);
+  var c=world[chunkKey(cx,cz)]||getChunk(cx,cz);
+  return c.data[idx(wx-cx*CS, wy, wz-cz*CS)];
+}
+function setBlockWorld(wx,wy,wz,b){
+  if(wy<0||wy>=WH) return;
+  var cx=Math.floor(wx/CS), cz=Math.floor(wz/CS);
+  var c=world[chunkKey(cx,cz)]||getChunk(cx,cz);
+  c.data[idx(wx-cx*CS, wy, wz-cz*CS)]=b;
+  c.dirty=true;
+  markDirtyAround(wx,wy,wz);
+}
+function markDirtyAround(wx,wy,wz){
+  var cx=Math.floor(wx/CS), cz=Math.floor(wz/CS);
+  for(var dx=-1;dx<=1;dx++)for(var dz=-1;dz<=1;dz++){
+    var c=world[chunkKey(cx+dx,cz+dz)];
+    if(c) c.dirty=true;
+  }
+}
+function solidAt(wx,wy,wz){var b=blockAtWorld(wx,wy,wz);return b!==B.AIR&&b!==B.WATER&&!TRANSP[b];}
+function collide(nx,ny,nz){
+  var hw=0.3, h=1.75;
+  var minX=Math.floor(nx-hw), maxX=Math.floor(nx+hw);
+  var minY=Math.floor(ny), maxY=Math.floor(ny+h);
+  var minZ=Math.floor(nz-hw), maxZ=Math.floor(nz+hw);
+  for(var x=minX;x<=maxX;x++)for(var y=minY;y<=maxY;y++)for(var z=minZ;z<=maxZ;z++){
+    if(solidAt(x,y,z)) return true;
+  }
+  return false;
+}
+function moveAxis(dx,dy,dz){
+  var step=0.22, n=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dy),Math.abs(dz))/step));
+  for(var i=0;i<n;i++){
+    if(dx!==0&&!collide(player.x+dx/n,player.y,player.z)) player.x+=dx/n;
+    if(dz!==0&&!collide(player.x,player.y,player.z+dz/n)) player.z+=dz/n;
+    if(dy!==0){
+      if(!collide(player.x,player.y+dy/n,player.z)){ player.y+=dy/n; player.onGround=false; }
+      else{
+        if(dy<0){ player.onGround=true; }
+        player.vy=0; break;
+      }
+    }
+  }
+}
+function stepUp(){
+  for(var dy=0.6;dy>=0.1;dy-=0.2){
+    if(!collide(player.x,player.y+dy,player.z)&&!collide(player.x,player.y+dy+0.1,player.z)){
+      player.y+=dy; return true;
+    }
+  }
+  return false;
+}
+
+/* ================= raycast (DDA) ================= */
+function raycast(ox,oy,oz,dx,dy,dz,maxDist){
+  var x=Math.floor(ox), y=Math.floor(oy), z=Math.floor(oz);
+  var stepX=dx>0?1:-1, stepY=dy>0?1:-1, stepZ=dz>0?1:-1;
+  var tMaxX=dx!==0?Math.abs((dx>0?(x+1-ox):(ox-x))/dx):1e9;
+  var tMaxY=dy!==0?Math.abs((dy>0?(y+1-oy):(oy-y))/dy):1e9;
+  var tMaxZ=dz!==0?Math.abs((dz>0?(z+1-oz):(oz-z))/dz):1e9;
+  var tDeltaX=dx!==0?Math.abs(1/dx):1e9, tDeltaY=dy!==0?Math.abs(1/dy):1e9, tDeltaZ=dz!==0?Math.abs(1/dz):1e9;
+  var nx=0,ny=0,nz=0, t=0;
+  while(t<=maxDist){
+    var b=blockAtWorld(x,y,z);
+    if(b!==B.AIR && b!==B.WATER) return {x:x,y:y,z:z,b:b,nx:nx,ny:ny,nz:nz};
+    if(tMaxX<tMaxY&&tMaxX<tMaxZ){ x+=stepX; t=tMaxX; tMaxX+=tDeltaX; nx=-stepX; ny=0; nz=0; }
+    else if(tMaxY<tMaxZ){ y+=stepY; t=tMaxY; tMaxY+=tDeltaY; nx=0; ny=-stepY; nz=0; }
+    else { z+=stepZ; t=tMaxZ; tMaxZ+=tDeltaZ; nx=0; ny=0; nz=-stepZ; }
+  }
+  return null;
+}
+
+/* ================= selection + interaction ================= */
+var highlight=new T.LineSegments(
+  new T.EdgesGeometry(new T.BoxGeometry(1.005,1.005,1.005)),
+  new T.LineBasicMaterial({color:0x111111,transparent:true,opacity:0.75})
+);
+highlight.visible=false; scene.add(highlight);
+var selNames={1:'草方块',2:'泥土',3:'石头',4:'圆石',5:'沙子',6:'原木',7:'树叶',8:'木板',
+  9:'水',10:'雪',11:'黑曜石',12:'水晶',13:'大理石',14:'金块',15:'砖块',16:'萤石',
+  17:'苔石',18:'符文石',19:'深色木材',20:'岩浆',21:'冰',22:'符文金'};
+
+function updateHighlight(){
+  var dir=new T.Vector3(); camera.getWorldDirection(dir);
+  var hit=raycast(player.x,player.y+1.62,player.z, dir.x,dir.y,dir.z, 7);
+  if(hit){
+    highlight.visible=true;
+    highlight.position.set(hit.x+0.5,hit.y+0.5,hit.z+0.5);
+    return hit;
+  }
+  highlight.visible=false; return null;
+}
+canvas.addEventListener('mousedown', function(e){
+  if(document.pointerLockElement!==canvas) return;
+  var hit=updateHighlight(); if(!hit) return;
+  if(e.button===0){
+    setBlockWorld(hit.x,hit.y,hit.z,B.AIR);
+    setBlockWorld(hit.x+hit.nx,hit.y+hit.ny,hit.z+hit.nz,B.AIR);
+  }else if(e.button===2){
+    var px=hit.x+hit.nx, py=hit.y+hit.ny, pz=hit.z+hit.nz;
+    if(py<1) return;
+    if(Math.abs(px+0.5-player.x)<0.9 && Math.abs(pz+0.5-player.z)<0.9 && py>player.y-0.1 && py<player.y+1.9) return;
+    if(blockAtWorld(px,py,pz)!==B.AIR) return;
+    setBlockWorld(px,py,pz,HOTBAR[player.sel]);
+  }
+});
+canvas.addEventListener('contextmenu',function(e){e.preventDefault();});
+addEventListener('keydown',function(e){
+  keys[e.code]=true;
+  if(e.code==='Space') e.preventDefault();
+  if(e.code.startsWith('Digit')){
+    var n=parseInt(e.code.slice(5),10);
+    if(n>=1&&n<=9) player.sel=n-1;
+  }
+  if(e.code==='KeyQ') player.sel=(player.sel+HOTBAR.length-1)%HOTBAR.length;
+  if(e.code==='KeyE') player.sel=(player.sel+1)%HOTBAR.length;
+});
+addEventListener('keyup',function(e){keys[e.code]=false;});
+addEventListener('wheel',function(e){
+  if(document.pointerLockElement!==canvas) return;
+  player.sel=(player.sel+(e.deltaY>0?1:HOTBAR.length-1))%HOTBAR.length;
+},{passive:true});
+canvas.addEventListener('click',function(){
+  if(document.pointerLockElement!==canvas) canvas.requestPointerLock();
+});
+addEventListener('mousemove',function(e){
+  if(document.pointerLockElement!==canvas) return;
+  player.yaw-=e.movementX*0.0022;
+  player.pitch-=e.movementY*0.0022;
+  player.pitch=Math.max(-1.55,Math.min(1.55,player.pitch));
+});
+
+/* ================= hotbar UI ================= */
+var barEl=document.getElementById('bar');
+var swatches={};
+(function(){
+  var c=document.createElement('canvas'); c.width=c.height=ATLAS;
+  var g=c.getContext('2d');
+  g.drawImage(ATLAS_TEX.image,0,0);
+  for(var i=0;i<HOTBAR.length;i++){
+    var b=HOTBAR[i], tile=DEF[b][0];
+    var sx=(tile%COLS)*TILE, sy=Math.floor(tile/COLS)*TILE;
+    var d=document.createElement('div'); d.className='slot'; d.dataset.i=i;
+    var sw=document.createElement('div'); sw.className='sw';
+    sw.style.backgroundImage='url('+c.toDataURL()+')';
+    sw.style.backgroundSize=(COLS*TILE*2)+'px '+(COLS*TILE*2)+'px';
+    sw.style.backgroundPosition=(-sx*2)+'px '+(-sy*2)+'px';
+    d.appendChild(sw);
+    var n=document.createElement('div'); n.className='n'; n.textContent=(i+1);
+    d.appendChild(n);
+    barEl.appendChild(d);
+  }
+})();
+barEl.addEventListener('click',function(e){
+  var s=e.target.closest('.slot'); if(!s) return;
+  player.sel=parseInt(s.dataset.i,10);
+});
+function updateBar(){
+  var slots=barEl.children;
+  for(var i=0;i<slots.length;i++) slots[i].classList.toggle('on', i===player.sel);
+}
+
+/* ================= chunk streaming ================= */
+var RADIUS=4;
+var pending=[];
+function updateChunks(){
+  var pcx=Math.floor(player.x/CS), pcz=Math.floor(player.z/CS);
+  var need={};
+  for(var dx=-RADIUS;dx<=RADIUS;dx++)for(var dz=-RADIUS;dz<=RADIUS;dz++){
+    var cx=pcx+dx, cz=pcz+dz;
+    if(dx*dx+dz*dz>RADIUS*RADIUS+1) continue;
+    need[chunkKey(cx,cz)]=[cx,cz];
+  }
+  Object.keys(world).forEach(function(k){
+    if(!need[k]){ var c=world[k];
+      if(c.mesh){scene.remove(c.mesh); c.mesh.geometry.dispose(); c.mesh=null;}
+      if(c.water){scene.remove(c.water); c.water.geometry.dispose(); c.water=null;}
+      if(c.glow){scene.remove(c.glow); c.glow.geometry.dispose(); c.glow=null;}
+      delete world[k];
+    }
+  });
+  pending=[];
+  Object.keys(need).forEach(function(k){
+    if(!world[k]) pending.push(need[k]);
+  });
+  pending.sort(function(a,b){
+    var da=(a[0]-pcx)*(a[0]-pcx)+(a[1]-pcz)*(a[1]-pcz);
+    var db=(b[0]-pcx)*(b[0]-pcx)+(b[1]-pcz)*(b[1]-pcz);
+    return da-db;
+  });
+}
+var buildIdx=0;
+function processQueue(){
+  var budget=2;
+  while(budget-->0 && pending.length){
+    var p=pending.shift();
+    var ch=getChunk(p[0],p[1]);
+    buildMesh(ch);
+  }
+  Object.keys(world).forEach(function(k){
+    var c=world[k];
+    if(c.dirty){ buildMesh(c); c.dirty=false; }
+  });
+}
+
+/* ================= spawn ================= */
+(function(){
+  /* pick an open spawn: no trunk, canopy or structure within a 4-block radius */
+  var cand=[];
+  for(var r=0;r<=320;r+=3){
+    for(var a=0;a<10;a++){
+      var ang=a/10*Math.PI*2+r*0.37;
+      cand.push([Math.round(Math.cos(ang)*r), Math.round(Math.sin(ang)*r)]);
+    }
+  }
+  var chosen=[8,8];
+  for(var i=0;i<cand.length;i++){
+    var x=cand[i][0], z=cand[i][1];
+    var h=terrainHeight(x,z);
+    if(h<SEA+2||h>34) continue;
+    var clear=true;
+    for(var dx=-4;dx<=4&&clear;dx++)for(var dz=-4;dz<=4&&clear;dz++){
+      var hh=terrainHeight(x+dx,z+dz);
+      for(var y=hh+1;y<=hh+7&&clear;y++){
+        var b=blockAtWorld(x+dx,y,z+dz);
+        if(b===B.LOG||b===B.LEAF||b===B.CRYSTAL||b===B.MARBLE||b===B.GLOW||b===B.RUNE){ clear=false; }
+      }
+    }
+    if(clear){ chosen=[x,z]; break; }
+  }
+  var sx=chosen[0], sz=chosen[1];
+  player.x=sx+0.5; player.z=sz+0.5; player.y=terrainHeight(sx,sz)+2.2;
+  player.yaw=0.7; player.pitch=-0.12;
+  var pcx=Math.floor(sx/CS), pcz=Math.floor(sz/CS);
+  for(var cx=pcx-RADIUS;cx<=pcx+RADIUS;cx++)
+    for(var cz=pcz-RADIUS;cz<=pcz+RADIUS;cz++) getChunk(cx,cz);
+  Object.keys(world).forEach(function(k){ buildMesh(world[k]); world[k].dirty=false; });
+})();
+
+/* ================= main loop ================= */
+var clock=new T.Clock();
+var infoEl=document.getElementById('info');
+var tipEl=document.getElementById('tip');
+var dayT=0.25;
+var running=false;
+
+document.getElementById('start').addEventListener('click',function(){
+  var st=document.getElementById('start');
+  st.style.display='none';
+  var lockReq=canvas.requestPointerLock();
+  if(lockReq&&lockReq.catch) lockReq.catch(function(){});
+  running=true;
+});
+document.addEventListener('pointerlockchange',function(){
+  if(document.pointerLockElement!==canvas){ running=false; }
+  else { running=true; }
+});
+document.addEventListener('pointerlockerror',function(){ running=true; });
+
+function updatePlayer(dt){
+  var speed=(keys['ShiftLeft']||keys['ShiftRight'])?7.2:4.6;
+  var fx=-Math.sin(player.yaw), fz=-Math.cos(player.yaw);
+  var rx=Math.cos(player.yaw), rz=-Math.sin(player.yaw);
+  var mx=0,mz=0;
+  if(keys['KeyW']) { mx+=fx; mz+=fz; }
+  if(keys['KeyS']) { mx-=fx; mz-=fz; }
+  if(keys['KeyA']) { mx-=rx; mz-=rz; }
+  if(keys['KeyD']) { mx+=rx; mz+=rz; }
+  var l=Math.sqrt(mx*mx+mz*mz);
+  if(l>0){ mx=mx/l*speed; mz=mz/l*speed; }
+  var acc=player.onGround?14:5;
+  player.vx+=(mx-player.vx)*Math.min(1,acc*dt);
+  player.vz+=(mz-player.vz)*Math.min(1,acc*dt);
+  player.vy-=26*dt;
+  if(player.vy<-42) player.vy=-42;
+  var before=player.y;
+  moveAxis(player.vx*dt,0,0);
+  moveAxis(0,0,player.vz*dt);
+  moveAxis(0,player.vy*dt,0);
+  if(player.onGround && Math.abs(player.vy)<0.01){ player.vy=0; }
+  if(keys['Space'] && player.onGround){ player.vy=8.6; player.onGround=false; }
+  if(player.y<-10){ player.y=60; }
+}
+function updateSky(dt){
+  dayT+=dt*0.0045;
+  var ang=dayT*Math.PI*2;
+  var elev=Math.sin(ang);
+  var up=Math.max(0,elev);
+  skyUniforms.topColor.value.setHSL(0.60,0.62,0.14+up*0.40);
+  skyUniforms.bottomColor.value.setHSL(0.10,0.55,0.10+up*0.72);
+  sunLight.intensity=0.28+up*1.35;
+  sunLight.position.set(Math.cos(ang)*90, elev*80+10, Math.sin(ang)*90);
+  amb.intensity=0.30+up*0.42;
+  fog.color.setHSL(0.58,0.35,0.14+up*0.62);
+  renderer.toneMappingExposure=0.92+up*0.22;
+}
+function updateHUD(){
+  var bx=Math.floor(player.x), by=Math.floor(player.y), bz=Math.floor(player.z);
+  var bi=biomeAt(bx,bz,by);
+  var biName={snow:'雪原',mountain:'高山',beach:'海岸',forest:'森林',plain:'平原',hills:'丘陵'}[bi]||bi;
+  var hit=updateHighlight();
+  infoEl.innerHTML='坐标 <b>'+bx+' , '+by+' , '+bz+'</b>　<span class="dim">'+biName+'</span><br>'+
+    '朝向 <b>'+Math.round((-player.yaw*180/Math.PI+360)%360)+'°</b>　<span class="dim">区块 '+
+    Math.floor(player.x/CS)+' , '+Math.floor(player.z/CS)+'</span><br>'+
+    '持握 <b>'+selNames[HOTBAR[player.sel]]+'</b>';
+  if(hit){
+    tipEl.style.opacity=1;
+    tipEl.textContent=selNames[hit.b]||'未知方块';
+  }else tipEl.style.opacity=0;
+  updateBar();
+}
+function frame(){
+  requestAnimationFrame(frame);
+  var dt=Math.min(0.05,clock.getDelta());
+  if(running) updatePlayer(dt);
+  camera.position.set(player.x, player.y+1.62, player.z);
+  camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+  updateSky(dt);
+  updateChunks();
+  processQueue();
+  updateHUD();
+  renderer.render(scene,camera);
+}
+frame();
+addEventListener('resize',function(){
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+})();
+</script>
+</body>
+</html>
