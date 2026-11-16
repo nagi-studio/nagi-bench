@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS Dust2 5v5 — 3D First-Person Tactical Shooter</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0e14;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f8fafc;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .hud-glass {
+      background: rgba(11, 15, 25, 0.76);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    }
+
+    .tactical-btn {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+
+    .tactical-btn:hover {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: #fbbf24;
+    }
+
+    .tactical-btn.active {
+      background: rgba(245, 158, 11, 0.35);
+      border-color: #fde047;
+      color: #fef08a;
+    }
+
+    /* AWP Sniper Scope Overlay */
+    #sniper-scope {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 18;
+      background: radial-gradient(circle at 50% 50%, transparent 29%, rgba(0,0,0,0.96) 31%);
+      display: none;
+    }
+  </style>
+</head>
+<body class="relative w-full h-full">
+
+  <!-- 3D Viewport -->
+  <div id="viewport" class="absolute inset-0 w-full h-full"></div>
+
+  <!-- AWP Sniper Scope 2D Overlay -->
+  <div id="sniper-scope">
+    <div class="absolute inset-x-0 top-1/2 h-px bg-black"></div>
+    <div class="absolute inset-y-0 left-1/2 w-px bg-black"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-red-500"></div>
+  </div>
+
+  <!-- Dynamic Crosshair + Hitmarker -->
+  <div id="crosshair-wrap" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20">
+    <div id="ch-top" class="absolute left-1/2 -translate-x-1/2 w-0.5 h-2.5 bg-emerald-400 shadow" style="bottom: 5px;"></div>
+    <div id="ch-bot" class="absolute left-1/2 -translate-x-1/2 w-0.5 h-2.5 bg-emerald-400 shadow" style="top: 5px;"></div>
+    <div id="ch-left" class="absolute top-1/2 -translate-y-1/2 h-0.5 w-2.5 bg-emerald-400 shadow" style="right: 5px;"></div>
+    <div id="ch-right" class="absolute top-1/2 -translate-y-1/2 h-0.5 w-2.5 bg-emerald-400 shadow" style="left: 5px;"></div>
+    <div id="hitmarker" class="opacity-0 transition-opacity duration-75 text-red-400 font-bold text-lg leading-none -translate-x-1/2 -translate-y-1/2">✕</div>
+  </div>
+
+  <!-- TOP LEFT: 2D DUST2 MINIMAP RADAR & CALLOUT ZONE -->
+  <div class="absolute top-3 left-3 z-20 flex flex-col gap-2 pointer-events-none">
+    <div class="hud-glass rounded-2xl p-2 pointer-events-auto">
+      <div class="flex items-center justify-between text-[11px] px-1 mb-1">
+        <span class="font-bold text-amber-300">DE_DUST2 RADAR</span>
+        <span id="zone-label" class="mono text-sky-300">Mid Doors (中门)</span>
+      </div>
+      <canvas id="radar-canvas" width="188" height="188" class="rounded-xl border border-white/10 bg-slate-950/90"></canvas>
+      <div class="flex items-center justify-between text-[10px] text-slate-300 px-1 mt-1">
+        <span><b class="text-sky-400">●</b> CT 警队</span>
+        <span><b class="text-amber-400">●</b> T 匪队</span>
+        <span><b class="text-red-500">★</b> C4 炸弹</span>
+      </div>
+    </div>
+
+    <!-- Quick Weapon & Mode Controls -->
+    <div class="hud-glass rounded-xl p-2.5 pointer-events-auto flex flex-col gap-1.5 text-[11px] max-w-[206px]">
+      <div class="text-amber-300 font-semibold">战术控制 · Controls</div>
+      <div class="grid grid-cols-2 gap-1">
+        <button id="btn-pistol-round" class="tactical-btn rounded px-2 py-1 text-[11px]">手枪局: 关</button>
+        <button id="btn-takeover" class="tactical-btn rounded px-2 py-1 text-[11px]">接管AI (Tab)</button>
+        <button id="btn-plant-defuse" class="tactical-btn rounded px-2 py-1 text-[11px]">下包/拆包 (E)</button>
+        <button id="btn-reset-round" class="tactical-btn rounded px-2 py-1 text-[11px]">重开回合 (N)</button>
+      </div>
+      <div class="text-[10px] text-slate-400 leading-snug pt-1 border-t border-white/10">
+        WASD移动 · 左键开火 · 右键AWP开镜 · R换弹 · 1-5切枪 · E下包/拆包 · Tab接管队友
+      </div>
+    </div>
+  </div>
+
+  <!-- TOP CENTER: 5v5 SCOREBOARD, ROUND TIMER & C4 STATUS -->
+  <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 pointer-events-none">
+    <div class="hud-glass rounded-2xl px-5 py-2 flex items-center gap-5 pointer-events-auto">
+      <div class="text-center">
+        <div class="text-[10px] uppercase tracking-wider text-sky-400 font-bold">CT 警队</div>
+        <div class="mono text-lg font-bold text-white"><span id="ct-score">0</span> <span class="text-xs text-sky-300">(<span id="ct-alive">5</span>存活)</span></div>
+      </div>
+
+      <div class="px-4 py-1 rounded-xl bg-black/50 border border-white/10 text-center min-w-[110px]">
+        <div id="round-phase-label" class="text-[10px] uppercase tracking-widest text-amber-300">ROUND TIME</div>
+        <div id="round-timer" class="mono text-xl font-bold text-white">01:55</div>
+      </div>
+
+      <div class="text-center">
+        <div class="text-[10px] uppercase tracking-wider text-amber-400 font-bold">T 匪队</div>
+        <div class="mono text-lg font-bold text-white"><span id="t-score">0</span> <span class="text-xs text-amber-300">(<span id="t-alive">5</span>存活)</span></div>
+      </div>
+    </div>
+
+    <!-- C4 Plant / Defuse Progress or Status Banner -->
+    <div id="center-banner" class="px-4 py-1 rounded-full bg-black/80 border border-amber-400/40 text-xs font-semibold text-amber-200 shadow">
+      DE_DUST2 5v5 — 消灭敌方全员或完成 C4 爆破任务
+    </div>
+    <div id="c4-progress-wrap" class="hidden w-56 h-3 rounded-full bg-slate-900 border border-amber-400 overflow-hidden">
+      <div id="c4-progress-bar" class="h-full bg-gradient-to-r from-amber-500 to-red-500" style="width: 0%"></div>
+    </div>
+  </div>
+
+  <!-- TOP RIGHT: REAL-TIME KILLFEED -->
+  <div id="killfeed" class="absolute top-3 right-3 z-20 flex flex-col items-end gap-1.5 pointer-events-none max-w-xs"></div>
+
+  <!-- BOTTOM LEFT: HP, ARMOR & ACTIVE AGENT STATUS -->
+  <div class="absolute bottom-3 left-3 z-20 hud-glass rounded-2xl px-4 py-2.5 flex items-center gap-5 pointer-events-auto">
+    <div>
+      <div class="text-[10px] uppercase tracking-wider text-slate-400">HP 生命值</div>
+      <div class="flex items-center gap-2">
+        <span id="hp-text" class="mono text-2xl font-bold text-emerald-400">100</span>
+        <div class="w-20 h-2.5 bg-slate-800 rounded-full overflow-hidden">
+          <div id="hp-bar" class="h-full bg-emerald-400 transition-all" style="width: 100%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="h-8 w-px bg-white/10"></div>
+    <div>
+      <div class="text-[10px] uppercase tracking-wider text-slate-400">ARMOR 防弹衣+头盔</div>
+      <div class="flex items-center gap-2">
+        <span id="armor-text" class="mono text-2xl font-bold text-sky-400">100</span>
+        <div class="w-20 h-2.5 bg-slate-800 rounded-full overflow-hidden">
+          <div id="armor-bar" class="h-full bg-sky-400 transition-all" style="width: 100%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="h-8 w-px bg-white/10 hidden sm:block"></div>
+    <div class="hidden sm:block text-xs">
+      <div class="text-[10px] text-slate-400">当前操控角色</div>
+      <div id="player-name-label" class="font-semibold text-amber-300">T-Alpha (C4 Carrier)</div>
+    </div>
+  </div>
+
+  <!-- BOTTOM RIGHT: WEAPON SELECTOR & DYNAMIC AMMO READOUT -->
+  <div class="absolute bottom-3 right-3 z-20 flex flex-col items-end gap-1.5 pointer-events-auto">
+    <div class="flex flex-wrap gap-1 justify-end">
+      <button data-wep="ak47" class="wep-btn tactical-btn active rounded-lg px-2.5 py-1 text-xs font-medium">1 · AK-47</button>
+      <button data-wep="m4a4" class="wep-btn tactical-btn rounded-lg px-2.5 py-1 text-xs font-medium">2 · M4A4</button>
+      <button data-wep="awp" class="wep-btn tactical-btn rounded-lg px-2.5 py-1 text-xs font-medium">3 · AWP (右键开镜)</button>
+      <button data-wep="deagle" class="wep-btn tactical-btn rounded-lg px-2.5 py-1 text-xs font-medium">4 · 沙鹰 Deagle</button>
+      <button data-wep="usp" class="wep-btn tactical-btn rounded-lg px-2.5 py-1 text-xs font-medium">5 · USP/Glock</button>
+      <button data-wep="knife" class="wep-btn tactical-btn rounded-lg px-2.5 py-1 text-xs font-medium">6 · 战术刀</button>
+      <button data-wep="c4" class="wep-btn tactical-btn rounded-lg px-2.5 py-1 text-xs font-medium">7 · C4炸弹</button>
+    </div>
+    <div class="hud-glass rounded-2xl px-5 py-2.5 flex items-center gap-4">
+      <div class="text-right">
+        <div id="weapon-title" class="text-sm font-bold text-amber-300">AK-47 Kalashnikov</div>
+        <div id="weapon-sub" class="text-[11px] text-slate-400">Headshot 2.0x · Armor Pen 77.5%</div>
+      </div>
+      <div class="h-8 w-px bg-white/10"></div>
+      <div class="mono text-2xl font-bold text-white">
+        <span id="ammo-mag" class="text-amber-300">30</span>
+        <span class="text-slate-500 text-base">/</span>
+        <span id="ammo-reserve" class="text-slate-300 text-lg">90</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. WEAPON ARSENAL SPECIFICATIONS (DAMAGE, RECOIL, RPM, SPREAD, ADS)
+    // =========================================================================
+    const WEAPON_SPECS = {
+      ak47:   { id: 'ak47',   name: 'AK-47 Kalashnikov', sub: '高伤害 · 强垂直后坐力 · 爆头秒杀', damage: 38, armorPen: 0.78, fireInterval: 0.10, recoilKick: 0.042, spread: 0.020, magSize: 30, reserve: 90, reloadTime: 2.1, color: 0x92400e },
+      m4a4:   { id: 'm4a4',   name: 'M4A4 Carbine',      sub: '中等伤害 · 极稳弹道 · 高射速',     damage: 32, armorPen: 0.70, fireInterval: 0.09, recoilKick: 0.020, spread: 0.010, magSize: 30, reserve: 90, reloadTime: 1.9, color: 0x334155 },
+      awp:    { id: 'awp',    name: 'AWP Magnum Sniper', sub: '一击必杀 · 右键光学狙击开镜',       damage: 118,armorPen: 0.96, fireInterval: 1.25, recoilKick: 0.085, spread: 0.001, magSize: 10, reserve: 30, reloadTime: 2.6, color: 0x3f6212, isSniper: true },
+      deagle: { id: 'deagle', name: 'Desert Eagle .50',  sub: '手枪之王 · 高爆头伤害 · 7发弹匣',   damage: 54, armorPen: 0.85, fireInterval: 0.28, recoilKick: 0.050, spread: 0.015, magSize: 7,  reserve: 35, reloadTime: 1.7, color: 0xcbd5e1, isPistol: true },
+      usp:    { id: 'usp',    name: 'USP-S / Glock-18',  sub: '手枪局制式副武器 · 低后坐力',       damage: 25, armorPen: 0.55, fireInterval: 0.15, recoilKick: 0.014, spread: 0.009, magSize: 12, reserve: 48, reloadTime: 1.5, color: 0x475569, isPistol: true },
+      knife:  { id: 'knife',  name: 'Tactical Karambit', sub: '近战格斗武器 · 轻盈机动',           damage: 55, armorPen: 0.85, fireInterval: 0.42, recoilKick: 0.006, spread: 0.0,   magSize: 1,  reserve: 1,  reloadTime: 0.0, color: 0x94a3b8, isMelee: true, range: 3.6 },
+      c4:     { id: 'c4',     name: 'C4 Explosive Pack', sub: '在 A包点 或 B包点 按住 E 安放炸弹',  damage: 0,  armorPen: 0.0,  fireInterval: 0.50, recoilKick: 0.0,   spread: 0.0,   magSize: 1,  reserve: 1,  reloadTime: 0.0, color: 0xdc2626, isC4: true }
+    };
+
+    // =========================================================================
+    // 2. WEB AUDIO SYNTHESIZER (GUNSHOTS, HEADSHOT DING, C4 BEEPS, FOOTSTEPS)
+    // =========================================================================
+    let audioCtx = null;
+    function ensureAudio() {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playSound(kind) {
+      try {
+        ensureAudio();
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+
+        if (kind === 'ak47' || kind === 'm4a4' || kind === 'awp' || kind === 'deagle' || kind === 'usp') {
+          // Noise burst + low punch oscillator
+          const dur = kind === 'awp' ? 0.36 : 0.14;
+          const bufferSize = Math.floor(audioCtx.sampleRate * dur);
+          const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.28));
+          }
+          const noise = audioCtx.createBufferSource();
+          noise.buffer = buffer;
+
+          const filter = audioCtx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = kind === 'awp' ? 650 : (kind === 'm4a4' ? 1350 : 980);
+
+          const gain = audioCtx.createGain();
+          gain.gain.setValueAtTime(kind === 'awp' ? 0.25 : 0.14, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioCtx.destination);
+          noise.start(now);
+        } else if (kind === 'headshot') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(2150, now);
+          osc.frequency.exponentialRampToValueAtTime(2950, now + 0.09);
+          gain.gain.setValueAtTime(0.16, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } else if (kind === 'hit') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(920, now);
+          gain.gain.setValueAtTime(0.09, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.06);
+        } else if (kind === 'c4beep') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(2800, now);
+          gain.gain.setValueAtTime(0.11, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.08);
+        } else if (kind === 'explode') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(120, now);
+          osc.frequency.exponentialRampToValueAtTime(28, now + 0.75);
+          gain.gain.setValueAtTime(0.32, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.82);
+        }
+      } catch (e) {}
+    }
+
+    // =========================================================================
+    // 3. THREE.JS SCENE & DE_DUST2 ARCHITECTURAL MAP BUILDER (WITH AABB COLLISION)
+    // =========================================================================
+    const viewport = document.getElementById('viewport');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xd6ecff);
+    scene.fog = new THREE.FogExp2(0xe2d5b5, 0.009);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    viewport.appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xfffbeb, 0x927c5a, 0.82));
+    const sun = new THREE.DirectionalLight(0xfff7ed, 0.95);
+    sun.position.set(45, 75, 30);
+    sun.castShadow = true;
+    scene.add(sun);
+
+    // Procedural Sandstone & Crate Textures
+    function makeSandstoneTexture(baseHex, stripeHex) {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 64;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = baseHex;
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = stripeHex;
+      for (let y = 0; y < 64; y += 16) {
+        ctx.fillRect(0, y, 64, 2);
+        for (let x = (y % 32 === 0 ? 0 : 16); x < 64; x += 32) {
+          ctx.fillRect(x, y, 2, 16);
+        }
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    const wallMat = new THREE.MeshLambertMaterial({ map: makeSandstoneTexture('#dec397', '#c2a373') });
+    const crateMat = new THREE.MeshLambertMaterial({ map: makeSandstoneTexture('#b5834c', '#7c5329') });
+    const doorMat = new THREE.MeshLambertMaterial({ color: 0x78350f });
+    const floorMat = new THREE.MeshLambertMaterial({ map: makeSandstoneTexture('#e7d3ad', '#d5bc90') });
+
+    // Ground Floor Plane
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), floorMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Map Colliders Registry (AABB boxes: { minX, maxX, minZ, maxZ, maxY, isWall })
+    const mapObstacles = [];
+    const wallMeshes = [];
+
+    function addBlock(cx, cz, w, d, h = 5.5, mat = wallMat) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(cx, h / 2, cz);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      wallMeshes.push(mesh);
+      mapObstacles.push({
+        minX: cx - w / 2,
+        maxX: cx + w / 2,
+        minZ: cz - d / 2,
+        maxZ: cz + d / 2,
+        maxY: h,
+        cx, cz, w, d
+      });
+    }
+
+    // Build Authentic Interconnected Dust2 Layout:
+    // Outer Perimeter Walls (-44 to +44)
+    addBlock(0, -44, 88, 2, 7);
+    addBlock(0,  44, 88, 2, 7);
+    addBlock(-44, 0, 2, 88, 7);
+    addBlock( 44, 0, 2, 88, 7);
+
+    // Divide T-Spawn (-35) from Mid, Long A (+24), and B Tunnels (-24)
+    addBlock(-16, -24, 14, 4, 6);
+    addBlock( 14, -24, 14, 4, 6);
+
+    // Mid Double Doors (Passable gap in the middle at x=0, z=-4)
+    addBlock(-11, -4, 14, 2.5, 6);
+    addBlock(-2.4, -4, 3.2, 0.6, 5.2, doorMat); // Left Mid Door leaf
+    addBlock( 2.4, -4, 3.2, 0.6, 5.2, doorMat); // Right Mid Door leaf
+    addBlock( 11, -4, 14, 2.5, 6);
+
+    // Catwalk / Short A Divider Wall & Crates
+    addBlock(14, 10, 3, 18, 5.5);
+    addBlock(7,  6, 2.4, 2.4, 2.2, crateMat); // Xbox / Mid-to-Catwalk Crate
+
+    // Long A Corridor Walls & Pit Cover
+    addBlock(32, -6, 3, 34, 6);
+    addBlock(23, -14, 2.6, 2.6, 2.4, crateMat); // Long A Blue Container / Cover
+    addBlock(25,  4, 2.5, 2.5, 2.2, crateMat);
+
+    // A Site (Top-Right: x=24, z=26) Tactical Crates
+    addBlock(24, 26, 3.2, 3.2, 2.6, crateMat);
+    addBlock(28, 23, 2.4, 2.4, 2.2, crateMat);
+    addBlock(19, 29, 2.4, 2.4, 2.2, crateMat);
+
+    // B Tunnels & B Site Divider Walls & Crates (Top-Left: x=-25, z=24)
+    addBlock(-14, 12, 3, 22, 6);
+    addBlock(-31, 4, 14, 3, 6);
+    addBlock(-25, 24, 3.2, 3.2, 2.6, crateMat); // B Site Double Stack
+    addBlock(-29, 20, 2.4, 2.4, 2.2, crateMat);
+    addBlock(-20, 28, 2.4, 2.4, 2.2, crateMat);
+
+    // CT Spawn Cover (Center-North: x=0, z=28)
+    addBlock(0, 22, 6, 2.5, 4.5);
+
+    // Bomb Site A & Bomb Site B Visual Floor Zones
+    const BOMB_SITES = [
+      { name: 'A Site (A包点)', x: 24, z: 26, radius: 7.5 },
+      { name: 'B Site (B包点)', x: -25, z: 24, radius: 7.5 }
+    ];
+    BOMB_SITES.forEach((site) => {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(site.radius - 0.35, site.radius, 36),
+        new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(site.x, 0.04, site.z);
+      scene.add(ring);
+    });
+
+    // 3D C4 Bomb Model (Visible when dropped or planted)
+    const c4Mesh = new THREE.Group();
+    const c4Pack = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.25, 0.45), new THREE.MeshLambertMaterial({ color: 0x78350f }));
+    const c4Led = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+    c4Led.position.set(0, 0.16, 0);
+    c4Mesh.add(c4Pack, c4Led);
+    c4Mesh.visible = false;
+    scene.add(c4Mesh);
+
+    // =========================================================================
+    // 4. FIRST-PERSON WEAPON VIEWMODEL (ATTACHED TO CAMERA)
+    // =========================================================================
+    const viewModelGroup = new THREE.Group();
+    camera.add(viewModelGroup);
+    scene.add(camera);
+
+    const vmGunBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.72), new THREE.MeshLambertMaterial({ color: 0x92400e }));
+    vmGunBody.position.set(0.28, -0.24, -0.52);
+    const vmBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.55, 12), new THREE.MeshLambertMaterial({ color: 0x1e293b }));
+    vmBarrel.rotation.x = Math.PI / 2;
+    vmBarrel.position.set(0.28, -0.19, -0.82);
+    const vmMuzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), new THREE.MeshBasicMaterial({ color: 0xfde047 }));
+    vmMuzzleFlash.position.set(0.28, -0.19, -1.12);
+    vmMuzzleFlash.visible = false;
+    viewModelGroup.add(vmGunBody, vmBarrel, vmMuzzleFlash);
+
+    // =========================================================================
+    // 5. ARTICULATED HUMANOID CHARACTER BUILDER WITH HITBOX ZONES
+    // =========================================================================
+    function createHumanoidSoldiers(team, name, spawnX, spawnZ, isHuman = false) {
+      const root = new THREE.Group();
+      root.position.set(spawnX, 0, spawnZ);
+      scene.add(root);
+
+      const isCT = team === 'CT';
+      const uniformMat = new THREE.MeshLambertMaterial({ color: isCT ? 0x1d4ed8 : 0xd97706 });
+      const vestMat = new THREE.MeshLambertMaterial({ color: isCT ? 0x0f172a : 0x451a03 });
+      const skinMat = new THREE.MeshLambertMaterial({ color: 0xfdba74 });
+      const gunMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+
+      const hitboxes = [];
+      const addPart = (geom, mat, x, y, z, zone, mult) => {
+        const m = new THREE.Mesh(geom, mat);
+        m.position.set(x, y, z);
+        m.castShadow = true;
+        m.userData = { zone, mult };
+        root.add(m);
+        hitboxes.push(m);
+        return m;
+      };
+
+      // Distinct Head (2.0x Headshot Multiplier) + Helmet
+      const head = addPart(new THREE.BoxGeometry(0.42, 0.44, 0.42), skinMat, 0, 1.66, 0, 'head', 2.0);
+      const helmet = addPart(new THREE.BoxGeometry(0.46, 0.22, 0.46), vestMat, 0, 1.82, 0, 'head', 2.0);
+
+      // Torso: Chest (1.0x) & Abdomen (0.95x)
+      const chest = addPart(new THREE.BoxGeometry(0.58, 0.46, 0.32), vestMat, 0, 1.22, 0, 'chest', 1.0);
+      const abdomen = addPart(new THREE.BoxGeometry(0.52, 0.34, 0.28), uniformMat, 0, 0.82, 0, 'abdomen', 0.95);
+
+      // Left & Right Articulated Arms in Weapon-Holding Posture (0.75x)
+      const leftArm = addPart(new THREE.BoxGeometry(0.18, 0.56, 0.18), uniformMat, -0.38, 1.20, -0.18, 'arms', 0.75);
+      leftArm.rotation.x = Math.PI / 3;
+      const rightArm = addPart(new THREE.BoxGeometry(0.18, 0.56, 0.18), uniformMat, 0.38, 1.20, -0.18, 'arms', 0.75);
+      rightArm.rotation.x = Math.PI / 3;
+
+      // Handheld 3D Rifle
+      const heldRifle = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.14, 0.78), gunMat);
+      heldRifle.position.set(0.24, 1.18, -0.48);
+      root.add(heldRifle);
+
+      // Left & Right Articulated Legs (0.75x)
+      const leftLeg = addPart(new THREE.BoxGeometry(0.22, 0.68, 0.24), uniformMat, -0.16, 0.34, 0, 'legs', 0.75);
+      const rightLeg = addPart(new THREE.BoxGeometry(0.22, 0.68, 0.24), uniformMat, 0.16, 0.34, 0, 'legs', 0.75);
+
+      return {
+        name,
+        team,
+        isHuman,
+        alive: true,
+        hp: 100,
+        armor: 100,
+        pos: new THREE.Vector3(spawnX, 0, spawnZ),
+        velY: 0,
+        yaw: isCT ? Math.PI : 0,
+        pitch: 0,
+        root,
+        leftLeg,
+        rightLeg,
+        hitboxes,
+        weaponId: isCT ? 'm4a4' : 'ak47',
+        mag: 30,
+        reserve: 90,
+        fireCooldown: 0,
+        reloadTimer: 0,
+        hasC4: false,
+        waypointIdx: 0,
+        strafeTimer: 0,
+        strafeDir: 1
+      };
+    }
+
+    // =========================================================================
+    // 6. 5v5 ROSTER, WAYPOINTS & ROUND STATE MACHINE
+    // =========================================================================
+    const T_SPAWNS = [[-8, -36], [-4, -36], [0, -36], [4, -36], [8, -36]];
+    const CT_SPAWNS = [[-8, 34], [-4, 34], [0, 34], [4, 34], [8, 34]];
+
+    const T_ROUTES = [
+      [[22, -28], [24, -6], [24, 24]],       // Long A -> A Site
+      [[0, -18], [8, 6], [22, 24]],          // Mid -> Short/Catwalk -> A Site
+      [[-22, -26], [-24, 10], [-25, 24]],    // B Tunnels -> B Site
+      [[20, -24], [24, 8], [24, 26]],        // Long A support
+      [[-20, -20], [-24, 14], [-25, 24]]     // B Site rusher
+    ];
+
+    const CT_ROUTES = [
+      [[24, 24], [24, 4], [24, -10]],        // Long A defender
+      [[10, 18], [8, 4], [0, -12]],          // Catwalk / Mid defender
+      [[-24, 24], [-24, 12], [-22, -10]],    // B Site anchor
+      [[0, 14], [0, -2], [0, -18]],          // Mid Doors AWPer
+      [[20, 26], [-20, 24], [0, 20]]         // Rotator
+    ];
+
+    let soldiers = [];
+    let humanAgent = null;
+    let isPistolRound = false;
+    let roundTimeLeft = 115.0;
+    let c4Status = 'carried'; // 'carried' | 'dropped' | 'planted' | 'defused' | 'exploded'
+    let c4Countdown = 40.0;
+    let c4BeepTimer = 0;
+    let actionHoldProgress = 0;
+    let roundOverCooldown = 0;
+    let ctWins = 0, tWins = 0;
+
+    function checkWallCollision(nx, nz, radius = 0.55) {
+      for (let i = 0; i < mapObstacles.length; i++) {
+        const b = mapObstacles[i];
+        if (nx + radius > b.minX && nx - radius < b.maxX && nz + radius > b.minZ && nz - radius < b.maxZ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function hasLineOfSight(p1, p2) {
+      const origin = new THREE.Vector3(p1.x, 1.5, p1.z);
+      const target = new THREE.Vector3(p2.x, 1.5, p2.z);
+      const dir = target.clone().sub(origin);
+      const dist = dir.length();
+      dir.normalize();
+      const rc = new THREE.Raycaster(origin, dir, 0.2, dist);
+      const hits = rc.intersectObjects(wallMeshes, false);
+      return hits.length === 0;
+    }
+
+    function startNewRound() {
+      soldiers.forEach((s) => scene.remove(s.root));
+      soldiers = [];
+
+      for (let i = 0; i < 5; i++) {
+        const isPlayer = i === 0;
+        const t = createHumanoidSoldiers('T', isPlayer ? 'T-Alpha (You)' : `T-Bot-${i + 1}`, T_SPAWNS[i][0], T_SPAWNS[i][1], isPlayer);
+        t.route = T_ROUTES[i];
+        t.weaponId = isPistolRound ? (i === 0 ? 'deagle' : 'usp') : (i === 2 ? 'awp' : 'ak47');
+        t.mag = WEAPON_SPECS[t.weaponId].magSize;
+        t.reserve = WEAPON_SPECS[t.weaponId].reserve;
+        if (i === 0) t.hasC4 = true;
+        t.hitboxes.forEach((hb) => { hb.userData.owner = t; });
+        soldiers.push(t);
+        if (isPlayer) humanAgent = t;
+      }
+
+      for (let i = 0; i < 5; i++) {
+        const ct = createHumanoidSoldiers('CT', `CT-Bot-${i + 1}`, CT_SPAWNS[i][0], CT_SPAWNS[i][1], false);
+        ct.route = CT_ROUTES[i];
+        ct.weaponId = isPistolRound ? 'usp' : (i === 3 ? 'awp' : 'm4a4');
+        ct.mag = WEAPON_SPECS[ct.weaponId].magSize;
+        ct.reserve = WEAPON_SPECS[ct.weaponId].reserve;
+        ct.hitboxes.forEach((hb) => { hb.userData.owner = ct; });
+        soldiers.push(ct);
+      }
+
+      roundTimeLeft = 115.0;
+      c4Status = 'carried';
+      c4Countdown = 40.0;
+      c4Mesh.visible = false;
+      roundOverCooldown = 0;
+      actionHoldProgress = 0;
+      setScope(false);
+      syncPlayerHUD();
+      setBannerText(isPistolRound ? 'PISTOL ROUND START — 手枪局开始' : 'ROUND START — DUST2 5v5 全枪局');
+    }
+
+    function setBannerText(txt) {
+      document.getElementById('center-banner').textContent = txt;
+    }
+
+    function addKillfeedItem(killerName, killerTeam, victimName, victimTeam, weaponName, isHeadshot) {
+      const feed = document.getElementById('killfeed');
+      const div = document.createElement('div');
+      div.className = 'hud-glass rounded-lg px-2.5 py-1 text-[11px] flex items-center gap-1.5';
+      const kColor = killerTeam === 'CT' ? 'text-sky-400' : 'text-amber-400';
+      const vColor = victimTeam === 'CT' ? 'text-sky-400' : 'text-amber-400';
+      div.innerHTML = `
+        <span class="font-semibold ${kColor}">${killerName}</span>
+        <span class="px-1.5 py-0.2 rounded bg-white/10 mono text-[10px] text-slate-200">${weaponName}${isHeadshot ? ' [HS]' : ''}</span>
+        <span class="font-semibold ${vColor}">${victimName}</span>
+      `;
+      feed.prepend(div);
+      while (feed.children.length > 5) {
+        feed.removeChild(feed.lastChild);
+      }
+    }
+
+    // =========================================================================
+    // 7. SHOOTING, HITBOX DAMAGE & C4 PLANT/DEFUSE LOGIC
+    // =========================================================================
+    function applyDamage(attacker, victim, baseDmg, armorPen, zone, mult, wepName) {
+      if (!victim.alive || attacker.team === victim.team) return;
+      let dmg = baseDmg * mult;
+      if (victim.armor > 0 && zone !== 'legs') {
+        const absorbed = dmg * (1 - armorPen) * 0.5;
+        victim.armor = Math.max(0, Math.round(victim.armor - absorbed));
+        dmg *= armorPen;
+      }
+      victim.hp = Math.max(0, Math.round(victim.hp - dmg));
+
+      if (attacker === humanAgent) {
+        const hm = document.getElementById('hitmarker');
+        hm.style.opacity = '1';
+        setTimeout(() => { hm.style.opacity = '0'; }, 90);
+        playSound(zone === 'head' ? 'headshot' : 'hit');
+      }
+
+      if (victim.hp <= 0) {
+        victim.alive = false;
+        victim.root.rotation.x = -Math.PI / 2;
+        victim.root.position.y = 0.25;
+        addKillfeedItem(attacker.name, attacker.team, victim.name, victim.team, wepName, zone === 'head');
+
+        if (victim.hasC4 && c4Status === 'carried') {
+          victim.hasC4 = false;
+          c4Status = 'dropped';
+          c4Mesh.position.set(victim.pos.x, 0.15, victim.pos.z);
+          c4Mesh.visible = true;
+          setBannerText('C4 炸弹已掉落！T队员可拾取');
+        }
+        checkRoundVictory();
+      }
+      syncPlayerHUD();
+    }
+
+    function fireWeapon(shooter) {
+      if (!shooter.alive || shooter.fireCooldown > 0 || shooter.reloadTimer > 0) return;
+      const spec = WEAPON_SPECS[shooter.weaponId];
+      if (!spec || spec.isC4) return;
+
+      if (!spec.isMelee) {
+        if (shooter.mag <= 0) {
+          startReload(shooter);
+          return;
+        }
+        shooter.mag--;
+      }
+
+      shooter.fireCooldown = spec.fireInterval;
+      playSound(spec.isMelee ? 'hit' : spec.id);
+
+      if (shooter === humanAgent) {
+        // Viewmodel kick & muzzle flash
+        vmGunBody.position.z = -0.44;
+        vmMuzzleFlash.visible = !spec.isMelee;
+        setTimeout(() => {
+          vmGunBody.position.z = -0.52;
+          vmMuzzleFlash.visible = false;
+        }, 55);
+        // Camera pitch recoil kick
+        shooter.pitch = Math.min(1.45, shooter.pitch + spec.recoilKick);
+        shooter.yaw += (Math.random() - 0.5) * spec.recoilKick * 0.45;
+      }
+
+      // Raycast against Walls + Enemy Hitboxes
+      const origin = new THREE.Vector3(shooter.pos.x, 1.62, shooter.pos.z);
+      const spreadAmt = (shooter === humanAgent && isScopedIn && spec.isSniper) ? 0.0005 : spec.spread;
+      const yawSpread = shooter.yaw + (Math.random() - 0.5) * spreadAmt;
+      const pitchSpread = shooter.pitch + (Math.random() - 0.5) * spreadAmt;
+
+      const dir = new THREE.Vector3(
+        -Math.sin(yawSpread) * Math.cos(pitchSpread),
+        Math.sin(pitchSpread),
+        -Math.cos(yawSpread) * Math.cos(pitchSpread)
+      ).normalize();
+
+      const maxDist = spec.isMelee ? 3.5 : 140;
+      const rc = new THREE.Raycaster(origin, dir, 0.1, maxDist);
+
+      const enemyHitboxes = [];
+      soldiers.forEach((s) => {
+        if (s.alive && s.team !== shooter.team) {
+          enemyHitboxes.push(...s.hitboxes);
+        }
+      });
+
+      const wallHits = rc.intersectObjects(wallMeshes, false);
+      const wallDist = wallHits.length > 0 ? wallHits[0].distance : Infinity;
+      const bodyHits = rc.intersectObjects(enemyHitboxes, false);
+
+      if (bodyHits.length > 0 && bodyHits[0].distance < wallDist) {
+        const hitMesh = bodyHits[0].object;
+        const { owner, zone, mult } = hitMesh.userData;
+        if (owner) {
+          applyDamage(shooter, owner, spec.damage, spec.armorPen, zone, mult, spec.name.split(' ')[0]);
+        }
+      }
+      syncPlayerHUD();
+    }
+
+    function startReload(shooter) {
+      const spec = WEAPON_SPECS[shooter.weaponId];
+      if (!spec || spec.isMelee || spec.isC4 || shooter.reloadTimer > 0) return;
+      if (shooter.mag >= spec.magSize || shooter.reserve <= 0) return;
+      shooter.reloadTimer = spec.reloadTime;
+      if (shooter === humanAgent) {
+        setBannerText(`正在换弹 ${spec.name}...`);
+      }
+    }
+
+    function checkRoundVictory() {
+      if (roundOverCooldown > 0) return;
+      const aliveCT = soldiers.filter((s) => s.team === 'CT' && s.alive).length;
+      const aliveT = soldiers.filter((s) => s.team === 'T' && s.alive).length;
+
+      document.getElementById('ct-alive').textContent = aliveCT;
+      document.getElementById('t-alive').textContent = aliveT;
+
+      if (c4Status === 'defused') {
+        ctWins++;
+        roundOverCooldown = 4.0;
+        setBannerText('COUNTER-TERRORISTS WIN — C4 成功拆除！');
+      } else if (c4Status === 'exploded') {
+        tWins++;
+        roundOverCooldown = 4.0;
+        setBannerText('TERRORISTS WIN — C4 成功引爆目标！');
+      } else if (aliveCT === 0) {
+        tWins++;
+        roundOverCooldown = 4.0;
+        setBannerText('TERRORISTS WIN — 全歼警队！');
+      } else if (aliveT === 0 && c4Status !== 'planted') {
+        ctWins++;
+        roundOverCooldown = 4.0;
+        setBannerText('COUNTER-TERRORISTS WIN — 全歼匪队！');
+      }
+
+      document.getElementById('ct-score').textContent = ctWins;
+      document.getElementById('t-score').textContent = tWins;
+    }
+
+    // =========================================================================
+    // 8. PLAYER CONTROLS, BOT TAKEOVER & HUD SYNCHRONIZATION
+    // =========================================================================
+    const keys = {};
+    let isPointerLocked = false;
+    let isDragging = false;
+    let lastX = 0, lastY = 0;
+    let isScopedIn = false;
+
+    function setScope(active) {
+      isScopedIn = active;
+      camera.fov = active ? 22 : 75;
+      camera.updateProjectionMatrix();
+      document.getElementById('sniper-scope').style.display = active ? 'block' : 'none';
+      viewModelGroup.visible = !active;
+    }
+
+    function switchWeapon(wepId) {
+      if (!humanAgent || !humanAgent.alive) return;
+      if (isPistolRound && (wepId === 'ak47' || wepId === 'm4a4' || wepId === 'awp')) {
+        setBannerText('当前为手枪局模式，主战步枪与狙击枪已禁用！');
+        return;
+      }
+      if (wepId === 'c4' && !humanAgent.hasC4) {
+        setBannerText('当前角色未携带 C4 炸弹');
+        return;
+      }
+      const spec = WEAPON_SPECS[wepId];
+      if (!spec) return;
+      humanAgent.weaponId = wepId;
+      humanAgent.mag = spec.magSize;
+      humanAgent.reserve = spec.reserve;
+      humanAgent.reloadTimer = 0;
+      vmGunBody.material.color.setHex(spec.color);
+      setScope(false);
+      syncPlayerHUD();
+    }
+
+    function takeoverSurvivingBot() {
+      const candidates = soldiers.filter((s) => s.alive && s !== humanAgent);
+      if (candidates.length === 0) return;
+      // Prefer same team first, then any surviving soldier
+      const sameTeam = candidates.filter((s) => s.team === (humanAgent ? humanAgent.team : 'T'));
+      const nextBot = sameTeam.length > 0 ? sameTeam[0] : candidates[0];
+      if (humanAgent) {
+        humanAgent.isHuman = false;
+        humanAgent.root.visible = true;
+      }
+      humanAgent = nextBot;
+      humanAgent.isHuman = true;
+      humanAgent.root.visible = false;
+      setScope(false);
+      syncPlayerHUD();
+      setBannerText(`已接管角色: ${humanAgent.name} (${humanAgent.team})`);
+    }
+
+    function syncPlayerHUD() {
+      if (!humanAgent) return;
+      humanAgent.root.visible = false;
+      document.getElementById('hp-text').textContent = humanAgent.hp;
+      document.getElementById('hp-bar').style.width = `${humanAgent.hp}%`;
+      document.getElementById('armor-text').textContent = humanAgent.armor;
+      document.getElementById('armor-bar').style.width = `${humanAgent.armor}%`;
+      document.getElementById('player-name-label').textContent =
+        `${humanAgent.name}${humanAgent.hasC4 ? ' [C4]' : ''}`;
+
+      const spec = WEAPON_SPECS[humanAgent.weaponId] || WEAPON_SPECS.ak47;
+      document.getElementById('weapon-title').textContent = spec.name;
+      document.getElementById('weapon-sub').textContent = spec.sub;
+      document.getElementById('ammo-mag').textContent = humanAgent.mag;
+      document.getElementById('ammo-reserve').textContent = humanAgent.reserve;
+
+      document.querySelectorAll('.wep-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.wep === humanAgent.weaponId);
+      });
+    }
+
+    window.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+      if (e.code === 'Digit1') switchWeapon('ak47');
+      else if (e.code === 'Digit2') switchWeapon('m4a4');
+      else if (e.code === 'Digit3') switchWeapon('awp');
+      else if (e.code === 'Digit4') switchWeapon('deagle');
+      else if (e.code === 'Digit5') switchWeapon('usp');
+      else if (e.code === 'Digit6') switchWeapon('knife');
+      else if (e.code === 'Digit7') switchWeapon('c4');
+      else if (e.code === 'KeyR' && humanAgent) startReload(humanAgent);
+      else if (e.code === 'Tab') {
+        e.preventDefault();
+        takeoverSurvivingBot();
+      } else if (e.code === 'KeyN') {
+        startNewRound();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      keys[e.code] = false;
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+      isPointerLocked = document.pointerLockElement === renderer.domElement;
+    });
+
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      if (e.button === 2) {
+        if (humanAgent && WEAPON_SPECS[humanAgent.weaponId]?.isSniper) {
+          setScope(!isScopedIn);
+        }
+        return;
+      }
+      if (e.button === 0 && humanAgent) {
+        if (!humanAgent.alive) {
+          takeoverSurvivingBot();
+          return;
+        }
+        fireWeapon(humanAgent);
+        if (!isPointerLocked) {
+          isDragging = true;
+          lastX = e.clientX;
+          lastY = e.clientY;
+        }
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!humanAgent) return;
+      const sens = isScopedIn ? 0.0009 : 0.0024;
+      if (isPointerLocked) {
+        humanAgent.yaw -= e.movementX * sens;
+        humanAgent.pitch = Math.max(-1.42, Math.min(1.42, humanAgent.pitch - e.movementY * sens));
+      } else if (isDragging) {
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        humanAgent.yaw -= dx * 0.0045;
+        humanAgent.pitch = Math.max(-1.42, Math.min(1.42, humanAgent.pitch - dy * 0.0045));
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    document.querySelectorAll('.wep-btn').forEach((btn) => {
+      btn.addEventListener('click', () => switchWeapon(btn.dataset.wep));
+    });
+
+    document.getElementById('btn-pistol-round').addEventListener('click', (e) => {
+      isPistolRound = !isPistolRound;
+      e.currentTarget.classList.toggle('active', isPistolRound);
+      e.currentTarget.textContent = `手枪局: ${isPistolRound ? '开' : '关'}`;
+      startNewRound();
+    });
+
+    document.getElementById('btn-takeover').addEventListener('click', takeoverSurvivingBot);
+    document.getElementById('btn-reset-round').addEventListener('click', startNewRound);
+    document.getElementById('btn-plant-defuse').addEventListener('mousedown', () => { keys['KeyE'] = true; });
+    document.getElementById('btn-plant-defuse').addEventListener('mouseup', () => { keys['KeyE'] = false; });
+
+    // =========================================================================
+    // 9. 2D TOP-DOWN DUST2 MINIMAP RADAR RENDERER
+    // =========================================================================
+    const radarCanvas = document.getElementById('radar-canvas');
+    const rCtx = radarCanvas.getContext('2d');
+
+    function worldToRadar(wx, wz) {
+      const rx = ((wx + 45) / 90) * 188;
+      const ry = ((45 - wz) / 90) * 188;
+      return [rx, ry];
+    }
+
+    function drawRadar() {
+      rCtx.fillStyle = '#090d16';
+      rCtx.fillRect(0, 0, 188, 188);
+
+      // Draw Map Walls & Crates
+      rCtx.fillStyle = '#475569';
+      mapObstacles.forEach((b) => {
+        const [x1, y1] = worldToRadar(b.minX, b.maxZ);
+        const [x2, y2] = worldToRadar(b.maxX, b.minZ);
+        rCtx.fillRect(x1, y1, Math.max(2, x2 - x1), Math.max(2, y2 - y1));
+      });
+
+      // Draw Bomb Sites A & B
+      BOMB_SITES.forEach((site, idx) => {
+        const [sx, sy] = worldToRadar(site.x, site.z);
+        rCtx.strokeStyle = '#ef4444';
+        rCtx.lineWidth = 1.5;
+        rCtx.beginPath();
+        rCtx.arc(sx, sy, 14, 0, Math.PI * 2);
+        rCtx.stroke();
+        rCtx.fillStyle = '#fca5a5';
+        rCtx.font = 'bold 10px sans-serif';
+        rCtx.fillText(idx === 0 ? 'A' : 'B', sx - 3.5, sy + 3.5);
+      });
+
+      // Draw Soldiers
+      soldiers.forEach((s) => {
+        if (!s.alive) return;
+        const [px, py] = worldToRadar(s.pos.x, s.pos.z);
+        rCtx.fillStyle = s === humanAgent ? '#22c55e' : (s.team === 'CT' ? '#38bdf8' : '#fbbf24');
+        rCtx.beginPath();
+        rCtx.arc(px, py, s === humanAgent ? 4.5 : 3.5, 0, Math.PI * 2);
+        rCtx.fill();
+
+        if (s === humanAgent) {
+          rCtx.strokeStyle = 'rgba(34, 197, 94, 0.55)';
+          rCtx.beginPath();
+          rCtx.moveTo(px, py);
+          rCtx.lineTo(px - Math.sin(s.yaw) * 18, py - Math.cos(s.yaw) * 18);
+          rCtx.stroke();
+        }
+      });
+
+      // Draw C4 Location
+      let c4WorldPos = null;
+      if (c4Status === 'carried') {
+        const carrier = soldiers.find((s) => s.alive && s.hasC4);
+        if (carrier) c4WorldPos = carrier.pos;
+      } else if (c4Status === 'dropped' || c4Status === 'planted') {
+        c4WorldPos = c4Mesh.position;
+      }
+      if (c4WorldPos) {
+        const [cx, cy] = worldToRadar(c4WorldPos.x, c4WorldPos.z);
+        rCtx.fillStyle = '#ef4444';
+        rCtx.beginPath();
+        rCtx.arc(cx, cy, 4, 0, Math.PI * 2);
+        rCtx.fill();
+      }
+    }
+
+    function updateZoneCallout(pos) {
+      let zone = 'Mid (中路)';
+      if (pos.z < -24) zone = 'T Spawn (匪家)';
+      else if (pos.x > 15 && pos.z > 16) zone = 'A Site (A包点)';
+      else if (pos.x > 15) zone = 'Long A (A大大道)';
+      else if (pos.x < -15 && pos.z > 14) zone = 'B Site (B包点)';
+      else if (pos.x < -15) zone = 'B Tunnels (B洞)';
+      else if (pos.x > 4 && pos.z > 2) zone = 'Catwalk (A小猫道)';
+      else if (pos.z > 20) zone = 'CT Spawn (警家)';
+      document.getElementById('zone-label').textContent = zone;
+    }
+
+    // =========================================================================
+    // 10. MAIN 5v5 AI & PHYSICS GAME LOOP
+    // =========================================================================
+    startNewRound();
+    let lastTime = performance.now();
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      if (roundOverCooldown > 0) {
+        roundOverCooldown -= dt;
+        if (roundOverCooldown <= 0) startNewRound();
+      }
+
+      // 1. Round & C4 Timer Logic
+      if (c4Status === 'planted') {
+        c4Countdown = Math.max(0, c4Countdown - dt);
+        c4BeepTimer -= dt;
+        if (c4BeepTimer <= 0) {
+          playSound('c4beep');
+          c4BeepTimer = Math.max(0.12, (c4Countdown / 40) * 0.85);
+        }
+        document.getElementById('round-phase-label').textContent = 'C4 PLANTED';
+        document.getElementById('round-timer').textContent = `${c4Countdown.toFixed(1)}s`;
+        if (c4Countdown <= 0 && c4Status === 'planted') {
+          c4Status = 'exploded';
+          playSound('explode');
+          checkRoundVictory();
+        }
+      } else if (roundOverCooldown <= 0) {
+        roundTimeLeft = Math.max(0, roundTimeLeft - dt);
+        const mins = Math.floor(roundTimeLeft / 60);
+        const secs = Math.floor(roundTimeLeft % 60);
+        document.getElementById('round-phase-label').textContent = 'ROUND TIME';
+        document.getElementById('round-timer').textContent =
+          `0${mins}:${String(secs).padStart(2, '0')}`;
+      }
+
+      // 2. Update All 10 Combatants (Human + 9 AI Bots)
+      soldiers.forEach((s, idx) => {
+        if (!s.alive) return;
+
+        if (s.fireCooldown > 0) s.fireCooldown -= dt;
+        if (s.reloadTimer > 0) {
+          s.reloadTimer -= dt;
+          if (s.reloadTimer <= 0) {
+            const spec = WEAPON_SPECS[s.weaponId];
+            const needed = spec.magSize - s.mag;
+            const taken = Math.min(needed, s.reserve);
+            s.mag += taken;
+            s.reserve -= taken;
+            if (s === humanAgent) {
+              setBannerText(`${spec.name} 换弹完成`);
+              syncPlayerHUD();
+            }
+          }
+        }
+
+        // Dropped C4 Pickup by T players
+        if (c4Status === 'dropped' && s.team === 'T' && s.pos.distanceTo(c4Mesh.position) < 2.2) {
+          c4Status = 'carried';
+          s.hasC4 = true;
+          c4Mesh.visible = false;
+          setBannerText(`${s.name} 拾取了 C4 炸弹`);
+          syncPlayerHUD();
+        }
+
+        if (s.isHuman) {
+          // Human WASD Movement with Wall Sliding Collision
+          const fwd = new THREE.Vector3(-Math.sin(s.yaw), 0, -Math.cos(s.yaw)).normalize();
+          const right = new THREE.Vector3(Math.cos(s.yaw), 0, -Math.sin(s.yaw)).normalize();
+          const move = new THREE.Vector3();
+          if (keys['KeyW'] || keys['ArrowUp']) move.add(fwd);
+          if (keys['KeyS'] || keys['ArrowDown']) move.sub(fwd);
+          if (keys['KeyD'] || keys['ArrowRight']) move.add(right);
+          if (keys['KeyA'] || keys['ArrowLeft']) move.sub(right);
+          if (move.lengthSq() > 0) move.normalize();
+
+          const speed = isScopedIn ? 4.2 : 8.2;
+          const nx = s.pos.x + move.x * speed * dt;
+          const nz = s.pos.z + move.z * speed * dt;
+          if (!checkWallCollision(nx, s.pos.z)) s.pos.x = nx;
+          if (!checkWallCollision(s.pos.x, nz)) s.pos.z = nz;
+
+          // Jump
+          if (keys['Space'] && s.pos.y <= 0.01) s.velY = 7.5;
+          s.velY -= 20.0 * dt;
+          s.pos.y = Math.max(0, s.pos.y + s.velY * dt);
+          if (s.pos.y === 0) s.velY = 0;
+
+          // C4 Plant / Defuse Action via KeyE
+          const nearSite = BOMB_SITES.find((bs) => Math.hypot(s.pos.x - bs.x, s.pos.z - bs.z) < bs.radius);
+          const canPlant = s.team === 'T' && s.hasC4 && c4Status === 'carried' && nearSite;
+          const canDefuse = s.team === 'CT' && c4Status === 'planted' && Math.hypot(s.pos.x - c4Mesh.position.x, s.pos.z - c4Mesh.position.z) < 3.5;
+
+          const wrap = document.getElementById('c4-progress-wrap');
+          const bar = document.getElementById('c4-progress-bar');
+
+          if (keys['KeyE'] && (canPlant || canDefuse)) {
+            wrap.classList.remove('hidden');
+            actionHoldProgress += dt / (canPlant ? 3.0 : 4.5);
+            bar.style.width = `${Math.min(100, actionHoldProgress * 100)}%`;
+            if (actionHoldProgress >= 1.0) {
+              actionHoldProgress = 0;
+              wrap.classList.add('hidden');
+              if (canPlant) {
+                s.hasC4 = false;
+                c4Status = 'planted';
+                c4Mesh.position.set(s.pos.x, 0.15, s.pos.z);
+                c4Mesh.visible = true;
+                playSound('c4beep');
+                setBannerText(`C4 已在 ${nearSite.name} 安放！40秒引爆倒计时！`);
+              } else if (canDefuse) {
+                c4Status = 'defused';
+                checkRoundVictory();
+              }
+              syncPlayerHUD();
+            }
+          } else {
+            actionHoldProgress = 0;
+            wrap.classList.add('hidden');
+          }
+
+          camera.position.set(s.pos.x, s.pos.y + 1.65, s.pos.z);
+          camera.quaternion.setFromEuler(new THREE.Euler(s.pitch, s.yaw, 0, 'YXZ'));
+          updateZoneCallout(s.pos);
+        } else {
+          // Autonomous 5v5 AI Bot Logic: Vision Line-of-Sight, Combat Engagement, Pathfinding & C4 Objective
+          s.root.visible = true;
+          let visibleEnemy = null;
+          let bestDist = Infinity;
+
+          soldiers.forEach((other) => {
+            if (!other.alive || other.team === s.team) return;
+            const d = s.pos.distanceTo(other.pos);
+            if (d < 42 && d < bestDist && hasLineOfSight(s.pos, other.pos)) {
+              bestDist = d;
+              visibleEnemy = other;
+            }
+          });
+
+          if (visibleEnemy) {
+            // Aim at visible enemy and engage with tactical strafing
+            const dx = visibleEnemy.pos.x - s.pos.x;
+            const dz = visibleEnemy.pos.z - s.pos.z;
+            s.yaw = Math.atan2(-dx, -dz);
+            s.pitch = 0.01;
+            s.strafeTimer -= dt;
+            if (s.strafeTimer <= 0) {
+              s.strafeDir = Math.random() > 0.5 ? 1 : -1;
+              s.strafeTimer = 0.8;
+            }
+            const sx = s.pos.x + Math.cos(s.yaw) * s.strafeDir * 3.8 * dt;
+            const sz = s.pos.z - Math.sin(s.yaw) * s.strafeDir * 3.8 * dt;
+            if (!checkWallCollision(sx, s.pos.z)) s.pos.x = sx;
+            if (!checkWallCollision(s.pos.x, sz)) s.pos.z = sz;
+
+            if (Math.random() < 0.35) {
+              fireWeapon(s);
+            }
+          } else {
+            // Patrol Waypoints or Move to Planted C4
+            let targetPt = s.route[s.waypointIdx % s.route.length];
+            if (c4Status === 'planted' && s.team === 'CT') {
+              targetPt = [c4Mesh.position.x, c4Mesh.position.z];
+            }
+            const dx = targetPt[0] - s.pos.x;
+            const dz = targetPt[1] - s.pos.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist < 2.2) {
+              s.waypointIdx = (s.waypointIdx + 1) % s.route.length;
+              // AI T-Bot auto-plants C4 if holding C4 at bomb site
+              if (s.team === 'T' && s.hasC4 && c4Status === 'carried') {
+                const site = BOMB_SITES.find((bs) => Math.hypot(s.pos.x - bs.x, s.pos.z - bs.z) < bs.radius);
+                if (site) {
+                  s.hasC4 = false;
+                  c4Status = 'planted';
+                  c4Mesh.position.set(s.pos.x, 0.15, s.pos.z);
+                  c4Mesh.visible = true;
+                  playSound('c4beep');
+                  setBannerText(`${s.name} 在 ${site.name} 安放了 C4 炸弹！`);
+                }
+              }
+              // AI CT-Bot auto-defuses if at planted C4 with no enemies around
+              if (s.team === 'CT' && c4Status === 'planted' && Math.hypot(s.pos.x - c4Mesh.position.x, s.pos.z - c4Mesh.position.z) < 2.8) {
+                c4Status = 'defused';
+                checkRoundVictory();
+              }
+            } else {
+              s.yaw = Math.atan2(-dx, -dz);
+              const stepX = s.pos.x + (dx / dist) * 5.6 * dt;
+              const stepZ = s.pos.z + (dz / dist) * 5.6 * dt;
+              if (!checkWallCollision(stepX, s.pos.z)) s.pos.x = stepX;
+              else s.waypointIdx = (s.waypointIdx + 1) % s.route.length;
+              if (!checkWallCollision(s.pos.x, stepZ)) s.pos.z = stepZ;
+            }
+          }
+
+          s.root.position.set(s.pos.x, 0, s.pos.z);
+          s.root.rotation.y = s.yaw;
+          const walkSwing = Math.sin(now * 0.01 + idx) * 0.45;
+          s.leftLeg.rotation.x = walkSwing;
+          s.rightLeg.rotation.x = -walkSwing;
+        }
+      });
+
+      drawRadar();
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

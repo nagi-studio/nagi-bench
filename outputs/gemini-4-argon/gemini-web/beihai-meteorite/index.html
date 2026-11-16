@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>章北海·陨石子弹 — Zhang Beihai: Meteorite Bullet (3D Procedural Film)</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #03050a;
+      color: #f8fafc;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .serif-cn {
+      font-family: 'Noto Serif SC', Georgia, serif;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Cinema Widescreen Letterbox Bars */
+    .letterbox-top, .letterbox-bottom {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 54px;
+      background: #000000;
+      z-index: 15;
+      pointer-events: none;
+    }
+    .letterbox-top { top: 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .letterbox-bottom { bottom: 0; border-top: 1px solid rgba(255,255,255,0.08); }
+
+    .cinema-hud {
+      background: rgba(8, 11, 18, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .act-btn {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      transition: all 0.18s ease;
+      cursor: pointer;
+    }
+
+    .act-btn:hover {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.18);
+    }
+
+    .act-btn.active {
+      border-color: #f59e0b;
+      background: rgba(245, 158, 11, 0.25);
+      color: #fde68a;
+    }
+
+    input[type="range"].timeline-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 999px;
+      background: #334155;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"].timeline-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #f59e0b;
+      border: 2px solid #fff;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="relative w-full h-full">
+
+  <!-- 3D Viewport -->
+  <div id="stage" class="absolute inset-0 w-full h-full"></div>
+
+  <!-- Widescreen Cinema Letterbox -->
+  <div class="letterbox-top flex items-center justify-between px-6">
+    <div class="flex items-center gap-3">
+      <span class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[11px] mono">THREE.JS VOXEL CINEMA</span>
+      <span class="serif-cn text-sm md:text-base font-bold tracking-widest text-slate-100">《三体 II：黑暗森林》· 章北海：陨石子弹</span>
+    </div>
+    <div class="flex items-center gap-4 text-xs mono text-slate-300">
+      <span id="acoustic-badge" class="px-2.5 py-0.5 rounded bg-sky-500/20 border border-sky-400/30 text-sky-300">声场: 地下靶场混响 (INDOOR REVERB)</span>
+      <span id="timecode-readout">00:00.0 / 03:00.0</span>
+    </div>
+  </div>
+
+  <!-- Opening / Ending Title Card Overlay -->
+  <div id="title-overlay" class="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center text-center px-6 transition-opacity duration-700" style="opacity: 0;">
+    <div id="title-main" class="serif-cn text-3xl md:text-5xl font-bold tracking-widest text-amber-100 drop-shadow-lg mb-3"></div>
+    <div id="title-sub" class="text-sm md:text-base text-slate-300 tracking-wider max-w-xl"></div>
+  </div>
+
+  <!-- Synchronized Bottom-Center Subtitle Display (Strictly formatted as 【Speaker】Text) -->
+  <div class="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 w-11/12 max-w-3xl text-center pointer-events-none">
+    <div id="subtitle-box" class="inline-block px-5 py-2.5 rounded-xl bg-black/82 border border-white/15 shadow-2xl">
+      <div id="subtitle-text" class="serif-cn text-base md:text-xl font-medium text-amber-50 tracking-wide leading-relaxed">
+        【旁白】公元纪年·危机纪元初，章北海凝视着那块来自天外的铁陨石。
+      </div>
+      <div id="subtitle-meta" class="mono text-[10px] text-slate-400 mt-0.5">
+        CUE #01 · NARRATION · CALM_GRAVITY
+      </div>
+    </div>
+  </div>
+
+  <!-- Director Controls & Timeline Bar -->
+  <div class="letterbox-bottom"></div>
+  <div class="absolute bottom-2 left-4 right-4 z-30 cinema-hud rounded-xl px-4 py-2 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <button id="btn-play" class="act-btn active rounded-lg px-3 py-1 text-xs font-semibold">暂停 / 播放 (Space)</button>
+      <button id="btn-restart" class="act-btn rounded-lg px-2.5 py-1 text-xs">重播</button>
+      <button id="btn-audio" class="act-btn rounded-lg px-2.5 py-1 text-xs">声效: 开</button>
+    </div>
+
+    <div class="flex-1 min-w-[180px] flex items-center gap-3">
+      <input id="timeline-slider" type="range" min="0" max="180" step="0.1" value="0" class="timeline-slider w-full" />
+    </div>
+
+    <div class="flex flex-wrap items-center gap-1">
+      <button data-act="0" class="act-jump act-btn active rounded px-2 py-1 text-[11px]">I. 陨石铸弹</button>
+      <button data-act="30" class="act-jump act-btn rounded px-2 py-1 text-[11px]">II. 靶场试射</button>
+      <button data-act="60" class="act-jump act-btn rounded px-2 py-1 text-[11px]">III. 路线之争</button>
+      <button data-act="90" class="act-jump act-btn rounded px-2 py-1 text-[11px]">IV. 太空出舱</button>
+      <button data-act="120" class="act-jump act-btn rounded px-2 py-1 text-[11px]">V. 真空狙杀</button>
+      <button data-act="155" class="act-jump act-btn rounded px-2 py-1 text-[11px]">VI. 星海远航</button>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. CENTRALIZED VOICE_MANIFEST (STRICT 7-FIELD SCHEMA: id, kind, speaker, text, delivery, start, end)
+    // =========================================================================
+    const TOTAL_DURATION = 180.0; // 3 minutes (180s <= 360s requirement)
+
+    const VOICE_MANIFEST = [
+      { id: 'cue_01', kind: 'narration',  speaker: '旁白',   text: '危机纪元初年。人类太空军的推进器技术路线，正处于决定命运的分岔口。', delivery: 'solemn_low',      start: 0.0,   end: 9.5 },
+      { id: 'cue_02', kind: 'monologue',  speaker: '章北海', text: '化学火箭与工质推进走不出太阳系，唯有无工质辐射驱动，才能为人类保留火种。', delivery: 'calm_resolute',   start: 9.8,   end: 19.5 },
+      { id: 'cue_03', kind: 'narration',  speaker: '旁白',   text: '在隐秘的机床前，章北海将一块埃вен基铁陨石车削成三枚特殊的手枪弹头。', delivery: 'measured_focus',  start: 20.0,  end: 29.8 },
+      { id: 'cue_04', kind: 'narration',  speaker: '旁白',   text: '地下靶场。混凝土四壁回荡着沉闷的枪声，他在测试陨石弹头的初速与弹道。', delivery: 'tense_echo',      start: 30.0,  end: 41.5 },
+      { id: 'cue_05', kind: 'monologue',  speaker: '章北海', text: '每一发都装着全剂量无烟火药。在失重真空里，它和真正的天外陨石毫无区别。', delivery: 'cold_precision',  start: 42.0,  end: 53.5 },
+      { id: 'cue_06', kind: 'narration',  speaker: '旁白',   text: '靶纸中心被精准洞穿。章北海平静地收起手枪，仿佛只是完成了一次例行训练。', delivery: 'quiet_grave',     start: 54.0,  end: 59.8 },
+      { id: 'cue_07', kind: 'dialogue',   speaker: '老航天王总工', text: '无工质飞船是虚无缥缈的幻想！未来五十年的经费，必须全部投向高推力工质发动机！', delivery: 'heated_authority',start: 60.0,  end: 72.5 },
+      { id: 'cue_08', kind: 'dialogue',   speaker: '丁代表', text: '一旦工质路线锁死，人类舰队将永远被困在慢速泥潭里。', delivery: 'anxious_plea',    start: 73.0,  end: 81.5 },
+      { id: 'cue_09', kind: 'dialogue',   speaker: '章北海', text: '各位首长，太空基地外即将迎来一场壮观的流星雨，不妨出舱亲眼见证。', delivery: 'courteous_calm',  start: 82.0,  end: 89.8 },
+      { id: 'cue_10', kind: 'narration',  speaker: '旁白',   text: '近地轨道空间站外，地球的蓝色弧线在脚下静默旋转，四周是一片绝对的真空死寂。', delivery: 'vast_ethereal',   start: 90.0,  end: 101.5 },
+      { id: 'cue_11', kind: 'radio',      speaker: '老航天迪亚兹', text: '看那片星尘！在宇宙面前，还是我们稳妥的工质推进最让人安心啊。', delivery: 'radio_filtered',  start: 102.0, end: 111.5 },
+      { id: 'cue_12', kind: 'monologue',  speaker: '章北海', text: '对不起，前辈们。为了人类能够飞向星辰大海，有些路障只能用陨石抹去。', delivery: 'whispered_vow',   start: 112.0, end: 119.8 },
+      { id: 'cue_13', kind: 'narration',  speaker: '旁白',   text: '真空中没有枪声。只有头盔内沉重的呼吸，以及从枪口无声喷出的三枚陨石子弹。', delivery: 'breathless_tense',start: 120.0, end: 132.5 },
+      { id: 'cue_14', kind: 'narration',  speaker: '旁白',   text: '高速旋转的铁陨石弹头穿过漫天流星，击穿了三位工质派元老的宇航服胸甲。', delivery: 'slow_motion_awe', start: 133.0, end: 144.5 },
+      { id: 'cue_15', kind: 'radio',      speaker: '空间站指挥中心', text: '警报！三名出舱专家遭遇高速微陨石群撞击，宇航服失压！完全是意外的陨石袭击！', delivery: 'urgent_radio',    start: 145.0, end: 154.8 },
+      { id: 'cue_16', kind: 'narration',  speaker: '旁白',   text: '工质派核心人物陨落，辐射驱动方案全票通过。人类恒星际飞船的时代由此开启。', delivery: 'epic_resolve',    start: 155.0, end: 167.5 },
+      { id: 'cue_17', kind: 'monologue',  speaker: '章北海', text: '自然选择，前进四。无论历史如何审判我，人类终将驶向深空。', delivery: 'transcendent',    start: 168.0, end: 180.0 }
+    ];
+
+    // =========================================================================
+    // 2. PHYSICS-BASED ACOUSTIC SYNTHESIS (INDOOR REVERB VS. SPACE VACUUM)
+    // =========================================================================
+    let audioCtx = null;
+    let audioEnabled = true;
+    let triggeredSfxCues = new Set();
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playAcousticEvent(type) {
+      if (!audioEnabled) return;
+      try {
+        initAudio();
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+
+        if (type === 'forge_hammer') {
+          // Metallic anvil clang with subterranean echo
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(1420, now);
+          osc.frequency.exponentialRampToValueAtTime(420, now + 0.35);
+          gain.gain.setValueAtTime(0.14, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.42);
+        } else if (type === 'indoor_gunshot') {
+          // Reverberant basement gunshot
+          const dur = 0.65;
+          const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.28));
+          }
+          const src = audioCtx.createBufferSource();
+          src.buffer = buf;
+          const filter = audioCtx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.value = 1100;
+          const gain = audioCtx.createGain();
+          gain.gain.setValueAtTime(0.24, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+          src.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioCtx.destination);
+          src.start(now);
+        } else if (type === 'vacuum_shot') {
+          // In vacuum: NO external air gunshot! Only muffled low-pass bone-conducted suit thud (80 Hz)
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(95, now);
+          osc.frequency.exponentialRampToValueAtTime(32, now + 0.22);
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.26);
+        } else if (type === 'suit_breath') {
+          // Muffled EVA suit respirator inhale/exhale
+          const dur = 0.55;
+          const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) {
+            const env = Math.sin((i / data.length) * Math.PI);
+            data[i] = (Math.random() * 2 - 1) * env * 0.3;
+          }
+          const src = audioCtx.createBufferSource();
+          src.buffer = buf;
+          const filter = audioCtx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 520;
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0.08;
+          src.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioCtx.destination);
+          src.start(now);
+        }
+      } catch (e) {}
+    }
+
+    // =========================================================================
+    // 3. THREE.JS VOXEL CINEMA STAGE & MULTI-ACT SCENE SETS
+    // =========================================================================
+    const stageEl = document.getElementById('stage');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05070e);
+
+    const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 400);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    stageEl.appendChild(renderer.domElement);
+
+    const ambient = new THREE.AmbientLight(0x94a3b8, 0.55);
+    scene.add(ambient);
+
+    const keyLight = new THREE.DirectionalLight(0xfef3c7, 1.35);
+    keyLight.position.set(18, 28, 22);
+    scene.add(keyLight);
+
+    const forgePointLight = new THREE.PointLight(0xf97316, 2.2, 25);
+    forgePointLight.position.set(0, 3, 0);
+    scene.add(forgePointLight);
+
+    // Helper: Build Blocky Voxel Character (Minecraft-like Voxel Aesthetic)
+    function createVoxelCharacter({ suitColor = 0x1e3a8a, visorColor = 0x38bdf8, isSpaceSuit = false }) {
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshLambertMaterial({ color: suitColor });
+      const headMat = new THREE.MeshLambertMaterial({ color: isSpaceSuit ? 0xf8fafc : 0xfdba74 });
+      const visorMat = new THREE.MeshBasicMaterial({ color: visorColor });
+      const darkMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+
+      // Blocky Head + Space Helmet Visor
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), headMat);
+      head.position.y = 2.2;
+      g.add(head);
+
+      if (isSpaceSuit) {
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.42, 0.84), visorMat);
+        visor.position.set(0, 2.22, 0.04);
+        g.add(visor);
+        const lifePack = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.42), headMat);
+        lifePack.position.set(0, 1.35, -0.38);
+        g.add(lifePack);
+      } else {
+        // PLA Space Force Cap
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.24, 0.92), bodyMat);
+        cap.position.set(0, 2.66, 0.04);
+        g.add(cap);
+      }
+
+      // Blocky Torso
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.84, 1.1, 0.46), bodyMat);
+      torso.position.y = 1.25;
+      g.add(torso);
+
+      // Left & Right Voxel Arms
+      const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.36, 1.0, 0.36), bodyMat);
+      leftArm.position.set(-0.62, 1.25, 0);
+      const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.36, 1.0, 0.36), bodyMat);
+      rightArm.position.set(0.62, 1.25, 0.25);
+      rightArm.rotation.x = -Math.PI / 2.2;
+      g.add(leftArm, rightArm);
+
+      // Voxel Pistol in Right Hand
+      const pistol = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.52), darkMat);
+      pistol.position.set(0.62, 1.42, 0.72);
+      g.add(pistol);
+
+      // Left & Right Voxel Legs
+      const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.9, 0.38), darkMat);
+      leftLeg.position.set(-0.22, 0.45, 0);
+      const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.9, 0.38), darkMat);
+      rightLeg.position.set(0.22, 0.45, 0);
+      g.add(leftLeg, rightLeg);
+
+      return { group: g, rightArm, leftArm, pistol };
+    }
+
+    // =========================================================================
+    // SET 1: SUBTERRANEAN FORGE & RIFLE RANGE (Acts I - III, t = 0..90s)
+    // =========================================================================
+    const indoorSet = new THREE.Group();
+    scene.add(indoorSet);
+
+    const concreteMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
+    const emberMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+    const meteorIronMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.85, roughness: 0.25 });
+
+    // Voxel Bunker Floor & Walls
+    const bunkerFloor = new THREE.Mesh(new THREE.BoxGeometry(26, 0.5, 36), new THREE.MeshLambertMaterial({ color: 0x1e293b }));
+    bunkerFloor.position.set(0, -0.25, 0);
+    indoorSet.add(bunkerFloor);
+
+    for (let z = -16; z <= 16; z += 4) {
+      const leftPillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 7, 1.2), concreteMat);
+      leftPillar.position.set(-10, 3.5, z);
+      const rightPillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 7, 1.2), concreteMat);
+      rightPillar.position.set(10, 3.5, z);
+      indoorSet.add(leftPillar, rightPillar);
+    }
+
+    // Lathe / Smelting Workbench & Glowing Meteorite Ore (at z = 4)
+    const workbench = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.1, 1.8), new THREE.MeshLambertMaterial({ color: 0x475569 }));
+    workbench.position.set(0, 0.55, 4);
+    indoorSet.add(workbench);
+
+    const meteoriteCluster = new THREE.Group();
+    meteoriteCluster.position.set(0, 1.45, 4);
+    for (let i = 0; i < 7; i++) {
+      const vox = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.32), i % 2 === 0 ? meteorIronMat : emberMat);
+      vox.position.set((i - 3) * 0.22, (i % 3) * 0.16, ((i * 3) % 3 - 1) * 0.16);
+      meteoriteCluster.add(vox);
+    }
+    indoorSet.add(meteoriteCluster);
+
+    // Shooting Range Target at z = -14
+    const targetBoard = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 0.3), new THREE.MeshLambertMaterial({ color: 0xe2e8f0 }));
+    targetBoard.position.set(0, 2.0, -14);
+    const bullseye = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.35), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    bullseye.position.set(0, 2.0, -14);
+    indoorSet.add(targetBoard, bullseye);
+
+    const beihaiIndoor = createVoxelCharacter({ suitColor: 0x1e3a8a, isSpaceSuit: false });
+    beihaiIndoor.group.position.set(-1.6, 0, 4.2);
+    beihaiIndoor.group.rotation.y = Math.PI / 2;
+    indoorSet.add(beihaiIndoor.group);
+
+    // Conference Officials for Act III (60..90s)
+    const councilGroup = new THREE.Group();
+    councilGroup.position.set(0, 0, -4);
+    for (let i = -1; i <= 1; i++) {
+      const elder = createVoxelCharacter({ suitColor: 0x475569, isSpaceSuit: false });
+      elder.group.position.set(i * 2.4, 0, 0);
+      elder.pistol.visible = false;
+      councilGroup.add(elder.group);
+    }
+    indoorSet.add(councilGroup);
+
+    // =========================================================================
+    // SET 2: ORBITAL SPACE STATION, VOXEL EARTH & METEORITE BULLET (Acts IV - VI, t = 90..180s)
+    // =========================================================================
+    const spaceSet = new THREE.Group();
+    spaceSet.visible = false;
+    scene.add(spaceSet);
+
+    // Starfield (Voxel Stars)
+    const starGeom = new THREE.BoxGeometry(0.25, 0.25, 0.25);
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const starsInstanced = new THREE.InstancedMesh(starGeom, starMat, 600);
+    const dummy = new THREE.Matrix4();
+    for (let i = 0; i < 600; i++) {
+      dummy.makeTranslation(
+        (Math.random() - 0.5) * 220,
+        (Math.random() - 0.5) * 140,
+        (Math.random() - 0.5) * 220
+      );
+      starsInstanced.setMatrixAt(i, dummy);
+    }
+    spaceSet.add(starsInstanced);
+
+    // Colossal Voxel Earth Below Orbital Station
+    const voxelEarth = new THREE.Group();
+    voxelEarth.position.set(0, -48, -35);
+    const oceanGlobe = new THREE.Mesh(new THREE.BoxGeometry(56, 56, 56), new THREE.MeshLambertMaterial({ color: 0x0284c7 }));
+    const continentPatch = new THREE.Mesh(new THREE.BoxGeometry(57, 26, 32), new THREE.MeshLambertMaterial({ color: 0x15803d }));
+    const cloudLayer = new THREE.Mesh(new THREE.BoxGeometry(58, 14, 58), new THREE.MeshLambertMaterial({ color: 0xf8fafc, transparent: true, opacity: 0.65 }));
+    voxelEarth.add(oceanGlobe, continentPatch, cloudLayer);
+    spaceSet.add(voxelEarth);
+
+    // Orbital Space Station Hull Truss & Solar Arrays
+    const hullBeam = new THREE.Mesh(new THREE.BoxGeometry(34, 1.4, 4.5), new THREE.MeshLambertMaterial({ color: 0xcbd5e1 }));
+    hullBeam.position.set(0, -1.2, 0);
+    spaceSet.add(hullBeam);
+
+    for (let sx of [-12, 12]) {
+      const solarWing = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.15, 18), new THREE.MeshLambertMaterial({ color: 0x1d4ed8 }));
+      solarWing.position.set(sx, -1.2, 0);
+      spaceSet.add(solarWing);
+    }
+
+    // EVA Zhang Beihai & 3 Old Aerospace Officials in Space Suits
+    const beihaiEVA = createVoxelCharacter({ suitColor: 0xe2e8f0, visorColor: 0x38bdf8, isSpaceSuit: true });
+    beihaiEVA.group.position.set(-7.5, -0.4, 0);
+    beihaiEVA.group.rotation.y = Math.PI / 2;
+    spaceSet.add(beihaiEVA.group);
+
+    const targetsEVA = [];
+    for (let i = 0; i < 3; i++) {
+      const tChar = createVoxelCharacter({ suitColor: 0xf1f5f9, visorColor: 0xf59e0b, isSpaceSuit: true });
+      tChar.group.position.set(5.5 + i * 2.4, -0.2 + (i - 1) * 0.6, (i - 1) * 1.8);
+      tChar.group.rotation.y = -Math.PI / 2;
+      tChar.pistol.visible = false;
+      spaceSet.add(tChar.group);
+      targetsEVA.push(tChar);
+    }
+
+    // Hero Voxel Meteorite Bullet (Close-Up Tracking Object in Act V!)
+    const meteoriteBullet = new THREE.Group();
+    const bulletCore = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.24, 0.24), meteorIronMat);
+    const bulletTip = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.18), emberMat);
+    bulletTip.position.x = 0.36;
+    meteoriteBullet.add(bulletCore, bulletTip);
+    spaceSet.add(meteoriteBullet);
+
+    // Natural Meteor Shower Streaks Passing in Background
+    const meteorStreaks = [];
+    for (let i = 0; i < 24; i++) {
+      const streak = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4, 0.12, 0.12),
+        new THREE.MeshBasicMaterial({ color: 0x7dd3fc })
+      );
+      streak.position.set((Math.random() - 0.5) * 60, Math.random() * 22 - 4, -12 - Math.random() * 25);
+      spaceSet.add(streak);
+      meteorStreaks.push(streak);
+    }
+
+    // Forward-Four Interstellar Fusion Ship (Act VI Finale, t = 155..180s)
+    const starshipNaturalSelection = new THREE.Group();
+    const shipHull = new THREE.Mesh(new THREE.BoxGeometry(10, 2.4, 2.4), new THREE.MeshLambertMaterial({ color: 0xf8fafc }));
+    const shipRing = new THREE.Mesh(new THREE.BoxGeometry(1.2, 7.5, 7.5), new THREE.MeshLambertMaterial({ color: 0x94a3b8 }));
+    shipRing.position.x = -2.2;
+    const fusionPlume = new THREE.Mesh(new THREE.BoxGeometry(5.5, 1.6, 1.6), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+    fusionPlume.position.x = -7.2;
+    starshipNaturalSelection.add(shipHull, shipRing, fusionPlume);
+    starshipNaturalSelection.position.set(0, 6, -16);
+    starshipNaturalSelection.visible = false;
+    spaceSet.add(starshipNaturalSelection);
+
+    // =========================================================================
+    // 4. DIRECTOR TIMELINE, CAMERA CHOREOGRAPHY & SUBTITLE ENGINE
+    // =========================================================================
+    let currentTime = 0.0;
+    let isPlaying = true;
+    let lastPerf = performance.now();
+
+    const sliderEl = document.getElementById('timeline-slider');
+    const timecodeEl = document.getElementById('timecode-readout');
+    const subtitleTextEl = document.getElementById('subtitle-text');
+    const subtitleMetaEl = document.getElementById('subtitle-meta');
+    const acousticBadgeEl = document.getElementById('acoustic-badge');
+    const titleOverlayEl = document.getElementById('title-overlay');
+    const titleMainEl = document.getElementById('title-main');
+    const titleSubEl = document.getElementById('title-sub');
+
+    function formatMMSS(sec) {
+      const m = Math.floor(sec / 60);
+      const s = (sec % 60).toFixed(1).padStart(4, '0');
+      return `${String(m).padStart(2, '0')}:${s}`;
+    }
+
+    function seekTo(sec) {
+      currentTime = Math.max(0, Math.min(TOTAL_DURATION, sec));
+      triggeredSfxCues.clear();
+      sliderEl.value = currentTime;
+    }
+
+    document.getElementById('btn-play').addEventListener('click', (e) => {
+      initAudio();
+      isPlaying = !isPlaying;
+      e.currentTarget.classList.toggle('active', isPlaying);
+    });
+
+    document.getElementById('btn-restart').addEventListener('click', () => {
+      initAudio();
+      seekTo(0);
+      isPlaying = true;
+    });
+
+    document.getElementById('btn-audio').addEventListener('click', (e) => {
+      initAudio();
+      audioEnabled = !audioEnabled;
+      e.currentTarget.textContent = `声效: ${audioEnabled ? '开' : '关'}`;
+    });
+
+    sliderEl.addEventListener('input', (e) => {
+      seekTo(parseFloat(e.target.value));
+    });
+
+    document.querySelectorAll('.act-jump').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        initAudio();
+        seekTo(parseFloat(btn.dataset.act));
+      });
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        initAudio();
+        isPlaying = !isPlaying;
+      }
+    });
+
+    function updateDirectorAndScene(t, dt) {
+      // 1. Subtitle Synchronization from VOICE_MANIFEST (Strict 【Speaker】Text format)
+      const activeCue = VOICE_MANIFEST.find((c) => t >= c.start && t <= c.end) || VOICE_MANIFEST[VOICE_MANIFEST.length - 1];
+      if (activeCue) {
+        subtitleTextEl.textContent = `【${activeCue.speaker}】${activeCue.text}`;
+        subtitleMetaEl.textContent =
+          `${activeCue.id.toUpperCase()} · ${activeCue.kind.toUpperCase()} · ${activeCue.delivery.toUpperCase()} (${activeCue.start.toFixed(1)}s–${activeCue.end.toFixed(1)}s)`;
+      }
+
+      // 2. Opening & Closing Title Cards
+      if (t < 4.5) {
+        titleOverlayEl.style.opacity = '1';
+        titleMainEl.textContent = '章北海 · 陨石子弹';
+        titleSubEl.textContent = '改编自刘慈欣《三体 II：黑暗森林》 · 程序化 3D 体素短片';
+      } else if (t > 173.0) {
+        titleOverlayEl.style.opacity = '1';
+        titleMainEl.textContent = '自然选择，前进四';
+        titleSubEl.textContent = 'FIN · 辐射驱动纪元开启 · Total Runtime 03:00';
+      } else {
+        titleOverlayEl.style.opacity = '0';
+      }
+
+      // Highlight current Act button
+      const actStarts = [0, 30, 60, 90, 120, 155];
+      let curActStart = 0;
+      for (let a of actStarts) { if (t >= a) curActStart = a; }
+      document.querySelectorAll('.act-jump').forEach((b) => {
+        b.classList.toggle('active', parseFloat(b.dataset.act) === curActStart);
+      });
+
+      // 3. Switch Between Indoor Set (0..90s) and Orbital Space Set (90..180s)
+      const inSpace = t >= 90.0;
+      indoorSet.visible = !inSpace;
+      spaceSet.visible = inSpace;
+
+      if (!inSpace) {
+        acousticBadgeEl.textContent = '声场: 地下密室混响 (INDOOR REVERB)';
+        acousticBadgeEl.className = 'px-2.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-amber-300';
+      } else {
+        acousticBadgeEl.textContent = '声场: 轨道真空寂静 (VACUUM SILENCE — SUIT CONDUCTION ONLY)';
+        acousticBadgeEl.className = 'px-2.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-400/30 text-cyan-300';
+      }
+
+      // 4. Act-by-Act Procedural Camera & Character Choreography
+      if (t < 30.0) {
+        // ACT I: Forging the Meteorite Bullets (0..30s)
+        councilGroup.visible = false;
+        beihaiIndoor.group.position.set(-1.5, 0, 4.0);
+        beihaiIndoor.group.rotation.y = Math.PI / 2;
+        meteoriteCluster.rotation.y = t * 1.4;
+
+        const angle = (t / 30.0) * Math.PI * 0.65 - 0.3;
+        camera.position.set(Math.sin(angle) * 4.5, 2.3, 4.0 + Math.cos(angle) * 4.5);
+        camera.lookAt(0, 1.45, 4.0);
+
+        const hammerStep = Math.floor(t / 3.5);
+        if (!triggeredSfxCues.has(`forge_${hammerStep}`)) {
+          triggeredSfxCues.add(`forge_${hammerStep}`);
+          playAcousticEvent('forge_hammer');
+        }
+      } else if (t < 60.0) {
+        // ACT II: Subterranean Rifle Range Target Practice (30..60s)
+        councilGroup.visible = false;
+        beihaiIndoor.group.position.set(0, 0, 2.0);
+        beihaiIndoor.group.rotation.y = Math.PI;
+
+        const localT = t - 30.0;
+        camera.position.set(1.8, 2.1, 4.5 - localT * 0.45);
+        camera.lookAt(0, 1.9, -14.0);
+
+        const shotStep = Math.floor(localT / 6.0);
+        if (!triggeredSfxCues.has(`range_shot_${shotStep}`)) {
+          triggeredSfxCues.add(`range_shot_${shotStep}`);
+          playAcousticEvent('indoor_gunshot');
+        }
+      } else if (t < 90.0) {
+        // ACT III: Propulsion Debate with Old Aerospace Officials (60..90s)
+        councilGroup.visible = true;
+        beihaiIndoor.group.position.set(0, 0, 1.5);
+        beihaiIndoor.group.rotation.y = Math.PI;
+
+        const localT = t - 60.0;
+        camera.position.set(Math.sin(localT * 0.15) * 5.2, 2.4, -0.5 + Math.cos(localT * 0.15) * 4.2);
+        camera.lookAt(0, 1.6, -3.0);
+      } else if (t < 120.0) {
+        // ACT IV: Orbital EVA Spacewalk & Meteor Shower (90..120s)
+        starshipNaturalSelection.visible = false;
+        meteoriteBullet.visible = false;
+        voxelEarth.rotation.y = t * 0.04;
+
+        const localT = t - 90.0;
+        camera.position.set(-2.0 + Math.sin(localT * 0.1) * 6.0, 2.5, 9.5);
+        camera.lookAt(0, 0.5, 0);
+
+        const breathStep = Math.floor(localT / 4.0);
+        if (!triggeredSfxCues.has(`breath_${breathStep}`)) {
+          triggeredSfxCues.add(`breath_${breathStep}`);
+          playAcousticEvent('suit_breath');
+        }
+      } else if (t < 155.0) {
+        // ACT V: Silent Zero-Gravity Meteorite Bullet Assassination (120..155s)
+        starshipNaturalSelection.visible = false;
+        meteoriteBullet.visible = true;
+        const localT = t - 120.0;
+        const progress = Math.min(1.0, localT / 24.0);
+
+        // Bullet travels in slow motion from Zhang Beihai (-6.8) to targets (+6.5)
+        const bx = -6.8 + progress * 14.5;
+        meteoriteBullet.position.set(bx, 1.42, 0.25);
+        meteoriteBullet.rotation.x = t * 18.0;
+
+        // Zero-G recoil pushes Zhang Beihai gently backward
+        beihaiEVA.group.position.x = -7.5 - progress * 1.4;
+
+        // Officials drift and tumble in zero-G upon impact
+        targetsEVA.forEach((tChar, idx) => {
+          const hitThreshold = 0.72 + idx * 0.08;
+          if (progress > hitThreshold) {
+            const postHit = progress - hitThreshold;
+            tChar.group.position.x = 5.5 + idx * 2.4 + postHit * 8.0;
+            tChar.group.rotation.z = postHit * 4.5;
+            tChar.group.rotation.x = postHit * 2.8;
+          } else {
+            tChar.group.position.set(5.5 + idx * 2.4, -0.2 + (idx - 1) * 0.6, (idx - 1) * 1.8);
+            tChar.group.rotation.set(0, -Math.PI / 2, 0);
+          }
+        });
+
+        // Dramatic Bullet-Tracking Macro Camera
+        camera.position.set(bx - 1.2, 1.85, 2.35);
+        camera.lookAt(bx + 1.5, 1.42, 0.25);
+
+        if (!triggeredSfxCues.has('vacuum_shot_1')) {
+          triggeredSfxCues.add('vacuum_shot_1');
+          playAcousticEvent('vacuum_shot');
+        }
+      } else {
+        // ACT VI: Radiation-Drive Starship "Natural Selection" Triumphs (155..180s)
+        meteoriteBullet.visible = false;
+        starshipNaturalSelection.visible = true;
+        const localT = t - 155.0;
+        starshipNaturalSelection.position.x = -12.0 + localT * 1.25;
+
+        camera.position.set(-4.0, 7.5, -6.5);
+        camera.lookAt(starshipNaturalSelection.position);
+      }
+
+      // Animate background meteor shower streaks in space
+      if (inSpace) {
+        meteorStreaks.forEach((st, idx) => {
+          st.position.x += (14 + (idx % 5) * 3) * dt;
+          st.position.y -= 3.5 * dt;
+          if (st.position.x > 35) {
+            st.position.x = -35;
+            st.position.y = 14 + (idx % 7);
+          }
+        });
+      }
+    }
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - lastPerf) / 1000);
+      lastPerf = now;
+
+      if (isPlaying) {
+        currentTime += dt;
+        if (currentTime >= TOTAL_DURATION) {
+          currentTime = TOTAL_DURATION;
+          isPlaying = false;
+        }
+        sliderEl.value = currentTime;
+      }
+
+      timecodeEl.textContent = `${formatMMSS(currentTime)} / ${formatMMSS(TOTAL_DURATION)}`;
+      updateDirectorAndScene(currentTime, dt);
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
