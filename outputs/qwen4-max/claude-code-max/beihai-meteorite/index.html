@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>陨石雨 · Meteorite Shower</title>
+    <style>
+      :root {
+        --ab-bar: max(0px, calc((100vh - 100vw / 2.39) / 2));
+        --ab-amber: #e2bd76;
+        --ab-ink: #05070c;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 100%; height: 100%; overflow: hidden;
+        background: #000; color: #fff;
+        font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      #app { position: fixed; inset: 0; background: #000; }
+      #stage { position: absolute; inset: 0; }
+      #stage canvas { display: block; width: 100%; height: 100%; }
+
+      /* Cinematic letterbox — the film is framed at 2.39:1. */
+      .bar { position: absolute; left: 0; right: 0; height: var(--ab-bar); background: #000; z-index: 15; pointer-events: none; }
+      .bar.top { top: 0; }
+      .bar.bottom { bottom: 0; }
+
+      /* Subtle vignette + procedural grain sit above the image, below the UI. */
+      #grade {
+        position: absolute; inset: 0; z-index: 12; pointer-events: none;
+        background: radial-gradient(ellipse at center, transparent 52%, rgba(0,0,0,0.42) 100%);
+        mix-blend-mode: multiply;
+      }
+      #grain { position: absolute; inset: -50%; z-index: 13; pointer-events: none; opacity: 0.05; }
+
+      /* Scope / viewfinder overlay toggled by shots. */
+      #scope {
+        position: absolute; inset: 0; z-index: 14; pointer-events: none;
+        opacity: 0; transition: opacity 0.25s ease;
+      }
+      #scope.on { opacity: 1; }
+      #scope .mask {
+        position: absolute; inset: 0;
+        background: radial-gradient(circle at center, transparent 0 31vmin, rgba(0,0,0,0.92) 34vmin 100%);
+      }
+      #scope .reticle { position: absolute; left: 50%; top: 50%; width: 62vmin; height: 62vmin; transform: translate(-50%,-50%); }
+      #scope .hud {
+        position: absolute; left: 50%; top: calc(50% + 33vmin); transform: translateX(-50%);
+        font-size: 12px; letter-spacing: 0.18em; color: #9fe8c8; opacity: 0.85;
+        font-variant-numeric: tabular-nums; text-shadow: 0 0 6px #000; white-space: nowrap;
+      }
+
+      /* Title / place cards. */
+      #cards { position: absolute; inset: 0; z-index: 16; pointer-events: none; }
+      .card {
+        position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+        text-align: center; opacity: 0; transition: opacity 0.6s ease; width: 90vw;
+      }
+      .card.on { opacity: 1; }
+      .card .zh { font-size: clamp(34px, 7vw, 92px); font-weight: 700; letter-spacing: 0.22em; text-indent: 0.22em; color: #f3ead9; text-shadow: 0 2px 24px rgba(0,0,0,0.9); }
+      .card .en { margin-top: 0.9em; font-size: clamp(11px, 1.5vw, 17px); letter-spacing: 0.52em; text-indent: 0.52em; color: #b9a878; text-transform: uppercase; }
+      .card .sub { margin-top: 1.6em; font-size: clamp(12px, 1.7vw, 19px); letter-spacing: 0.2em; color: #cfc6b4; opacity: 0.9; }
+      .card.place { top: auto; bottom: calc(var(--ab-bar) + 96px); transform: translateX(-50%); }
+      .card.place .zh { font-size: clamp(15px, 2.2vw, 26px); letter-spacing: 0.34em; text-indent: 0.34em; font-weight: 500; color: #e8e2d4; }
+      .card.place .en { margin-top: 0.5em; font-size: clamp(9px, 1.1vw, 12px); letter-spacing: 0.3em; color: #9a8f74; }
+      .card.credit .zh { font-size: clamp(13px, 1.9vw, 22px); font-weight: 400; letter-spacing: 0.16em; line-height: 2.1; color: #d8d2c4; }
+
+      /* Start / replay curtain. */
+      #curtain {
+        position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 26px;
+        background: radial-gradient(ellipse at center, rgba(6,9,16,0.55), rgba(2,3,6,0.9));
+        backdrop-filter: blur(2px); transition: opacity 0.7s ease; cursor: pointer;
+      }
+      #curtain.hidden { opacity: 0; pointer-events: none; }
+      #curtain .title { font-size: clamp(40px, 9vw, 120px); font-weight: 700; letter-spacing: 0.3em; text-indent: 0.3em; color: #f3ead9; text-shadow: 0 4px 40px rgba(0,0,0,0.9); }
+      #curtain .tag { font-size: clamp(11px, 1.6vw, 16px); letter-spacing: 0.42em; text-indent: 0.42em; color: #b9a878; text-transform: uppercase; }
+      #curtain .play {
+            margin-top: 12px; display: flex; align-items: center; gap: 14px;
+            padding: 14px 34px; border: 1px solid rgba(226,189,118,0.5); border-radius: 999px;
+            color: #f0e6d2; font-size: clamp(14px, 1.8vw, 18px); letter-spacing: 0.2em;
+            background: rgba(226,189,118,0.08); transition: background 0.2s, transform 0.2s;
+          }
+      #curtain:hover .play { background: rgba(226,189,118,0.18); transform: scale(1.03); }
+      #curtain .play .tri { width: 0; height: 0; border-left: 14px solid var(--ab-amber); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+      #curtain .hint { font-size: 12px; letter-spacing: 0.14em; color: #8b8574; max-width: 80vw; text-align: center; line-height: 1.8; }
+
+      /* Keep the supplied transport readable above the bottom bar. */
+      .ab-cinematic-ui { z-index: 25 !important; }
+      .ab-cinematic-subtitle { bottom: calc(var(--ab-bar) + 64px) !important; }
+      .ab-cinematic-transport { bottom: calc(var(--ab-bar) + 14px) !important; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage"></div>
+      <div id="grade"></div>
+      <canvas id="grain" width="128" height="128"></canvas>
+      <div id="scope">
+        <div class="mask"></div>
+        <svg class="reticle" viewBox="0 0 200 200" fill="none" stroke="#9fe8c8" stroke-width="0.6" opacity="0.8">
+          <circle cx="100" cy="100" r="92" opacity="0.35" />
+          <circle cx="100" cy="100" r="60" opacity="0.18" />
+          <line x1="100" y1="8" x2="100" y2="70" />
+          <line x1="100" y1="130" x2="100" y2="192" />
+          <line x1="8" y1="100" x2="70" y2="100" />
+          <line x1="130" y1="100" x2="192" y2="100" />
+          <line x1="100" y1="94" x2="100" y2="106" stroke-width="1" />
+          <line x1="94" y1="100" x2="106" y2="100" stroke-width="1" />
+          <g opacity="0.6">
+            <line x1="88" y1="118" x2="88" y2="124" /><line x1="100" y1="118" x2="100" y2="126" /><line x1="112" y1="118" x2="112" y2="124" />
+          </g>
+        </svg>
+        <div class="hud" id="scope-hud">距离 5.0 km · 弹道直线 · 真空</div>
+      </div>
+      <div class="bar top"></div>
+      <div class="bar bottom"></div>
+      <div id="cards"></div>
+      <div id="curtain">
+        <div class="title">陨石雨</div>
+        <div class="tag">Meteorite Shower</div>
+        <div class="play"><span class="tri"></span><span id="curtain-label">播放影片</span></div>
+        <div class="hint">一部程序化生成的体素电影 · 改编自《三体 II · 黑暗森林》<br />画面与声音全部由代码实时合成 · 建议佩戴耳机 · 时长约 5 分 52 秒</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
