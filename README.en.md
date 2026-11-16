@@ -129,6 +129,12 @@ More than a hundred model x harness x effort combinations have run these cases, 
 | Claude Sonnet 4.6<br><sub>Anthropic</sub> | 03 | Claude Code · Max<br>Cursor · High |
 | Claude Opus 4.5<br><sub>Anthropic</sub> | 02 | Cursor · Thinking |
 | Claude Haiku 4.5<br><sub>Anthropic</sub> | 02 | Claude Code · Default |
+| Gemini 4 Argon<br><sub>Google</sub> | 06 | Gemini Web · High |
+| Gemini 3.8 Flash<br><sub>Google</sub> | 11 | Gemini Web · Thinking<br>AntiGravity · High |
+| Gemini 3.7 Flash<br><sub>Google</sub> | 08 | AntiGravity · Low / Medium / High |
+| Gemini 3.6 Flash<br><sub>Google</sub> | 05 | AntiGravity · High |
+| Gemini 3.5 Flash<br><sub>Google</sub> | 06 | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High |
+| Gemini 3.1 Pro<br><sub>Google</sub> | 11 | AntiGravity · High<br>Cursor · Default<br>Gemini Web · Deep Think<br>Google AI Studio · High |
 | GPT-6.1 Sol<br><sub>OpenAI</sub> | 20 | Codex CLI · High / Max / xhigh |
 | GPT-6 Astra<br><sub>OpenAI</sub> | 09 | Codex CLI · Max / xhigh<br>Pi · xhigh |
 | GPT-6 Sol<br><sub>OpenAI</sub> | 07 | Codex CLI · xhigh |
@@ -139,12 +145,7 @@ More than a hundred model x harness x effort combinations have run these cases, 
 | GPT-5.4<br><sub>OpenAI</sub> | 06 | Cursor · xhigh<br>Codex CLI · xhigh |
 | GPT-5.3 Codex<br><sub>OpenAI</sub> | 02 | Cursor · xhigh |
 | GPT-5.2<br><sub>OpenAI</sub> | 02 | Cursor · xhigh |
-| Gemini 3.8 Flash<br><sub>Google</sub> | 06 | AntiGravity · High |
-| Gemini 3.7 Flash<br><sub>Google</sub> | 08 | AntiGravity · Low / Medium / High |
-| Gemini 3.6 Flash<br><sub>Google</sub> | 05 | AntiGravity · High |
-| Gemini 3.5 Flash<br><sub>Google</sub> | 06 | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High |
-| Gemini 3.1 Pro<br><sub>Google</sub> | 11 | AntiGravity · High<br>Cursor · Default<br>Gemini Web · Deep Think<br>Google AI Studio · High |
-| DeepSeek V4.1 Flash 1017<br><sub>DeepSeek</sub> | 18 | DeepSeek Harness · High / Low / Max |
+| DeepSeek V4.1 Flash 1017<br><sub>DeepSeek</sub> | 24 | DeepSeek Harness · High / Low / Max<br>WorkBuddy · High |
 | DeepSeek V4.1 Flash<br><sub>DeepSeek</sub> | 08 | DeepSeek Harness · High<br>WorkBuddy · High |
 | DeepSeek V4 Pro 0831<br><sub>DeepSeek</sub> | 01 | DeepSeek Harness · Minimal |
 | DeepSeek V4 Pro 0813<br><sub>DeepSeek</sub> | 21<br><sub>(showcase 01)</sub> | DeepSeek Harness · High / Max<br>DeepSeek Harness · Minimal · High<br>Codex CLI · xhigh |
@@ -165,6 +166,7 @@ More than a hundred model x harness x effort combinations have run these cases, 
 | Doubao 2.1 Pro<br><sub>ByteDance</sub> | 05 | Doubao Work · High |
 | Doubao Seed 2.0 Pro<br><sub>ByteDance</sub> | 01 | Doubao Web · Pro Mode |
 | Doubao Seed 2.0 Mini<br><sub>ByteDance</sub> | 01 | Doubao Web · Fast Mode |
+| MiMo V2.6 Pro<br><sub>Xiaomi</sub> | 06 | WorkBuddy · Deep Think |
 | MiMo V2.5<br><sub>Xiaomi</sub> | 03 | MiMo Code · High |
 | MiMo v2.5 Pro<br><sub>Xiaomi</sub> | 03 | Claude Code · Max<br>MiMo Code · Max |
 | MiMo v2.5 Pro UltraSpeed<br><sub>Xiaomi</sub> | 05 | Web · Default |
@@ -172,24 +174,27 @@ More than a hundred model x harness x effort combinations have run these cases, 
 | Kimi K3<br><sub>Moonshot AI</sub> | 12 | Claude Code · Max<br>Kimi Code · Max<br>Kimi Web · Max |
 | Kimi K2.7-Code<br><sub>Moonshot AI</sub> | 04 | Kimi Code · Thinking<br>Qoder · Default |
 | Kimi K2.6<br><sub>Moonshot AI</sub> | 02 | Kimi Code · Thinking |
+| MiniMax M3.1 Flash<br><sub>MiniMax</sub> | 06 | WorkBuddy · Ultra |
 | MiniMax M3<br><sub>MiniMax</sub> | 03 | MiniMax Code Web · Thinking<br>Qoder · Default |
 | MiniMax M2.7<br><sub>MiniMax</sub> | 01 | MiniMax Code Web · Thinking |
 | GLM-5.3 Flash<br><sub>Zhipu AI</sub> | 11 | DeepSeek Harness · Max<br>WorkBuddy · High |
-| GLM-5.2<br><sub>Zhipu AI</sub> | 05 | ZCode · Max<br>Qoder · Max |
+| GLM-5.2<br><sub>Zhipu AI</sub> | 08 | ZCode · Max<br>Qoder · Max<br>Cursor · High |
 | GLM-5.1<br><sub>Zhipu AI</sub> | 01 | ZCode · Max |
 | GLM-5 Turbo<br><sub>Zhipu AI</sub> | 03 | ZCode · Thinking |
 | Qwen4-Max<br><sub>Alibaba</sub> | 13 | Claude Code · High / Max |
 | Qwen3.8-Max-Preview<br><sub>Alibaba</sub> | 06 | Qoder · Default<br>Qwen Studio Web · Thinking |
 | Qwen3.8-Max<br><sub>Alibaba</sub> | 05<br><sub>(showcase 05)</sub> | Qwen Work Assistant · Auto |
 | Qwen3.7-Max<br><sub>Alibaba</sub> | 03 | Qoder · Default |
+| Qwen 3.6 27B<br><sub>Alibaba</sub> | 01<br><sub>(showcase 01)</sub> | OMP · Default |
 | Qoder Ultimate<br><sub>Alibaba</sub> | 05 | Qoder · Default / Max |
 | Qwen 3.8 27B<br><sub>Alibaba</sub> | 01<br><sub>(showcase 01)</sub> | OMP · Default |
-| Qwen 3.6 27B<br><sub>Alibaba</sub> | 01<br><sub>(showcase 01)</sub> | OMP · Default |
 | Step 3.7 Flash<br><sub>StepFun</sub> | 02 | Claude Code · High |
+| Spark X2.6<br><sub>iFlytek</sub> | 01 | Spark Web Agent · Reasoning |
 | Spark X2.5<br><sub>iFlytek</sub> | 01 | Spark Web Harness · Reasoning |
 | Spark X2<br><sub>iFlytek</sub> | 01 | Web · Reasoning |
 | Inkling<br><sub>Thinking Machines Lab</sub> | 02 | Tinker Web · xHigh |
 | Inkling-Small<br><sub>Thinking Machines Lab</sub> | 03 | Tinker Web · xHigh |
+| Space-Bunny<br><sub>WorkBuddy</sub> | 05<br><sub>(showcase 05)</sub> | WorkBuddy · 极数 |
 <!-- registry:end -->
 
 </details>
