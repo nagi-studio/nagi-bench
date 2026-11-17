@@ -136,6 +136,7 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | Gemini 3.5 Flash<br><sub>Google</sub> | 06 | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High |
 | Gemini 3.1 Pro<br><sub>Google</sub> | 11 | AntiGravity · High<br>Cursor · Default<br>Gemini Web · Deep Think<br>Google AI Studio · High |
 | GPT-6.2 Astra<br><sub>OpenAI</sub> | 01 | Codex CLI · Max |
+| GPT-6.2 Sol<br><sub>OpenAI</sub> | 01 | Codex CLI · Max |
 | GPT-6.1 Sol<br><sub>OpenAI</sub> | 20 | Codex CLI · High / Max / xhigh |
 | GPT-6 Astra<br><sub>OpenAI</sub> | 09 | Codex CLI · Max / xhigh<br>Pi · xhigh |
 | GPT-6 Sol<br><sub>OpenAI</sub> | 07 | Codex CLI · xhigh |
@@ -186,9 +187,9 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | Qwen3.8-Max-Preview<br><sub>Alibaba</sub> | 06 | Qoder · Default<br>Qwen Studio Web · Thinking |
 | Qwen3.8-Max<br><sub>Alibaba</sub> | 05<br><sub>（仅展示 05）</sub> | Qwen Work Assistant · Auto |
 | Qwen3.7-Max<br><sub>Alibaba</sub> | 03 | Qoder · Default |
-| Qwen 3.6 27B<br><sub>Alibaba</sub> | 01<br><sub>（仅展示 01）</sub> | OMP · Default |
 | Qoder Ultimate<br><sub>Alibaba</sub> | 05 | Qoder · Default / Max |
 | Qwen 3.8 27B<br><sub>Alibaba</sub> | 01<br><sub>（仅展示 01）</sub> | OMP · Default |
+| Qwen 3.6 27B<br><sub>Alibaba</sub> | 01<br><sub>（仅展示 01）</sub> | OMP · Default |
 | Step 3.7 Flash<br><sub>StepFun</sub> | 02 | Claude Code · High |
 | Spark X2.6<br><sub>iFlytek</sub> | 01 | Spark Web Agent · Reasoning |
 | Spark X2.5<br><sub>iFlytek</sub> | 01 | Spark Web Harness · Reasoning |
