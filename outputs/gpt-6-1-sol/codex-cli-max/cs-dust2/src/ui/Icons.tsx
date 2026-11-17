@@ -1,166 +1,28 @@
-import type { CSSProperties } from "react";
-import type { WeaponId } from "../game/types";
+import type { CSSProperties } from 'react';
+import type { WeaponId } from '../game/types';
 
-export function Icon({
-  name,
-  size = 20,
-  className = "",
-}: {
-  name: string;
-  size?: number;
-  className?: string;
-}) {
-  const paths: Record<string, React.ReactNode> = {
-    crosshair: (
-      <>
-        <circle cx="12" cy="12" r="6" />
-        <path d="M12 2v5m0 10v5M2 12h5m10 0h5" />
-      </>
-    ),
-    shield: (
-      <>
-        <path d="m12 2 8 3v6c0 5-8 11-8 11S4 16 4 11V5z" />
-        <path d="m8 11 3 3 5-6" />
-      </>
-    ),
-    attack: (
-      <>
-        <path d="m4 20 8-8m2-2 6-6M5 4l15 15M4 3l4 1-4 4zm17 17-4-1 4-4zM12 4v4m8 4h-4M4 12h4m4 8v-4" />
-      </>
-    ),
-    arrow: (
-      <>
-        <path d="M4 12h15m-6-6 6 6-6 6" />
-      </>
-    ),
-    external: (
-      <>
-        <path d="M6 18 18 6M6 6h12v12" />
-      </>
-    ),
-    volume: (
-      <>
-        <path d="m11 4-5 5H2v6h4l5 5zM15 8c3 2 3 6 0 8m3-11c5 4 5 10 0 14" />
-      </>
-    ),
-    mute: (
-      <>
-        <path d="m11 4-5 5H2v6h4l5 5zM16 9l6 6m0-6-6 6" />
-      </>
-    ),
-    chevron: <path d="m8 4 8 8-8 8" />,
-    close: <path d="m6 6 12 12M6 18 18 6" />,
-    info: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 11v6m0-10v1" />
-      </>
-    ),
-    map: (
-      <>
-        <path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2zm6-2v16m6-14v16" />
-      </>
-    ),
-    health: <path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" />,
-    bomb: (
-      <>
-        <rect x="5" y="7" width="14" height="14" rx="2" />
-        <path d="M9 7V4h6l2-2M8 11h8m-8 4h2m4 0h2m-8 3h2m4 0h2" />
-      </>
-    ),
-    skull: (
-      <>
-        <path d="M6 17c-5-7-1-15 6-15s11 8 6 15h-2v4H8v-4z" />
-        <path d="M8 10h1v3H7v-2m8-1h1v3h-2v-2m-3 7h2m-1-4v2" />
-      </>
-    ),
-    reload: (
-      <>
-        <path d="M20 9A8 8 0 1 0 19 17M20 3v6h-6" />
-      </>
-    ),
-    play: <path d="m8 4 12 8-12 8z" />,
-    check: <path d="m5 12 4 4L20 5" />,
-    target: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 1v5m0 12v5M1 12h5m12 0h5" />
-      </>
-    ),
-  };
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.55"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      {paths[name] ?? paths.crosshair}
-    </svg>
-  );
+export function Mark({ small = false }: { small?: boolean }) {
+  return <svg width={small ? 25 : 33} height={small ? 25 : 33} viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M5 6h13l10 14-10 14H5l10-14L5 6Z" fill="currentColor"/><path d="m24 6 10 14-10 14h7l9-14-9-14h-7Z" fill="currentColor" opacity=".48"/></svg>;
 }
-
-export function WeaponDrawing({
-  id,
-  className = "",
-  style,
-}: {
-  id: WeaponId;
-  className?: string;
-  style?: CSSProperties;
-}) {
-  const pistol = ["glock", "usp", "deagle"].includes(id);
-  return (
-    <svg
-      viewBox="0 0 180 64"
-      fill="currentColor"
-      className={`weapon-drawing ${className}`}
-      style={style}
-      aria-hidden="true"
-    >
-      {id === "knife" ? (
-        <>
-          <path d="m16 38 53-8 7 13-54 9zM74 25l9-2 9 27-9 3zM84 27l77-16-28 30-43 4z" />
-          <path d="m92 29 54-12-20 14z" opacity=".3" />
-        </>
-      ) : pistol ? (
-        <>
-          <path
-            d={`M${id === "usp" ? 25 : 40} 19h91l8 8-4 13-45 1-11 21H55l5-27H40z`}
-          />
-          <path d="M85 38h20v14H82v-5h16v-6H85z" />
-          {id === "usp" && <path d="M11 19h40v12H11z" />}
-          <path d="M115 15h8v6h-8M50 15h8v6h-8" />
-        </>
-      ) : (
-        <>
-          <path d="M7 24h43l9-7h45l5 5h35v9h-37l-8 6H64l-6 20H45l3-22H31l-9 13H9z" />
-          <path d="M139 23h31v5h-31m28-7h7v10h-7M59 35h15l4 23H61z" />
-          {id === "ak47" ? (
-            <>
-              <path d="m78 34 15-1 9 22-8 8-10-9z" />
-              <path d="M108 21h29v13h-29z" />
-            </>
-          ) : id === "awp" ? (
-            <>
-              <path d="M58 7h49v8H58zM53 5h10v12H53m49-14h11v15h-11M70 14h7v8h-7m19-8h7v8h-7M112 22h45v6h-45" />
-              <path d="M18 21h30v9H18z" />
-            </>
-          ) : (
-            <>
-              <path d="M61 12h44v6H61m47 7h31v8h-31M78 34h16v25H78z" />
-              <path d="M124 15h4v12h-4" />
-            </>
-          )}
-        </>
-      )}
-    </svg>
-  );
+export function Icon({ name, size = 20, style }: { name: 'arrow' | 'shield' | 'cross' | 'target' | 'volume' | 'skull' | 'bomb' | 'head' | 'check' | 'pause' | 'sun'; size?: number; style?: CSSProperties }) {
+  const paths: Record<typeof name, React.ReactNode> = {
+    arrow: <><path d="M4 12h15M13 5l7 7-7 7"/></>,
+    shield: <><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="M12 7v9"/></>,
+    cross: <path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6V3Z"/>,
+    target: <><circle cx="12" cy="12" r="7"/><path d="M12 1v7m0 8v7M1 12h7m8 0h7"/></>,
+    volume: <><path d="M3 9h4l5-4v14l-5-4H3V9ZM16 8c3 2 3 6 0 8m3-11c5 4 5 10 0 14"/></>,
+    skull: <><path d="M6 16C-2 4 22-4 21 11c0 3-2 5-4 6v4H8v-4l-2-1Z"/><path d="M9 19v3m4-3v3m3-3v3"/><circle cx="8" cy="11" r="1.4"/><circle cx="16" cy="11" r="1.4"/></>,
+    bomb: <><rect x="5" y="8" width="14" height="13" rx="2"/><path d="M9 8V4h7V1M9 12h6m-6 4h1m4 0h1"/></>,
+    head: <><path d="M8 21v-5C1 8 8 1 14 3c7 2 5 9 3 11v7M4 8h17M12 1v20"/></>,
+    check: <path d="m5 12 4 4L20 5"/>,
+    pause: <><path d="M8 5v14M16 5v14"/></>,
+    sun: <><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/></>,
+  };
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={style} aria-hidden="true">{paths[name]}</svg>;
+}
+export function WeaponIcon({ id, className = '' }: { id: WeaponId; className?: string }) {
+  const pistol = ['glock', 'usp', 'deagle'].includes(id), knife = id === 'knife', awp = id === 'awp';
+  return <svg className={`weapon-icon ${className}`} viewBox="0 0 150 42" fill="currentColor" aria-hidden="true">
+    {knife ? <><path d="m12 23 5-7h39v-5h6v19h-6v-5H12v-2Zm53-7h71l-18 13H65V16Z"/><path d="M22 18v5m8-5v5m8-5v5" stroke="#18211f" strokeWidth="2"/></> : pistol ? <><path d={id === 'usp' ? 'M28 9h65v3h30v8H91v4H63l-5 15H40l6-21H28V9Z' : 'M35 7h64v13H69l-8 19H42l6-23H35V7Z'}/><path d="M66 21h17v10H63v-4h12v-3h-9"/></> : <><path d="m9 14 24 4 7-6h55v3h34v3h14v4h-44v5H70l-2 8H53l3-11-14-2-8 12H16l-7-3V14Z"/><path d={id === 'ak47' ? 'm72 24 5 15h14l-8-15H72Z' : 'M73 24h14v14H73z'}/>{awp && <><path d="M58 5h41v7H58zM65 11h5v6h-5zm22 0h5v6h-5z"/><path d="M124 23v13h3V23z"/></>}</>}
+  </svg>;
 }

@@ -1,185 +1,26 @@
-import type { HitZone, Slot, WeaponId } from "./types";
+import type { Actor, HitZone, WeaponId } from './types';
 
 export interface WeaponDefinition {
-  id: WeaponId;
-  name: string;
-  label: string;
-  slot: Slot;
-  damage: number;
-  interval: number;
-  magazine: number;
-  reserve: number;
-  reload: number;
-  recoil: number;
-  spread: number;
-  armorPenetration: number;
-  range: number;
-  automatic: boolean;
-  speed: number;
-  color: string;
-  description: string;
+  id: WeaponId; name: string; label: string; category: 'rifle' | 'sniper' | 'pistol' | 'knife';
+  damage: number; armorPen: number; magazine: number; reserve: number;
+  interval: number; reload: number; spread: number; recoil: number;
+  automatic: boolean; range: number; speed: number; color: number;
 }
-
 export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
-  ak47: {
-    id: "ak47",
-    name: "AK-47",
-    label: "突击步枪",
-    slot: "primary",
-    damage: 42,
-    interval: 0.105,
-    magazine: 30,
-    reserve: 90,
-    reload: 2.35,
-    recoil: 0.039,
-    spread: 0.0045,
-    armorPenetration: 0.76,
-    range: 115,
-    automatic: true,
-    speed: 4.8,
-    color: "#c49b60",
-    description: "高伤害 · 强劲后坐力",
-  },
-  m4a4: {
-    id: "m4a4",
-    name: "M4A4",
-    label: "突击步枪",
-    slot: "primary",
-    damage: 36,
-    interval: 0.083,
-    magazine: 30,
-    reserve: 90,
-    reload: 2.15,
-    recoil: 0.019,
-    spread: 0.0028,
-    armorPenetration: 0.72,
-    range: 110,
-    automatic: true,
-    speed: 4.9,
-    color: "#9ebcaa",
-    description: "高射速 · 稳定控制",
-  },
-  awp: {
-    id: "awp",
-    name: "AWP",
-    label: "狙击步枪",
-    slot: "primary",
-    damage: 145,
-    interval: 1.55,
-    magazine: 5,
-    reserve: 25,
-    reload: 3.1,
-    recoil: 0.082,
-    spread: 0.026,
-    armorPenetration: 0.9,
-    range: 160,
-    automatic: false,
-    speed: 4.1,
-    color: "#adba82",
-    description: "致命单发 · 右键开镜",
-  },
-  glock: {
-    id: "glock",
-    name: "Glock-18",
-    label: "半自动手枪",
-    slot: "secondary",
-    damage: 21,
-    interval: 0.18,
-    magazine: 20,
-    reserve: 100,
-    reload: 1.8,
-    recoil: 0.016,
-    spread: 0.0055,
-    armorPenetration: 0.5,
-    range: 70,
-    automatic: false,
-    speed: 5.25,
-    color: "#c8b699",
-    description: "T 默认 · 20 发弹匣",
-  },
-  usp: {
-    id: "usp",
-    name: "USP-S",
-    label: "消音手枪",
-    slot: "secondary",
-    damage: 24,
-    interval: 0.205,
-    magazine: 12,
-    reserve: 72,
-    reload: 1.9,
-    recoil: 0.014,
-    spread: 0.0035,
-    armorPenetration: 0.55,
-    range: 75,
-    automatic: false,
-    speed: 5.25,
-    color: "#a9b7b4",
-    description: "CT 默认 · 精准消音",
-  },
-  deagle: {
-    id: "deagle",
-    name: "Desert Eagle",
-    label: "大口径手枪",
-    slot: "secondary",
-    damage: 32,
-    interval: 0.36,
-    magazine: 7,
-    reserve: 35,
-    reload: 2.15,
-    recoil: 0.044,
-    spread: 0.004,
-    armorPenetration: 0.8,
-    range: 90,
-    automatic: false,
-    speed: 5.1,
-    color: "#d2cbc0",
-    description: "高单发伤害 · 7 发弹匣",
-  },
-  knife: {
-    id: "knife",
-    name: "战术匕首",
-    label: "近战武器",
-    slot: "melee",
-    damage: 48,
-    interval: 0.48,
-    magazine: 0,
-    reserve: 0,
-    reload: 0,
-    recoil: 0.012,
-    spread: 0,
-    armorPenetration: 0.85,
-    range: 2.5,
-    automatic: false,
-    speed: 6.1,
-    color: "#c7ceca",
-    description: "快速移动 · 近身突刺",
-  },
+  ak47: { id: 'ak47', name: 'AK-47', label: '突击步枪', category: 'rifle', damage: 40, armorPen: .76, magazine: 30, reserve: 90, interval: .1, reload: 2.45, spread: .004, recoil: .033, automatic: true, range: 100, speed: 5, color: 0xa56d39 },
+  m4a4: { id: 'm4a4', name: 'M4A4', label: '突击步枪', category: 'rifle', damage: 33, armorPen: .7, magazine: 30, reserve: 90, interval: .082, reload: 2.25, spread: .0028, recoil: .016, automatic: true, range: 100, speed: 5.2, color: 0x465252 },
+  awp: { id: 'awp', name: 'AWP', label: '狙击步枪', category: 'sniper', damage: 160, armorPen: .92, magazine: 5, reserve: 30, interval: 1.65, reload: 3.1, spread: .045, recoil: .055, automatic: false, range: 160, speed: 4.2, color: 0x64744a },
+  glock: { id: 'glock', name: 'GLOCK-18', label: '半自动手枪', category: 'pistol', damage: 22, armorPen: .48, magazine: 20, reserve: 120, interval: .18, reload: 1.8, spread: .007, recoil: .017, automatic: false, range: 65, speed: 5.8, color: 0x515153 },
+  usp: { id: 'usp', name: 'USP-S', label: '消音手枪', category: 'pistol', damage: 26, armorPen: .52, magazine: 12, reserve: 72, interval: .19, reload: 1.95, spread: .004, recoil: .014, automatic: false, range: 70, speed: 5.8, color: 0x333b3d },
+  deagle: { id: 'deagle', name: 'DESERT EAGLE', label: '重型手枪', category: 'pistol', damage: 30, armorPen: .8, magazine: 7, reserve: 35, interval: .31, reload: 2.2, spread: .0055, recoil: .043, automatic: false, range: 90, speed: 5.5, color: 0xa5aeb1 },
+  knife: { id: 'knife', name: 'FIELD KNIFE', label: '近战武器', category: 'knife', damage: 55, armorPen: .85, magazine: 0, reserve: 0, interval: .48, reload: 0, spread: 0, recoil: .01, automatic: true, range: 2.6, speed: 6.8, color: 0xbac5c4 },
 };
-
-export const HIT_MULTIPLIERS: Record<HitZone, number> = {
-  head: 2,
-  chest: 1,
-  abdomen: 1.12,
-  arm: 0.72,
-  leg: 0.62,
-};
-export const weaponOf = (a: {
-  loadout: Partial<Record<Slot, WeaponId>>;
-  slot: Slot;
-}) => a.loadout[a.slot] ?? a.loadout.secondary ?? "knife";
-
-export function damageFor(
-  weapon: WeaponId,
-  zone: HitZone,
-  armor: number,
-  distance: number,
-) {
-  const w = WEAPONS[weapon];
-  const raw =
-    w.damage *
-    HIT_MULTIPLIERS[zone] *
-    (weapon === "knife" ? 1 : Math.max(0.78, 1 - (distance / w.range) * 0.15));
-  const absorbed =
-    zone === "leg" ? 0 : Math.min(armor * 2, raw * (1 - w.armorPenetration));
-  return { health: Math.round(raw - absorbed), armor: Math.ceil(absorbed / 2) };
+export const ZONE_DAMAGE: Record<HitZone, number> = { head: 2, chest: 1, abdomen: 1.15, arm: .72, leg: .65 };
+export function equipped(actor: Actor): WeaponId {
+  return actor.slot === 'primary' && actor.primary ? actor.primary : actor.slot === 'melee' ? 'knife' : actor.secondary;
+}
+export function calculateDamage(weapon: WeaponDefinition, zone: HitZone, armor: number): { damage: number; armorDamage: number } {
+  const raw = weapon.damage * ZONE_DAMAGE[zone];
+  const absorbed = zone === 'leg' ? 0 : Math.min(armor, raw * (1 - weapon.armorPen));
+  return { damage: Math.round(raw - absorbed), armorDamage: Math.ceil(absorbed) };
 }
