@@ -1,54 +1,172 @@
-import type { Group } from 'three';
+import type * as THREE from "three";
+import type { CharacterModel } from "./models";
 
-export type Team = 'T' | 'CT';
-export type WeaponId = 'ak47' | 'm4a4' | 'awp' | 'glock' | 'usp' | 'deagle' | 'knife';
-export type Slot = 'primary' | 'secondary' | 'melee';
-export type HitZone = 'head' | 'chest' | 'abdomen' | 'arm' | 'leg';
-export type Phase = 'menu' | 'freeze' | 'live' | 'over';
-export type BotState = 'advance' | 'patrol' | 'engage' | 'plant' | 'defuse' | 'retrieve';
-export interface Point { x: number; z: number }
-export interface Box { x: number; z: number; w: number; d: number; minY: number; maxY: number; kind: 'wall' | 'crate' | 'door' | 'roof' }
-export interface Rect { x1: number; x2: number; z1: number; z2: number; name: string }
-export interface Ammo { mag: number; reserve: number }
-export interface Settings { team: Team; pistolOpening: boolean; primary: 'ak47' | 'm4a4' | 'awp'; sidearm: 'default' | 'deagle'; sensitivity: number; volume: number }
-export interface CharacterVisual {
-  root: Group;
-  leftLeg: Group;
-  rightLeg: Group;
-  leftArm: Group;
-  rightArm: Group;
-  weapon: Group;
-  flash: Group;
+export type Team = "T" | "CT";
+export type WeaponId =
+  | "ak47"
+  | "m4a4"
+  | "awp"
+  | "glock"
+  | "usp"
+  | "deagle"
+  | "knife";
+export type Slot = "primary" | "secondary" | "melee";
+export type HitZone = "head" | "chest" | "abdomen" | "arm" | "leg";
+export type BrainState =
+  | "advance"
+  | "patrol"
+  | "engage"
+  | "investigate"
+  | "recover"
+  | "plant"
+  | "defuse"
+  | "guard";
+export interface Vec2 {
+  x: number;
+  z: number;
+}
+export interface Collider {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  minY: number;
+  maxY: number;
+  kind: "wall" | "crate" | "door" | "roof";
+}
+export interface Magazine {
+  ammo: number;
+  reserve: number;
 }
 export interface Actor {
-  id: number; name: string; team: Team;
-  x: number; y: number; z: number; prevX: number; prevY: number; prevZ: number;
-  yaw: number; pitch: number; vy: number; grounded: boolean;
-  hp: number; armor: number; alive: boolean;
-  primary: WeaponId | null; secondary: WeaponId; slot: Slot;
-  ammo: Partial<Record<WeaponId, Ammo>>;
-  nextShot: number; reloadEnd: number; reloading: WeaponId | null;
-  bloom: number; recoil: number; walk: number; step: number; moving: boolean;
-  kills: number; deaths: number; damage: number;
-  state: BotState; path: Point[]; pathIndex: number; repathAt: number;
-  destination: Point | null; route: Point[]; routeIndex: number;
-  target: number | null; reactionAt: number; thinkAt: number; strafe: number;
-  actionProgress: number; lastHurt: number; lastSeen: number;
-  visual: CharacterVisual;
+  id: number;
+  name: string;
+  team: Team;
+  position: THREE.Vector3;
+  yaw: number;
+  pitch: number;
+  velocityY: number;
+  grounded: boolean;
+  health: number;
+  armor: number;
+  alive: boolean;
+  controlled: boolean;
+  loadout: Partial<Record<Slot, WeaponId>>;
+  slot: Slot;
+  magazines: Partial<Record<WeaponId, Magazine>>;
+  cooldown: number;
+  reloadTime: number;
+  reloadTotal: number;
+  heat: number;
+  recoil: number;
+  kills: number;
+  deaths: number;
+  model: CharacterModel;
+  moving: boolean;
+  walkCycle: number;
+  stepDistance: number;
+  seenUntil: number;
+  hasBomb: boolean;
+  actionProgress: number;
+  brain: {
+    state: BrainState;
+    targetId: number | null;
+    thinkIn: number;
+    reaction: number;
+    path: Vec2[];
+    pathIndex: number;
+    repathIn: number;
+    goal: Vec2 | null;
+    route: Vec2[];
+    routeIndex: number;
+    lastSeen: Vec2 | null;
+    stuckTime: number;
+    previous: Vec2;
+    burst: number;
+    pause: number;
+  };
 }
-export interface Bomb {
-  state: 'carried' | 'dropped' | 'planted' | 'defused' | 'exploded';
-  carrier: number | null; x: number; y: number; z: number;
-  site: 'A' | 'B' | null; plantedAt: number; explodeAt: number;
-  actionActor: number | null; progress: number; nextBeep: number;
-  vy?: number;
+export interface MatchConfig {
+  team: Team;
+  primary: WeaponId;
+  secondary: WeaponId;
+  pistolStart: boolean;
 }
-export interface FeedItem { id: number; killer: string; victim: string; team: Team; weapon: WeaponId | 'c4'; headshot: boolean; at: number; player: boolean }
-export interface RadarActor { id: number; name: string; team: Team; x: number; z: number; yaw: number; hp: number; alive: boolean; visible: boolean; kills: number; deaths: number; weapon: WeaponId }
-export interface Snapshot {
-  phase: Phase; paused: boolean; started: boolean; time: number; round: number; timer: number;
-  scoreT: number; scoreCT: number; team: Team; aliveT: number; aliveCT: number;
-  player: { id: number; name: string; hp: number; armor: number; x: number; z: number; yaw: number; zone: string; weapon: WeaponId; primary: WeaponId | null; secondary: WeaponId; slot: Slot; mag: number; reserve: number; reloading: boolean; reloadProgress: number; hasBomb: boolean; scoped: boolean; spread: number };
-  actors: RadarActor[]; feed: FeedItem[]; bomb: Bomb; spectating: boolean; winner: Team | null; reason: string;
-  action: { label: string; progress: number } | null; hint: string; hitMarker: number; headshot: boolean; hurt: number; fps: number; pistol: boolean;
+export interface BombState {
+  state: "carried" | "dropped" | "planted" | "defused" | "exploded";
+  carrierId: number | null;
+  position: THREE.Vector3;
+  site: "A" | "B" | null;
+  timer: number;
+  beepIn: number;
+  defuserId: number | null;
+}
+export interface KillEvent {
+  id: number;
+  killer: string;
+  victim: string;
+  team: Team;
+  weapon: WeaponId;
+  headshot: boolean;
+  at: number;
+  player: boolean;
+}
+export interface PlayerInfo {
+  id: number;
+  name: string;
+  team: Team;
+  health: number;
+  armor: number;
+  alive: boolean;
+  kills: number;
+  deaths: number;
+  weapon: WeaponId;
+  bomb: boolean;
+  controlled: boolean;
+}
+export interface GameSnapshot {
+  screen: "menu" | "game";
+  locked: boolean;
+  phase: "freeze" | "live" | "ended";
+  round: number;
+  timer: number;
+  scoreT: number;
+  scoreCT: number;
+  aliveT: number;
+  aliveCT: number;
+  team: Team;
+  name: string;
+  health: number;
+  armor: number;
+  alive: boolean;
+  spectating: string;
+  weapon: WeaponId;
+  slot: Slot;
+  ammo: number;
+  reserve: number;
+  reloading: number;
+  loadout: Partial<Record<Slot, WeaponId>>;
+  scoped: boolean;
+  heat: number;
+  hitAt: number;
+  killAt: number;
+  damageAt: number;
+  action: string;
+  actionProgress: number;
+  notice: string;
+  noticeUntil: number;
+  bombState: BombState["state"];
+  bombTimer: number;
+  hasBomb: boolean;
+  location: string;
+  killfeed: KillEvent[];
+  roster: PlayerInfo[];
+  winner: Team | null;
+  winReason: string;
+  time: number;
+  fps: number;
+  muted: boolean;
+  pistolRound: boolean;
+  armory: boolean;
+  scoreboard: boolean;
 }
