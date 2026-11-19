@@ -135,8 +135,8 @@ More than a hundred model x harness x effort combinations have run these cases, 
 | Gemini 3.6 Flash<br><sub>Google</sub> | 05 | AntiGravity · High |
 | Gemini 3.5 Flash<br><sub>Google</sub> | 06 | AntiGravity · High<br>Cursor · Default<br>Google AI Studio · High |
 | Gemini 3.1 Pro<br><sub>Google</sub> | 11 | AntiGravity · High<br>Cursor · Default<br>Gemini Web · Deep Think<br>Google AI Studio · High |
-| GPT-6.2 Astra<br><sub>OpenAI</sub> | 01 | Codex CLI · Max |
-| GPT-6.2 Sol<br><sub>OpenAI</sub> | 01 | Codex CLI · Max |
+| GPT-6.2 Astra<br><sub>OpenAI</sub> | 02 | Codex CLI · Max |
+| GPT-6.2 Sol<br><sub>OpenAI</sub> | 02 | Codex CLI · Max |
 | GPT-6.1 Sol<br><sub>OpenAI</sub> | 20 | Codex CLI · High / Max / xhigh |
 | GPT-6 Astra<br><sub>OpenAI</sub> | 09 | Codex CLI · Max / xhigh<br>Pi · xhigh |
 | GPT-6 Sol<br><sub>OpenAI</sub> | 07 | Codex CLI · xhigh |
