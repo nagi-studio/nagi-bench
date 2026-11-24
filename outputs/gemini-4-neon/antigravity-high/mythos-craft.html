@@ -1,0 +1,3346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AetherCraft · 神话浮空圣境 — 我的世界 3D 体素引擎</title>
+<style>
+  :root {
+    --gold: #f5d37a;
+    --gold-dim: rgba(245, 211, 122, 0.35);
+    --aether: #67e8f9;
+    --glass: rgba(12, 16, 28, 0.72);
+    --glass-strong: rgba(10, 13, 24, 0.88);
+    --border: rgba(245, 211, 122, 0.28);
+  }
+  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #0a1020;
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    color: #f3f4f6;
+  }
+  #glcanvas {
+    display: block; width: 100%; height: 100%; cursor: crosshair;
+  }
+
+  /* Crosshair */
+  #crosshair {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 22px; height: 22px; pointer-events: none; z-index: 10;
+    display: none;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ""; position: absolute; background: rgba(255,255,255,0.92);
+    box-shadow: 0 0 3px rgba(0,0,0,0.9);
+  }
+  #crosshair::before { left: 10px; top: 2px; width: 2px; height: 18px; }
+  #crosshair::after  { top: 10px; left: 2px; height: 2px; width: 18px; }
+
+  /* Top-left HUD */
+  #hud-left {
+    position: fixed; top: 14px; left: 14px; z-index: 12;
+    background: var(--glass); backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; font-size: 12.5px; line-height: 1.55;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    pointer-events: none; min-width: 235px;
+  }
+  #hud-realm {
+    font-size: 14px; font-weight: 700; color: var(--gold);
+    letter-spacing: 0.5px; margin-bottom: 3px;
+    text-shadow: 0 0 10px rgba(245, 211, 122, 0.35);
+  }
+  .hud-row { display: flex; justify-content: space-between; gap: 14px; color: #d1d5db; }
+  .hud-val { color: #fff; font-family: ui-monospace, monospace; font-weight: 600; }
+  .hud-badge {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 11px; font-weight: 700; margin-left: 4px;
+    background: rgba(103, 232, 249, 0.18); color: var(--aether);
+    border: 1px solid rgba(103, 232, 249, 0.4);
+  }
+
+  /* Top-right quick controls */
+  #hud-right {
+    position: fixed; top: 14px; right: 14px; z-index: 12;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  }
+  .mini-panel {
+    background: var(--glass); backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 12px; font-size: 12px; color: #e5e7eb;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .key-hints { line-height: 1.65; pointer-events: none; }
+  kbd {
+    display: inline-block; padding: 1px 5px; border-radius: 4px;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22);
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--gold);
+    margin: 0 2px;
+  }
+  .warp-bar {
+    display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; max-width: 340px;
+  }
+  .btn-chip {
+    background: rgba(20, 28, 48, 0.85); color: #f3f4f6;
+    border: 1px solid var(--border); border-radius: 7px;
+    padding: 5px 9px; font-size: 11.5px; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .btn-chip:hover {
+    background: rgba(245, 211, 122, 0.22); border-color: var(--gold); color: #fff;
+    transform: translateY(-1px);
+  }
+
+  /* Toast notification */
+  #toast {
+    position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
+    background: rgba(12, 16, 28, 0.84); border: 1px solid var(--gold-dim);
+    color: var(--gold); padding: 6px 16px; border-radius: 20px;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.4px;
+    pointer-events: none; opacity: 0; transition: opacity 0.28s ease;
+    z-index: 15; text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  }
+  #toast.show { opacity: 1; }
+
+  /* Hotbar */
+  #hotbar-wrap {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 14; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  #hotbar {
+    display: flex; gap: 5px; padding: 6px;
+    background: var(--glass); backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+  }
+  .slot {
+    position: relative; width: 52px; height: 52px; border-radius: 8px;
+    background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.14);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+  .slot:hover { background: rgba(255,255,255,0.12); }
+  .slot.active {
+    border-color: var(--gold); background: rgba(245, 211, 122, 0.18);
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 0 0 14px rgba(245, 211, 122, 0.45);
+  }
+  .slot canvas { width: 38px; height: 38px; image-rendering: pixelated; }
+  .slot-num {
+    position: absolute; top: 2px; left: 5px; font-size: 10px;
+    color: rgba(255,255,255,0.75); font-family: ui-monospace, monospace;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  /* Overlay (Start / Pause) */
+  #overlay {
+    position: fixed; inset: 0; z-index: 30;
+    background: radial-gradient(circle at 50% 35%, rgba(22, 34, 64, 0.72), rgba(7, 10, 20, 0.88));
+    backdrop-filter: blur(7px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  #overlay.hidden { display: none; }
+  .menu-card {
+    width: 100%; max-width: 680px;
+    background: var(--glass-strong); border: 1px solid rgba(245, 211, 122, 0.4);
+    border-radius: 18px; padding: 28px 32px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.08);
+    text-align: center;
+  }
+  .menu-title {
+    margin: 0; font-size: 32px; font-weight: 800; letter-spacing: 1.5px;
+    background: linear-gradient(135deg, #fff5d6 0%, #f5d37a 45%, #67e8f9 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .menu-sub {
+    margin: 6px 0 18px; font-size: 13.5px; color: #cbd5e1;
+  }
+  .btn-play {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    background: linear-gradient(135deg, #d97706, #f59e0b, #fbbf24);
+    color: #111827; font-size: 16px; font-weight: 800;
+    border: none; border-radius: 11px; padding: 13px 38px;
+    cursor: pointer; letter-spacing: 0.8px;
+    box-shadow: 0 8px 28px rgba(245, 158, 11, 0.45);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn-play:hover {
+    transform: translateY(-2px); box-shadow: 0 12px 34px rgba(245, 158, 11, 0.6);
+  }
+  .menu-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    margin-top: 20px; text-align: left;
+  }
+  .menu-box {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 12px 14px; font-size: 12.5px; line-height: 1.7;
+  }
+  .menu-box h3 {
+    margin: 0 0 6px; font-size: 13px; color: var(--gold); letter-spacing: 0.5px;
+  }
+  .menu-warps {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
+  }
+  .menu-settings {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-top: 14px; padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.1); font-size: 12.5px;
+    flex-wrap: wrap;
+  }
+  .setting-group { display: flex; align-items: center; gap: 8px; }
+  select, input[type="range"] { accent-color: var(--gold); }
+  select {
+    background: rgba(15, 23, 42, 0.9); color: #f3f4f6;
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  /* Block Palette Modal (E key) */
+  #palette-modal {
+    position: fixed; inset: 0; z-index: 35;
+    background: rgba(7, 10, 20, 0.72); backdrop-filter: blur(5px);
+    display: none; align-items: center; justify-content: center;
+  }
+  #palette-modal.open { display: flex; }
+  .palette-card {
+    background: var(--glass-strong); border: 1px solid var(--gold-dim);
+    border-radius: 16px; padding: 20px 24px; width: 92%; max-width: 560px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.75);
+  }
+  .palette-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+  }
+  .palette-header h2 { margin: 0; font-size: 17px; color: var(--gold); }
+  .palette-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 8px; max-height: 360px; overflow-y: auto;
+  }
+  .palette-item {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 8px 6px; border-radius: 9px; cursor: pointer;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+    transition: all 0.14s ease; text-align: center;
+  }
+  .palette-item:hover {
+    background: rgba(245, 211, 122, 0.18); border-color: var(--gold); transform: translateY(-2px);
+  }
+  .palette-item canvas { width: 40px; height: 40px; image-rendering: pixelated; }
+  .palette-item span { font-size: 11px; color: #e5e7eb; line-height: 1.2; }
+
+  @media (max-width: 720px) {
+    .menu-grid { grid-template-columns: 1fr; }
+    #hud-right { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="glcanvas"></canvas>
+<div id="crosshair"></div>
+
+<!-- Top-Left Telemetry HUD -->
+<div id="hud-left">
+  <div id="hud-realm">✦ 星光圣道 · Starlight Causeway</div>
+  <div class="hud-row"><span>坐标 XYZ</span><span class="hud-val" id="hud-pos">0, 30, 18</span></div>
+  <div class="hud-row"><span>模式 / 帧率</span><span class="hud-val"><span id="hud-mode">步行</span><span class="hud-badge" id="hud-fps">60 FPS</span></span></div>
+  <div class="hud-row"><span>天象 / 区块</span><span class="hud-val" id="hud-sky">神圣拂晓 · 0</span></div>
+  <div class="hud-row"><span>目标方块</span><span class="hud-val" id="hud-target">无</span></div>
+</div>
+
+<!-- Top-Right Hints & Landmark Warps -->
+<div id="hud-right">
+  <div class="mini-panel key-hints">
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动 · <kbd>Space</kbd> 跳跃/双按飞行 · <kbd>F</kbd> 切换飞行<br/>
+    <kbd>左键</kbd> 破坏方块 · <kbd>右键</kbd> 放置方块 · <kbd>1-9</kbd>/滚轮 切换<br/>
+    <kbd>E</kbd> 全部方块库 · <kbd>G</kbd> 切换天象 · <kbd>Esc</kbd> 菜单/传送
+  </div>
+  <div class="warp-bar" id="hud-warps"></div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Bottom Hotbar -->
+<div id="hotbar-wrap">
+  <div id="hotbar"></div>
+</div>
+
+<!-- Start / Pause Menu Overlay -->
+<div id="overlay">
+  <div class="menu-card">
+    <h1 class="menu-title">AETHERCRAFT · 神话浮空圣境</h1>
+    <p class="menu-sub">单文件 HTML5 WebGL 体素世界 · 无限柏林噪声地形 · 20+ 高还原像素方块 · 五大神话奇观</p>
+
+    <button class="btn-play" id="btn-start">▶ 进入神话世界 (锁定鼠标视角)</button>
+
+    <div class="menu-grid">
+      <div class="menu-box">
+        <h3>⚔️ 核心操作指南</h3>
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 行走 · <kbd>Shift</kbd> 疾跑/下降</div>
+        <div><kbd>Space</kbd> 跳跃 · <kbd>双击Space</kbd> 或 <kbd>F</kbd> 自由飞行</div>
+        <div><kbd>鼠标左键</kbd> 破坏方块 · <kbd>鼠标右键</kbd> 放置方块</div>
+        <div><kbd>1-9</kbd> / 滚轮 选方块 · <kbd>E</kbd> 打开20种方块库 · <kbd>G</kbd> 换天象</div>
+      </div>
+      <div class="menu-box">
+        <h3>🏛️ 内置神话奇观快速传送</h3>
+        <div style="font-size:11.5px;color:#94a3b8;margin-bottom:4px;">点击下方地标瞬间传送，或从星光天桥漫步探索：</div>
+        <div class="menu-warps" id="menu-warps"></div>
+      </div>
+    </div>
+
+    <div class="menu-settings">
+      <div class="setting-group">
+        <label for="sel-time">天象氛围：</label>
+        <select id="sel-time">
+          <option value="0">神圣拂晓 (Golden Dawn)</option>
+          <option value="1" selected>辉光正午 (Radiant Day)</option>
+          <option value="2">诸神黄昏 (Mythic Twilight)</option>
+          <option value="3">极光星夜 (Aurora Night)</option>
+          <option value="4">动态昼夜流转 (Auto Cycle)</option>
+        </select>
+      </div>
+      <div class="setting-group">
+        <label for="rng-dist">视距区块：<strong id="lbl-dist">6</strong></label>
+        <input id="rng-dist" type="range" min="4" max="9" value="6" />
+      </div>
+      <div class="setting-group">
+        <button class="btn-chip" id="btn-palette-open">📦 打开方块库 (E)</button>
+        <button class="btn-chip" id="btn-audio-toggle">🔊 音效: 开</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Block Palette Modal -->
+<div id="palette-modal">
+  <div class="palette-card">
+    <div class="palette-header">
+      <h2>✦ 神话与经典方块图鉴（点击装备到当前快捷栏）</h2>
+      <button class="btn-chip" id="btn-palette-close">关闭 (E)</button>
+    </div>
+    <div class="palette-grid" id="palette-grid"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ============================================================================
+ * 1. WORLD CONSTANTS & BLOCK REGISTRY
+ * ============================================================================ */
+const CHUNK_SIZE = 16;
+const CHUNK_HEIGHT = 128;
+const SEA_LEVEL = 26;
+const ATLAS_TILES = 16;
+const TILE_PX = 16;
+const ATLAS_PX = ATLAS_TILES * TILE_PX; // 256x256
+
+// Block IDs
+const B = {
+  AIR: 0,
+  GRASS: 1,
+  DIRT: 2,
+  STONE: 3,
+  COBBLE: 4,
+  OAK_LOG: 5,
+  OAK_LEAVES: 6,
+  SAND: 7,
+  WATER: 8,
+  MARBLE: 9,
+  MARBLE_PILLAR: 10,
+  GOLD: 11,
+  OBSIDIAN: 12,
+  RUNE_OBSIDIAN: 13,
+  AETHER_CRYSTAL: 14,
+  SAKURA_LEAVES: 15,
+  MAGMA: 16,
+  PLANKS: 17,
+  LANTERN: 18,
+  PORTAL: 19,
+  PRISMARINE: 20,
+  SNOW: 21,
+  ICE: 22,
+  BEDROCK: 23,
+  GOLD_ORE: 24,
+  ANCIENT_BRICK: 25
+};
+
+// Texture tile indices in 16x16 atlas
+const T = {
+  GRASS_TOP: 0, GRASS_SIDE: 1, DIRT: 2, STONE: 3, COBBLE: 4,
+  OAK_LOG_SIDE: 5, OAK_LOG_TOP: 6, OAK_LEAVES: 7, SAND: 8, WATER: 9,
+  MARBLE: 10, PILLAR_SIDE: 11, PILLAR_TOP: 12, GOLD: 13, OBSIDIAN: 14,
+  RUNE_OBSIDIAN: 15, AETHER_CRYSTAL: 16, SAKURA_LEAVES: 17, MAGMA: 18,
+  PLANKS: 19, LANTERN: 20, PORTAL: 21, PRISMARINE: 22, SNOW_TOP: 23,
+  SNOW_SIDE: 24, ICE: 25, BEDROCK: 26, GOLD_ORE: 27, ANCIENT_BRICK: 28
+};
+
+// Block metadata: [name, topTile, sideTile, bottomTile, flags]
+// flags: transparent, liquid, solid, emissive(0..1), lightLevel(0..14), sound, particleRGB, breakable
+const BLOCKS = {
+  [B.AIR]:            { name: "空气", solid: false, transparent: true },
+  [B.GRASS]:          { name: "草方块 · Grass", top: T.GRASS_TOP, side: T.GRASS_SIDE, bottom: T.DIRT, solid: true, sound: "grass", col: [95, 165, 68] },
+  [B.DIRT]:           { name: "泥土 · Dirt", top: T.DIRT, side: T.DIRT, bottom: T.DIRT, solid: true, sound: "grass", col: [134, 96, 67] },
+  [B.STONE]:          { name: "石头 · Stone", top: T.STONE, side: T.STONE, bottom: T.STONE, solid: true, sound: "stone", col: [132, 134, 138] },
+  [B.COBBLE]:         { name: "圆石 · Cobblestone", top: T.COBBLE, side: T.COBBLE, bottom: T.COBBLE, solid: true, sound: "stone", col: [122, 122, 126] },
+  [B.OAK_LOG]:        { name: "橡木原木 · Oak Log", top: T.OAK_LOG_TOP, side: T.OAK_LOG_SIDE, bottom: T.OAK_LOG_TOP, solid: true, sound: "wood", col: [112, 85, 52] },
+  [B.OAK_LEAVES]:     { name: "橡木树叶 · Oak Leaves", top: T.OAK_LEAVES, side: T.OAK_LEAVES, bottom: T.OAK_LEAVES, solid: true, sound: "grass", col: [66, 138, 56] },
+  [B.SAND]:           { name: "金色沙砾 · Sand", top: T.SAND, side: T.SAND, bottom: T.SAND, solid: true, sound: "grass", col: [219, 206, 155] },
+  [B.WATER]:          { name: "圣湖清水 · Crystal Water", top: T.WATER, side: T.WATER, bottom: T.WATER, solid: false, transparent: true, liquid: true, sound: "water", col: [48, 178, 215] },
+  [B.MARBLE]:         { name: "奥林匹斯大理石 · Marble", top: T.MARBLE, side: T.MARBLE, bottom: T.MARBLE, solid: true, sound: "stone", col: [232, 229, 220] },
+  [B.MARBLE_PILLAR]:  { name: "神殿金柱 · Marble Pillar", top: T.PILLAR_TOP, side: T.PILLAR_SIDE, bottom: T.PILLAR_TOP, solid: true, sound: "stone", col: [236, 230, 212] },
+  [B.GOLD]:           { name: "鎏金圣石 · Sanctum Gold", top: T.GOLD, side: T.GOLD, bottom: T.GOLD, solid: true, emissive: 0.22, light: 5, sound: "crystal", col: [248, 204, 72] },
+  [B.OBSIDIAN]:       { name: "火山黑曜石 · Obsidian", top: T.OBSIDIAN, side: T.OBSIDIAN, bottom: T.OBSIDIAN, solid: true, sound: "stone", col: [36, 26, 52] },
+  [B.RUNE_OBSIDIAN]:  { name: "符文黑曜石 · Runic Obsidian", top: T.RUNE_OBSIDIAN, side: T.RUNE_OBSIDIAN, bottom: T.RUNE_OBSIDIAN, solid: true, emissive: 0.62, light: 9, sound: "crystal", col: [130, 82, 235] },
+  [B.AETHER_CRYSTAL]: { name: "以太水晶 · Aether Crystal", top: T.AETHER_CRYSTAL, side: T.AETHER_CRYSTAL, bottom: T.AETHER_CRYSTAL, solid: true, emissive: 0.88, light: 13, sound: "crystal", col: [72, 234, 250] },
+  [B.SAKURA_LEAVES]:  { name: "世界树圣叶 · Yggdrasil Blossom", top: T.SAKURA_LEAVES, side: T.SAKURA_LEAVES, bottom: T.SAKURA_LEAVES, solid: true, emissive: 0.25, light: 5, sound: "grass", col: [248, 166, 204] },
+  [B.MAGMA]:          { name: "龙焰熔岩核 · Magma Core", top: T.MAGMA, side: T.MAGMA, bottom: T.MAGMA, solid: true, emissive: 0.92, light: 13, sound: "stone", col: [252, 118, 32] },
+  [B.PLANKS]:         { name: "古老橡木板 · Oak Planks", top: T.PLANKS, side: T.PLANKS, bottom: T.PLANKS, solid: true, sound: "wood", col: [168, 128, 78] },
+  [B.LANTERN]:        { name: "星辰圣灯 · Celestial Lantern", top: T.LANTERN, side: T.LANTERN, bottom: T.LANTERN, solid: true, emissive: 1.0, light: 14, sound: "crystal", col: [255, 224, 130] },
+  [B.PORTAL]:         { name: "星界传送门 · Astral Portal", top: T.PORTAL, side: T.PORTAL, bottom: T.PORTAL, solid: false, transparent: true, emissive: 0.95, light: 12, sound: "crystal", col: [174, 88, 255] },
+  [B.PRISMARINE]:     { name: "亚特兰蒂斯海晶石 · Prismarine", top: T.PRISMARINE, side: T.PRISMARINE, bottom: T.PRISMARINE, solid: true, emissive: 0.18, light: 4, sound: "crystal", col: [66, 172, 168] },
+  [B.SNOW]:           { name: "霜峰积雪 · Snow Grass", top: T.SNOW_TOP, side: T.SNOW_SIDE, bottom: T.DIRT, solid: true, sound: "grass", col: [236, 245, 252] },
+  [B.ICE]:            { name: "极光寒冰 · Glacial Ice", top: T.ICE, side: T.ICE, bottom: T.ICE, solid: true, transparent: true, sound: "crystal", col: [152, 218, 250] },
+  [B.BEDROCK]:        { name: "基岩 · Bedrock", top: T.BEDROCK, side: T.BEDROCK, bottom: T.BEDROCK, solid: true, unbreakable: true, sound: "stone", col: [54, 54, 58] },
+  [B.GOLD_ORE]:       { name: "金矿石 · Gold Ore", top: T.GOLD_ORE, side: T.GOLD_ORE, bottom: T.GOLD_ORE, solid: true, sound: "stone", col: [212, 186, 78] },
+  [B.ANCIENT_BRICK]:  { name: "远古神砖 · Ancient Brick", top: T.ANCIENT_BRICK, side: T.ANCIENT_BRICK, bottom: T.ANCIENT_BRICK, solid: true, sound: "stone", col: [156, 152, 146] }
+};
+
+const PALETTE_LIST = [
+  B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.OAK_LOG, B.PLANKS, B.OAK_LEAVES, B.SAND,
+  B.MARBLE, B.MARBLE_PILLAR, B.GOLD, B.AETHER_CRYSTAL, B.LANTERN, B.RUNE_OBSIDIAN,
+  B.OBSIDIAN, B.MAGMA, B.SAKURA_LEAVES, B.PRISMARINE, B.ANCIENT_BRICK, B.PORTAL, B.ICE, B.WATER
+];
+
+const hotbarSlots = [
+  B.GRASS, B.DIRT, B.STONE, B.OAK_LOG, B.MARBLE, B.GOLD, B.AETHER_CRYSTAL, B.RUNE_OBSIDIAN, B.LANTERN
+];
+let activeSlot = 0;
+
+/* ============================================================================
+ * 2. PROCEDURAL PIXEL-ART 16x16 TEXTURE ATLAS (MINECRAFT-FAITHFUL!)
+ * ============================================================================ */
+function hash2i(x, y, seed) {
+  let n = (x * 374761393 + y * 668265263 + seed * 1442695041) | 0;
+  n = (n ^ (n >>> 13)) * 1274126177;
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+
+function clampByte(v) { return v < 0 ? 0 : (v > 255 ? 255 : v | 0); }
+
+function buildTextureAtlas() {
+  const canvas = document.createElement("canvas");
+  canvas.width = ATLAS_PX;
+  canvas.height = ATLAS_PX;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(ATLAS_PX, ATLAS_PX);
+  const data = img.data;
+
+  function setPx(tileIdx, x, y, r, g, b, a = 255) {
+    const tx = (tileIdx % ATLAS_TILES) * TILE_PX;
+    const ty = Math.floor(tileIdx / ATLAS_TILES) * TILE_PX;
+    const i = ((ty + y) * ATLAS_PX + (tx + x)) * 4;
+    data[i] = clampByte(r);
+    data[i + 1] = clampByte(g);
+    data[i + 2] = clampByte(b);
+    data[i + 3] = clampByte(a);
+  }
+
+  function paintTile(tileIdx, fn) {
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        fn(x, y, (r, g, b, a = 255) => setPx(tileIdx, x, y, r, g, b, a));
+      }
+    }
+  }
+
+  // 0: GRASS_TOP (authentic mottled Minecraft emerald blades)
+  paintTile(T.GRASS_TOP, (x, y, put) => {
+    const n = hash2i(x, y, 11);
+    const n2 = hash2i(x >> 1, y >> 1, 17);
+    const shade = (n - 0.5) * 34 + (n2 - 0.5) * 22;
+    put(88 + shade * 0.75, 162 + shade, 64 + shade * 0.6);
+  });
+
+  // 2: DIRT (classic warm brown earth with pebbles)
+  paintTile(T.DIRT, (x, y, put) => {
+    const n = hash2i(x, y, 23);
+    const speck = hash2i(x, y, 29);
+    let r = 134, g = 95, b = 66;
+    if (speck > 0.87) { r = 166; g = 132; b = 98; } // light pebble
+    else if (speck < 0.14) { r = 92; g = 64, b = 44; } // dark soil
+    else {
+      const s = (n - 0.5) * 28;
+      r += s; g += s * 0.85; b += s * 0.7;
+    }
+    put(r, g, b);
+  });
+
+  // 1: GRASS_SIDE (dirt with classic uneven overhanging grass fringe!)
+  const fringe = [4, 5, 3, 4, 6, 4, 3, 5, 4, 3, 5, 6, 4, 3, 5, 4];
+  paintTile(T.GRASS_SIDE, (x, y, put) => {
+    const f = fringe[x];
+    const n = hash2i(x, y, 31);
+    if (y < f) {
+      const s = (n - 0.5) * 30 - (y === f - 1 ? 16 : 0);
+      put(86 + s * 0.7, 158 + s, 62 + s * 0.55);
+    } else {
+      const speck = hash2i(x, y, 29);
+      let r = 134, g = 95, b = 66;
+      if (y === f) { r -= 22; g -= 18; b -= 14; } // overhang shadow
+      else if (speck > 0.87) { r = 164; g = 130; b = 96; }
+      else if (speck < 0.14) { r = 92; g = 64; b = 44; }
+      else { const s = (n - 0.5) * 26; r += s; g += s * 0.85; b += s * 0.7; }
+      put(r, g, b);
+    }
+  });
+
+  // 3: STONE (classic Minecraft horizontal-layered mottled stone)
+  paintTile(T.STONE, (x, y, put) => {
+    const n = hash2i(x, y, 41);
+    const band = hash2i(x >> 2, y, 47);
+    let v = 126 + (n - 0.5) * 26 + (band - 0.5) * 24;
+    if (hash2i(x, y, 53) < 0.08) v -= 20;
+    if (hash2i(x, y, 59) > 0.92) v += 16;
+    put(v, v + 1, v + 4);
+  });
+
+  // 4: COBBLE (interlocking shaded stones with mortar lines)
+  paintTile(T.COBBLE, (x, y, put) => {
+    const row = Math.floor(y / 4);
+    const ox = (row & 1) ? 4 : 0;
+    const lx = (x + ox) % 8;
+    const ly = y % 4;
+    const cellN = hash2i((x + ox) >> 3, row, 67);
+    const n = hash2i(x, y, 71);
+    let v = 114 + cellN * 36 + (n - 0.5) * 18;
+    if (lx === 0 || ly === 0) v -= 34; // dark mortar
+    else if (ly === 1 && lx > 1) v += 14; // top bevel highlight
+    put(v, v, v + 3);
+  });
+
+  // 5: OAK_LOG_SIDE (vertical dark/light bark striations)
+  paintTile(T.OAK_LOG_SIDE, (x, y, put) => {
+    const col = hash2i(x, y >> 2, 79);
+    const n = hash2i(x, y, 83);
+    const ridge = ((x % 3 === 0) ? -14 : 6) + (col - 0.5) * 32 + (n - 0.5) * 18;
+    put(106 + ridge, 80 + ridge * 0.78, 49 + ridge * 0.55);
+  });
+
+  // 6: OAK_LOG_TOP (outer bark ring + concentric inner wood rings)
+  paintTile(T.OAK_LOG_TOP, (x, y, put) => {
+    const dx = x - 7.5, dy = y - 7.5;
+    const d = Math.hypot(dx, dy);
+    const n = (hash2i(x, y, 89) - 0.5) * 16;
+    if (x === 0 || x === 15 || y === 0 || y === 15 || d > 7.4) {
+      put(92 + n, 68 + n * 0.8, 42 + n * 0.6);
+    } else {
+      const ring = Math.sin(d * 2.4) > 0 ? 14 : -12;
+      put(180 + ring + n, 146 + ring * 0.85 + n, 94 + ring * 0.65 + n);
+    }
+  });
+
+  // 7: OAK_LEAVES (lush layered pixel clusters)
+  paintTile(T.OAK_LEAVES, (x, y, put) => {
+    const n = hash2i(x, y, 97);
+    const cl = hash2i(x >> 1, y >> 1, 101);
+    if (n < 0.22) put(32, 72, 28); // deep shadow gap
+    else if (n > 0.78) put(102, 178, 72); // sunlit leaf tip
+    else {
+      const s = (cl - 0.5) * 30;
+      put(56 + s * 0.7, 128 + s, 48 + s * 0.6);
+    }
+  });
+
+  // 8: SAND (warm golden desert grains)
+  paintTile(T.SAND, (x, y, put) => {
+    const n = hash2i(x, y, 107);
+    const ripple = Math.sin((x + y * 0.5) * 0.9) * 6;
+    const s = (n - 0.5) * 24 + ripple;
+    put(222 + s, 206 + s * 0.95, 152 + s * 0.8);
+  });
+
+  // 9: WATER (shimmering crystal turquoise with caustic streaks)
+  paintTile(T.WATER, (x, y, put) => {
+    const wave = Math.sin((x * 0.8 + y * 0.45)) * 18 + Math.cos((y * 1.1 - x * 0.4)) * 10;
+    const sparkle = hash2i(x, y, 113) > 0.9 ? 42 : 0;
+    put(36 + wave * 0.5 + sparkle, 158 + wave + sparkle, 214 + wave * 0.6 + sparkle, 188);
+  });
+
+  // 10: MARBLE (ivory classical stone with pearl-gold veining & carved frame)
+  paintTile(T.MARBLE, (x, y, put) => {
+    const n = (hash2i(x, y, 127) - 0.5) * 10;
+    const vein = Math.abs(Math.sin((x * 0.55 + y * 0.35 + hash2i(x >> 1, y >> 1, 131) * 1.2)));
+    let r = 238 + n, g = 234 + n, b = 224 + n;
+    if (vein < 0.14) { r -= 18; g -= 20; b -= 26; }
+    if (x === 0 || y === 0) { r += 8; g += 8; b += 6; }
+    if (x === 15 || y === 15) { r -= 22; g -= 24; b -= 22; }
+    put(r, g, b);
+  });
+
+  // 11: PILLAR_SIDE (fluted marble column + gilded capital bands)
+  paintTile(T.PILLAR_SIDE, (x, y, put) => {
+    const n = (hash2i(x, y, 137) - 0.5) * 8;
+    if (y === 0 || y === 1 || y === 14 || y === 15) {
+      // Ornate gilded band
+      const hi = (y === 0 || y === 14) ? 18 : -16;
+      put(232 + hi + n, 192 + hi + n, 84 + hi * 0.5 + n);
+    } else {
+      // Vertical classical flutes
+      const f = x % 4;
+      const flute = f === 0 ? -24 : (f === 1 ? 10 : (f === 2 ? 2 : -10));
+      put(234 + flute + n, 230 + flute + n, 220 + flute + n);
+    }
+  });
+
+  // 12: PILLAR_TOP (marble medallion with gold inlay ring)
+  paintTile(T.PILLAR_TOP, (x, y, put) => {
+    const d = Math.hypot(x - 7.5, y - 7.5);
+    const n = (hash2i(x, y, 139) - 0.5) * 10;
+    if (d > 4.2 && d < 6.0) put(238 + n, 196 + n, 82 + n);
+    else if (x === 0 || x === 15 || y === 0 || y === 15) put(196, 192, 182);
+    else put(238 + n, 234 + n, 224 + n);
+  });
+
+  // 13: GOLD (gleaming sacred gilded gold with beveled emblem)
+  paintTile(T.GOLD, (x, y, put) => {
+    const n = (hash2i(x, y, 149) - 0.5) * 14;
+    const border = x === 0 || y === 0 || x === 15 || y === 15;
+    const inner = x === 2 || y === 2 || x === 13 || y === 13;
+    const diag = Math.abs(x - 7.5) + Math.abs(y - 7.5) < 3.6;
+    let r = 244, g = 196, b = 52;
+    if (border) { r = (x === 0 || y === 0) ? 255 : 186; g = (x === 0 || y === 0) ? 236 : 134; b = (x === 0 || y === 0) ? 132 : 24; }
+    else if (inner) { r -= 36; g -= 34; b -= 18; }
+    else if (diag) { r = 255; g = 234; b = 122; }
+    put(r + n, g + n, b + n * 0.5);
+  });
+
+  // 14: OBSIDIAN (deep volcanic indigo-black fractured stone)
+  paintTile(T.OBSIDIAN, (x, y, put) => {
+    const n = hash2i(x, y, 157);
+    let r = 26, g = 18, b = 42;
+    if (n > 0.84) { r = 68; g = 46; b = 98; }
+    else if (n < 0.2) { r = 14; g = 10; b = 22; }
+    else { r += n * 24; g += n * 16; b += n * 34; }
+    put(r, g, b);
+  });
+
+  // 15: RUNE_OBSIDIAN (obsidian carved with glowing cyan-violet ancient runes!)
+  const runeMask = [
+    "0000000000000000",
+    "0111111111111110",
+    "0100000000000010",
+    "0100011111100010",
+    "0100100110010010",
+    "0100001001000010",
+    "0100110000110010",
+    "0100000110000010",
+    "0100000110000010",
+    "0100110000110010",
+    "0100001001000010",
+    "0100100110010010",
+    "0100011111100010",
+    "0100000000000010",
+    "0111111111111110",
+    "0000000000000000"
+  ];
+  paintTile(T.RUNE_OBSIDIAN, (x, y, put) => {
+    const isRune = runeMask[y][x] === "1";
+    const n = hash2i(x, y, 163);
+    if (isRune) {
+      const edge = (x === 1 || x === 14 || y === 1 || y === 14);
+      if (edge) put(136, 76, 245);
+      else put(104, 232, 255);
+    } else {
+      put(24 + n * 24, 16 + n * 16, 44 + n * 34);
+    }
+  });
+
+  // 16: AETHER_CRYSTAL (faceted glowing turquoise-diamond crystal!)
+  paintTile(T.AETHER_CRYSTAL, (x, y, put) => {
+    const d = Math.abs(x - 7.5) + Math.abs(y - 7.5);
+    const n = hash2i(x, y, 173);
+    let r = 46, g = 204, b = 238;
+    if (d < 3.5) { r = 212; g = 252; b = 255; }
+    else if (d < 6.5) { r = 98; g = 236; b = 252; }
+    else if ((x + y) % 5 === 0) { r = 178; g = 248; b = 255; }
+    else { r += n * 35; g += n * 25; b += n * 15; }
+    if (x === 0 || y === 0 || x === 15 || y === 15) { r -= 32; g -= 28; b -= 16; }
+    put(r, g, b);
+  });
+
+  // 17: SAKURA_LEAVES (luminous World-Tree rose-gold & pink blossoms)
+  paintTile(T.SAKURA_LEAVES, (x, y, put) => {
+    const n = hash2i(x, y, 181);
+    if (n > 0.84) put(255, 242, 206); // golden blossom glow
+    else if (n > 0.55) put(252, 184, 214); // bright petal
+    else if (n > 0.22) put(232, 126, 176); // rose blossom
+    else put(152, 66, 118); // deep shadow petal
+  });
+
+  // 18: MAGMA (dark volcanic crust cracked with incandescent lava veins)
+  paintTile(T.MAGMA, (x, y, put) => {
+    const v = Math.sin(x * 0.7 + Math.cos(y * 0.65) * 2.1) * Math.cos(y * 0.65 - x * 0.3);
+    const n = hash2i(x, y, 191);
+    if (Math.abs(v) < 0.16) put(255, 232, 110); // white-hot core
+    else if (Math.abs(v) < 0.34) put(252, 114, 24); // blazing orange lava
+    else if (Math.abs(v) < 0.45) put(174, 42, 18); // cooling red crust
+    else put(48 + n * 24, 34 + n * 18, 38 + n * 18); // dark basalt
+  });
+
+  // 19: PLANKS (warm classic oak wooden planks)
+  paintTile(T.PLANKS, (x, y, put) => {
+    const plankRow = Math.floor(y / 4);
+    const ly = y % 4;
+    const seamX = (plankRow & 1) ? 8 : 0;
+    const n = (hash2i(x, y, 197) - 0.5) * 20;
+    const grain = Math.sin(x * 0.6 + plankRow * 2.3) * 8;
+    let r = 172 + grain + n, g = 132 + grain * 0.8 + n, b = 78 + grain * 0.5 + n;
+    if (ly === 0 || x === seamX) { r -= 48; g -= 40; b -= 26; }
+    else if (ly === 1) { r += 12; g += 10; b += 6; }
+    put(r, g, b);
+  });
+
+  // 20: LANTERN (ornate gilded frame housing glowing warm starlight)
+  paintTile(T.LANTERN, (x, y, put) => {
+    const frame = x <= 1 || x >= 14 || y <= 1 || y >= 14 || ((x === 2 || x === 13) && (y === 2 || y === 13));
+    const cross = (x === 7 || x === 8) && (y === 2 || y === 13);
+    if (frame || cross) {
+      const hi = (x <= 1 || y <= 1) ? 18 : -18;
+      put(204 + hi, 158 + hi, 58 + hi * 0.5);
+    } else {
+      const d = Math.hypot(x - 7.5, y - 7.5);
+      const glow = Math.max(0, 1 - d / 7.5);
+      put(255, 206 + glow * 49, 108 + glow * 138);
+    }
+  });
+
+  // 21: PORTAL (swirling translucent astral energy vortex)
+  paintTile(T.PORTAL, (x, y, put) => {
+    const dx = x - 7.5, dy = y - 7.5;
+    const r = Math.hypot(dx, dy);
+    const a = Math.atan2(dy, dx);
+    const swirl = Math.sin(r * 1.15 - a * 2.0);
+    if (swirl > 0.35) put(126, 236, 255, 215);
+    else if (swirl > -0.2) put(176, 94, 255, 205);
+    else put(102, 34, 206, 185);
+  });
+
+  // 22: PRISMARINE (Atlantis carved aqua-teal temple stone)
+  paintTile(T.PRISMARINE, (x, y, put) => {
+    const n = (hash2i(x, y, 211) - 0.5) * 22;
+    const seam = x === 0 || y === 0 || (y === 8 && x > 2 && x < 13) || (x === 8 && y > 2 && y < 13);
+    if (seam) put(108, 228, 216);
+    else put(58 + n, 152 + n, 154 + n);
+  });
+
+  // 23: SNOW_TOP
+  paintTile(T.SNOW_TOP, (x, y, put) => {
+    const n = (hash2i(x, y, 223) - 0.5) * 14;
+    put(236 + n, 244 + n, 252 + n);
+  });
+
+  // 24: SNOW_SIDE
+  paintTile(T.SNOW_SIDE, (x, y, put) => {
+    const f = fringe[x];
+    const n = (hash2i(x, y, 227) - 0.5) * 16;
+    if (y < f) put(234 + n, 243 + n, 252 + n);
+    else put(132 + n, 96 + n * 0.8, 68 + n * 0.7);
+  });
+
+  // 25: ICE (translucent glacial blue with diagonal frost streaks)
+  paintTile(T.ICE, (x, y, put) => {
+    const streak = ((x + y) % 7 === 0) || ((x + y + 1) % 11 === 0);
+    const n = (hash2i(x, y, 229) - 0.5) * 16;
+    if (streak) put(226, 246, 255, 215);
+    else put(138 + n, 206 + n, 246 + n, 195);
+  });
+
+  // 26: BEDROCK
+  paintTile(T.BEDROCK, (x, y, put) => {
+    const n = hash2i(x, y, 233);
+    const v = n > 0.72 ? 84 : (n < 0.35 ? 24 : 52);
+    put(v, v, v + 2);
+  });
+
+  // 27: GOLD_ORE
+  paintTile(T.GOLD_ORE, (x, y, put) => {
+    const n = hash2i(x, y, 239);
+    const ore = ((x >= 3 && x <= 5 && y >= 4 && y <= 6) || (x >= 10 && x <= 12 && y >= 9 && y <= 11) || (x >= 5 && x <= 7 && y >= 11 && y <= 12));
+    if (ore) put(248, 204 + (n - 0.5) * 30, 56);
+    else { const v = 124 + (n - 0.5) * 28; put(v, v + 1, v + 3); }
+  });
+
+  // 28: ANCIENT_BRICK (carved mythic temple ashlar masonry)
+  paintTile(T.ANCIENT_BRICK, (x, y, put) => {
+    const row = y >> 3;
+    const ox = row ? 8 : 0;
+    const lx = (x + ox) % 16;
+    const ly = y % 8;
+    const n = (hash2i(x, y, 241) - 0.5) * 18;
+    let v = 152 + n;
+    if (ly === 0 || lx === 0) v -= 42;
+    else if (ly === 1) v += 14;
+    else if (hash2i(x, y, 251) < 0.08) v -= 24;
+    put(v + 4, v + 1, v - 5);
+  });
+
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+/* ============================================================================
+ * 3. TRUE 2D & 3D GRADIENT PERLIN NOISE + FBM
+ * ============================================================================ */
+class PerlinNoise {
+  constructor(seed = 20261124) {
+    this.perm = new Uint8Array(512);
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    let s = seed >>> 0;
+    for (let i = 255; i > 0; i--) {
+      s = (Math.imul(s ^ (s >>> 15), 2246822507) + 3266489909) >>> 0;
+      const j = s % (i + 1);
+      const tmp = p[i]; p[i] = p[j]; p[j] = tmp;
+    }
+    for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+  }
+
+  fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  lerp(a, b, t) { return a + t * (b - a); }
+
+  grad2(h, x, y) {
+    switch (h & 7) {
+      case 0: return  x + y;
+      case 1: return -x + y;
+      case 2: return  x - y;
+      case 3: return -x - y;
+      case 4: return  x;
+      case 5: return -x;
+      case 6: return  y;
+      default: return -y;
+    }
+  }
+
+  grad3(h, x, y, z) {
+    const u = (h & 15) < 8 ? x : y;
+    const v = (h & 15) < 4 ? y : ((h & 15) === 12 || (h & 15) === 14 ? x : z);
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+  }
+
+  noise2(x, y) {
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+    x -= Math.floor(x);
+    y -= Math.floor(y);
+    const u = this.fade(x), v = this.fade(y);
+    const p = this.perm;
+    const A = p[X] + Y, B = p[X + 1] + Y;
+    return this.lerp(
+      this.lerp(this.grad2(p[A], x, y), this.grad2(p[B], x - 1, y), u),
+      this.lerp(this.grad2(p[A + 1], x, y - 1), this.grad2(p[B + 1], x - 1, y - 1), u),
+      v
+    );
+  }
+
+  noise3(x, y, z) {
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+    const Z = Math.floor(z) & 255;
+    x -= Math.floor(x);
+    y -= Math.floor(y);
+    z -= Math.floor(z);
+    const u = this.fade(x), v = this.fade(y), w = this.fade(z);
+    const p = this.perm;
+    const A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z;
+    const B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+    return this.lerp(
+      this.lerp(
+        this.lerp(this.grad3(p[AA], x, y, z), this.grad3(p[BA], x - 1, y, z), u),
+        this.lerp(this.grad3(p[AB], x, y - 1, z), this.grad3(p[BB], x - 1, y - 1, z), u),
+        v
+      ),
+      this.lerp(
+        this.lerp(this.grad3(p[AA + 1], x, y, z - 1), this.grad3(p[BA + 1], x - 1, y, z - 1), u),
+        this.lerp(this.grad3(p[AB + 1], x, y - 1, z - 1), this.grad3(p[BB + 1], x - 1, y - 1, z - 1), u),
+        v
+      ),
+      w
+    );
+  }
+
+  fbm2(x, y, octaves = 4, lacunarity = 2.0, gain = 0.5) {
+    let sum = 0, amp = 1, freq = 1, max = 0;
+    for (let i = 0; i < octaves; i++) {
+      sum += this.noise2(x * freq, y * freq) * amp;
+      max += amp;
+      amp *= gain;
+      freq *= lacunarity;
+    }
+    return sum / max;
+  }
+
+  ridged2(x, y, octaves = 3) {
+    let sum = 0, amp = 1, freq = 1, max = 0;
+    for (let i = 0; i < octaves; i++) {
+      const n = 1 - Math.abs(this.noise2(x * freq, y * freq));
+      sum += n * n * amp;
+      max += amp;
+      amp *= 0.5;
+      freq *= 2.1;
+    }
+    return sum / max;
+  }
+}
+
+const perlin = new PerlinNoise(777314159);
+
+function smoothstep(edge0, edge1, x) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/* ============================================================================
+ * 4. MYTHIC LANDMARKS & INFINITE PERLIN WORLD GENERATOR
+ * ============================================================================ */
+const LANDMARKS = [
+  { id: "plaza",      label: "✦ 星光圣道",   title: "星光圣道 · Starlight Causeway",       pos: [0.5, 31.2, 18.5],   yaw: 0,      pitch: 0.14 },
+  { id: "pantheon",   label: "🏛️ 浮空神殿", title: "云端奥林匹斯神殿 · Floating Pantheon", pos: [0.5, 58.5, -17.5],  yaw: 0,      pitch: 0.08 },
+  { id: "yggdrasil",  label: "🌸 世界之树", title: "世界之树·尤克特拉希尔 · Yggdrasil",    pos: [-26.5, 34.5, -8.5], yaw: 1.48,   pitch: 0.28 },
+  { id: "dragon",     label: "🐉 龙焰圣坛", title: "黑曜龙焰圣坛 · Dragon Sanctum",       pos: [24.5, 35.5, -14.5], yaw: -1.48,  pitch: 0.24 },
+  { id: "atlantis",   label: "🌊 亚特兰蒂斯", title: "亚特兰蒂斯水门 · Atlantis Gate",     pos: [0.5, 31.2, 23.5],   yaw: Math.PI, pitch: 0.10 },
+  { id: "observatory",label: "🔭 观星高塔", title: "星辰观星高塔 · Celestial Spire",      pos: [-13.5, 36.5, 33.5], yaw: 1.87,   pitch: 0.28 }
+];
+
+function getRealmLabel(wx, wy, wz) {
+  if (Math.hypot(wx, wz + 34) < 26 && wy > 46) return "🏛️ 云端奥林匹斯神殿 · Floating Pantheon";
+  if (Math.hypot(wx + 44, wz + 10) < 25) return "🌸 世界之树·尤克特拉希尔 · Yggdrasil";
+  if (Math.hypot(wx - 44, wz + 16) < 25) return "🐉 黑曜龙焰圣坛 · Obsidian Dragon Sanctum";
+  if (Math.hypot(wx + 28, wz - 38) < 19) return "🔭 星辰观星高塔 · Celestial Observatory";
+  if (Math.hypot(wx, wz - 36) < 14) return "🌊 沉没亚特兰蒂斯水门 · Sunken Atlantis Gate";
+  if (Math.hypot(wx, wz - 17) < 12) return "✦ 星光圣道广场 · Starlight Causeway";
+  if (Math.hypot(wx, wz + 14) < 34) return "💧 圣境翡翠湖 · Sacred Aether Lagoon";
+
+  const temp = perlin.fbm2(wx * 0.0045 + 100, wz * 0.0045 - 50, 3);
+  const moist = perlin.fbm2(wx * 0.0045 - 200, wz * 0.0045 + 300, 3);
+  if (wy > 64) return "☁️ 以太浮空群岛 · Aether Sky Isles";
+  if (temp < -0.22) return "❄️ 霜峰雪域 · Frostspire Peaks";
+  if (temp > 0.26 && moist < -0.05) return "🏜️ 黄金沙海 · Golden Dunes";
+  if (moist > 0.22) return "🌸 灵樱秘林 · Mythic Sakura Grove";
+  return "🌿 翡翠高地 · Emerald Highlands";
+}
+
+function sampleTerrain(wx, wz) {
+  const temp = perlin.fbm2(wx * 0.0045 + 100, wz * 0.0045 - 50, 3);
+  const moist = perlin.fbm2(wx * 0.0045 - 200, wz * 0.0045 + 300, 3);
+
+  // Base infinite Perlin multi-octave terrain
+  const base = perlin.fbm2(wx * 0.009, wz * 0.009, 4) * 20;
+  const detail = perlin.fbm2(wx * 0.032, wz * 0.032, 3) * 4.5;
+  const ridge = perlin.ridged2(wx * 0.0065, wz * 0.0065, 3);
+  const mountainMask = smoothstep(0.42, 0.78, ridge);
+  let h = 29 + base + detail + mountainMask * 34;
+
+  // Biome type
+  let biome = "meadow";
+  if (temp < -0.22 || h > 52) biome = "frost";
+  else if (temp > 0.26 && moist < -0.05) biome = "desert";
+  else if (moist > 0.22) biome = "sakura";
+
+  // Smoothly sculpt the central Mythic Sanctuary basin & monument plateaus (r < 105)
+  const distOrigin = Math.hypot(wx, wz);
+  if (distOrigin < 108) {
+    const sanctuaryBlend = 1 - smoothstep(66, 106, distOrigin);
+
+    // 1) Sacred Lagoon under the Floating Pantheon centered at (0, -24)
+    let mythicH = 30 + perlin.fbm2(wx * 0.025, wz * 0.025, 2) * 3.5;
+    const dLagoon = Math.hypot(wx * 0.92, (wz + 22) * 0.95);
+    if (dLagoon < 36) {
+      const t = 1 - smoothstep(18, 35, dLagoon);
+      mythicH = mythicH * (1 - t) + 17 * t;
+    }
+
+    // 2) Southern Atlantis Bay around (0, 38)
+    const dBay = Math.hypot(wx * 0.85, (wz - 40) * 0.9);
+    if (dBay < 26) {
+      const t = 1 - smoothstep(10, 25, dBay);
+      mythicH = mythicH * (1 - t) + 19 * t;
+    }
+
+    // 3) Spawn Starlight Causeway peninsula at (0, 17)
+    const dPlaza = Math.hypot(wx * 0.85, (wz - 17) * 1.15);
+    if (dPlaza < 18) {
+      const t = 1 - smoothstep(8, 18, dPlaza);
+      mythicH = mythicH * (1 - t) + 29 * t;
+    }
+
+    // 4) Yggdrasil Sacred Knoll at (-44, -10)
+    const dTree = Math.hypot(wx + 44, wz + 10);
+    if (dTree < 26) {
+      const t = 1 - smoothstep(10, 25, dTree);
+      mythicH = mythicH * (1 - t) + 32 * t;
+    }
+
+    // 5) Obsidian Dragon Volcanic Plateau at (44, -16)
+    const dDrag = Math.hypot(wx - 44, wz + 16);
+    if (dDrag < 26) {
+      const t = 1 - smoothstep(11, 25, dDrag);
+      mythicH = mythicH * (1 - t) + 33 * t;
+    }
+
+    // 6) Celestial Observatory Hill at (-28, 38)
+    const dObs = Math.hypot(wx + 28, wz - 38);
+    if (dObs < 18) {
+      const t = 1 - smoothstep(6, 17, dObs);
+      mythicH = mythicH * (1 - t) + 34 * t;
+    }
+
+    h = h * (1 - sanctuaryBlend) + mythicH * sanctuaryBlend;
+    if (sanctuaryBlend > 0.45) {
+      biome = dDrag < 22 ? "volcanic" : (dTree < 24 ? "sakura" : "meadow");
+    }
+  }
+
+  return { height: Math.max(6, Math.min(CHUNK_HEIGHT - 12, Math.round(h))), biome };
+}
+
+/* ============================================================================
+ * 5. DETERMINISTIC MYTHIC ARCHITECTURE STAMPERS (CROSS-CHUNK SAFE)
+ * ============================================================================ */
+function makeChunkWriter(cx, cz, blocks) {
+  const x0 = cx * CHUNK_SIZE, z0 = cz * CHUNK_SIZE;
+  const x1 = x0 + CHUNK_SIZE - 1, z1 = z0 + CHUNK_SIZE - 1;
+  return {
+    x0, z0, x1, z1,
+    overlaps(minX, maxX, minZ, maxZ) {
+      return !(maxX < x0 || minX > x1 || maxZ < z0 || minZ > z1);
+    },
+    set(wx, wy, wz, id) {
+      if (wx < x0 || wx > x1 || wz < z0 || wz > z1 || wy < 1 || wy >= CHUNK_HEIGHT) return;
+      blocks[((wy << 8) | ((wz - z0) << 4) | (wx - x0))] = id;
+    },
+    get(wx, wy, wz) {
+      if (wx < x0 || wx > x1 || wz < z0 || wz > z1 || wy < 0 || wy >= CHUNK_HEIGHT) return B.AIR;
+      return blocks[((wy << 8) | ((wz - z0) << 4) | (wx - x0))];
+    },
+    box(ax, ay, az, bx, by, bz, id) {
+      const sx = Math.max(ax, x0), ex = Math.min(bx, x1);
+      const sz = Math.max(az, z0), ez = Math.min(bz, z1);
+      const sy = Math.max(1, ay), ey = Math.min(CHUNK_HEIGHT - 1, by);
+      for (let y = sy; y <= ey; y++)
+        for (let z = sz; z <= ez; z++)
+          for (let x = sx; x <= ex; x++)
+            blocks[((y << 8) | ((z - z0) << 4) | (x - x0))] = id;
+    },
+    sphere(cxp, cyp, czp, r, id, onlyAir = false) {
+      const ir = Math.ceil(r);
+      const sx = Math.max(Math.floor(cxp - ir), x0), ex = Math.min(Math.ceil(cxp + ir), x1);
+      const sz = Math.max(Math.floor(czp - ir), z0), ez = Math.min(Math.ceil(czp + ir), z1);
+      const sy = Math.max(1, Math.floor(cyp - ir)), ey = Math.min(CHUNK_HEIGHT - 1, Math.ceil(cyp + ir));
+      const r2 = r * r;
+      for (let y = sy; y <= ey; y++) {
+        const dy = y - cyp;
+        for (let z = sz; z <= ez; z++) {
+          const dz = z - czp;
+          for (let x = sx; x <= ex; x++) {
+            const dx = x - cxp;
+            if (dx * dx + dy * dy + dz * dz <= r2) {
+              const idx = ((y << 8) | ((z - z0) << 4) | (x - x0));
+              if (!onlyAir || blocks[idx] === B.AIR) blocks[idx] = id;
+            }
+          }
+        }
+      }
+    }
+  };
+}
+
+// WONDER 1: Floating Pantheon of Aetherium + Waterfalls + Starlight Skybridge
+function stampFloatingPantheon(w) {
+  const cx = 0, cz = -34, baseY = 56;
+
+  // A. Sculpted Floating Sky Island + Waterfalls
+  if (w.overlaps(cx - 25, cx + 25, cz - 25, cz + 25)) {
+    const sx = Math.max(cx - 24, w.x0), ex = Math.min(cx + 24, w.x1);
+    const sz = Math.max(cz - 24, w.z0), ez = Math.min(cz + 24, w.z1);
+    for (let z = sz; z <= ez; z++) {
+      for (let x = sx; x <= ex; x++) {
+        const dx = x - cx, dz = z - cz;
+        const dist = Math.hypot(dx, dz);
+        const angle = Math.atan2(dz, dx);
+        const rim = 21.5 + perlin.noise2(Math.cos(angle) * 2.2, Math.sin(angle) * 2.2) * 3.4;
+        if (dist > rim) continue;
+
+        const norm = 1 - dist / rim;
+        const crag = perlin.fbm2(x * 0.14, z * 0.14, 2) * 5.5;
+        const depth = Math.floor(Math.pow(norm, 0.72) * 20 + crag * norm + 2);
+        const bottomY = Math.max(33, baseY - depth);
+
+        for (let y = bottomY; y <= baseY; y++) {
+          let blk = B.STONE;
+          if (y === baseY) {
+            if (dist < 14.5) blk = ((Math.abs(dx) === 13 || Math.abs(dz) === 13) ? B.GOLD : B.MARBLE);
+            else if (dist < 16.5) blk = B.ANCIENT_BRICK;
+            else blk = B.GRASS;
+          } else if (y === baseY - 1 && dist >= 16.5) {
+            blk = B.DIRT;
+          } else if (y < bottomY + 3 && (hash2i(x, z, y) > 0.78 || dist < 3.2)) {
+            blk = B.AETHER_CRYSTAL; // glowing floating crystal veins underneath!
+          } else if (y < baseY - 7 && hash2i(x, y, z) > 0.85) {
+            blk = B.RUNE_OBSIDIAN;
+          }
+          w.set(x, y, z, blk);
+        }
+
+        // 4 Diagonal Sacred Water Channels & Cascading Waterfalls into Lagoon!
+        const isDiagChannel = (Math.abs(Math.abs(dx) - Math.abs(dz)) <= 1) && dist > 11.5 && dist <= rim;
+        if (isDiagChannel) {
+          w.set(x, baseY, z, B.WATER);
+          if (dist > rim - 2.3) {
+            for (let y = SEA_LEVEL; y <= baseY; y++) w.set(x, y, z, B.WATER);
+          }
+        }
+      }
+    }
+    // Central underside Aether Crystal Heart spire
+    for (let y = 29; y <= 36; y++) {
+      const r = y < 32 ? 0 : (y < 34 ? 1 : 2);
+      for (let dz = -r; dz <= r; dz++)
+        for (let dx = -r; dx <= r; dx++)
+          if (Math.abs(dx) + Math.abs(dz) <= r)
+            w.set(cx + dx, y, cz + dz, (dx === 0 && dz === 0 && y === 29) ? B.LANTERN : B.AETHER_CRYSTAL);
+    }
+  }
+
+  // B. Grand Olympian Temple + Crystal Dome + Floating Golden Halo + Astral Portal
+  if (w.overlaps(cx - 17, cx + 17, cz - 17, cz + 17)) {
+    // 3-tier stepped Marble & Gold plinth
+    w.box(cx - 11, baseY + 1, cz - 12, cx + 11, baseY + 1, cz + 12, B.MARBLE);
+    w.box(cx - 10, baseY + 2, cz - 11, cx + 10, baseY + 2, cz + 11, B.MARBLE);
+    w.box(cx - 9,  baseY + 3, cz - 10, cx + 9,  baseY + 3, cz + 10, B.MARBLE);
+    // Gold & Crystal temple floor inlays
+    for (let z = cz - 9; z <= cz + 9; z++) {
+      for (let x = cx - 8; x <= cx + 8; x++) {
+        const d = Math.hypot(x - cx, z - cz);
+        if (Math.abs(d - 5.2) < 0.7) w.set(x, baseY + 3, z, B.GOLD);
+        else if (d < 2.2) w.set(x, baseY + 3, z, B.AETHER_CRYSTAL);
+      }
+    }
+
+    // 16 Towering Fluted Marble Pillars around perimeter
+    const pillarCoords = [];
+    for (let x = -8; x <= 8; x += 4) {
+      pillarCoords.push([cx + x, cz - 9], [cx + x, cz + 9]);
+    }
+    for (let z = -5; z <= 5; z += 5) {
+      pillarCoords.push([cx - 8, cz + z], [cx + 8, cz + z]);
+    }
+    for (const [px, pz] of pillarCoords) {
+      w.set(px, baseY + 4, pz, B.GOLD);
+      for (let y = baseY + 5; y <= baseY + 14; y++) w.set(px, y, pz, B.MARBLE_PILLAR);
+      w.set(px, baseY + 15, pz, B.GOLD);
+    }
+
+    // Corner Celestial Lantern Braziers on Plinth
+    for (const sx of [-10, 10]) for (const sz of [-11, 11]) {
+      w.set(cx + sx, baseY + 3, cz + sz, B.MARBLE_PILLAR);
+      w.set(cx + sx, baseY + 4, cz + sz, B.LANTERN);
+    }
+
+    // Ornate Entablature Ring (y = baseY + 16..17)
+    for (let z = cz - 10; z <= cz + 10; z++) {
+      for (let x = cx - 9; x <= cx + 9; x++) {
+        const edge = Math.abs(x - cx) >= 8 || Math.abs(z - cz) >= 9;
+        if (!edge) continue;
+        w.set(x, baseY + 16, z, ((x + z) % 3 === 0) ? B.GOLD : B.MARBLE);
+        if (Math.abs(x - cx) === 9 || Math.abs(z - cz) === 10) {
+          w.set(x, baseY + 17, z, ((x + z) % 4 === 0) ? B.LANTERN : B.MARBLE);
+        }
+      }
+    }
+
+    // Soaring Ribbed Golden & Aether Crystal Celestial Dome (y = baseY+17 .. baseY+27)
+    const domeY = baseY + 17;
+    const domeR = 9.2;
+    for (let dy = 0; dy <= 10; dy++) {
+      const y = domeY + dy;
+      for (let dz = -10; dz <= 10; dz++) {
+        for (let dx = -10; dx <= 10; dx++) {
+          const d3 = Math.hypot(dx, dy * 1.05, dz);
+          if (d3 >= domeR - 0.9 && d3 <= domeR + 0.35) {
+            const isRib = (Math.abs(dx) <= 1 || Math.abs(dz) <= 1 || Math.abs(Math.abs(dx) - Math.abs(dz)) <= 1);
+            const blk = isRib ? B.GOLD : ((dy % 2 === 0) ? B.MARBLE : B.AETHER_CRYSTAL);
+            w.set(cx + dx, y, cz + dz, blk);
+          }
+        }
+      }
+    }
+    // Crown Spire
+    for (let y = domeY + 10; y <= domeY + 16; y++) {
+      w.set(cx, y, cz, (y >= domeY + 14) ? B.AETHER_CRYSTAL : B.GOLD);
+    }
+    w.set(cx, domeY + 17, cz, B.LANTERN);
+
+    // Floating Celestial Halo Ring orbiting the Dome!
+    for (let a = 0; a < 96; a++) {
+      const ang = (a / 96) * Math.PI * 2;
+      const hx = Math.round(cx + Math.cos(ang) * 14.5);
+      const hz = Math.round(cz + Math.sin(ang) * 14.5);
+      const hy = Math.round(domeY + 9 + Math.sin(ang * 2) * 2.2);
+      w.set(hx, hy, hz, (a % 6 === 0) ? B.AETHER_CRYSTAL : B.GOLD);
+    }
+
+    // Monumental Astral Portal inside the Temple Sanctum (z = cz - 5)
+    const pz = cz - 5;
+    for (let y = baseY + 4; y <= baseY + 12; y++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const frame = Math.abs(dx) === 3 || y === baseY + 4 || y === baseY + 12;
+        if (frame) {
+          w.set(cx + dx, y, pz, (Math.abs(dx) === 3 && (y === baseY + 4 || y === baseY + 12)) ? B.GOLD : B.RUNE_OBSIDIAN);
+        } else {
+          w.set(cx + dx, y, pz, B.PORTAL);
+        }
+      }
+    }
+  }
+
+  // C. Sweeping Walkable Starlight Skybridge from Spawn Plaza (z=13, y=29) up to Pantheon (z=-15, y=56)
+  // Strictly <= 1 block elevation per Z step so walking straight up is effortless!
+  if (w.overlaps(-6, 6, -16, 14)) {
+    for (let z = -15; z <= 13; z++) {
+      const t = (13 - z) / 28; // 0 at south spawn -> 1 at north pantheon
+      const y = Math.round(29 + t * 27);
+      for (let x = -3; x <= 3; x++) {
+        // Clear headroom above steps
+        for (let cy = y + 1; cy <= y + 6; cy++) w.set(x, cy, z, B.AIR);
+        // Deck
+        const deckBlk = (x === 0) ? B.AETHER_CRYSTAL : (Math.abs(x) === 3 ? B.GOLD : B.MARBLE);
+        w.set(x, y, z, deckBlk);
+        w.set(x, y - 1, z, B.ANCIENT_BRICK);
+        // Side balustrades & Celestial Lantern posts
+        if (Math.abs(x) === 3) {
+          w.set(x, y + 1, z, B.MARBLE_PILLAR);
+          if (Math.abs(z) % 5 === 0) {
+            w.set(x, y + 2, z, B.MARBLE_PILLAR);
+            w.set(x, y + 3, z, B.LANTERN);
+          }
+        }
+      }
+      // Graceful support pylons rising from the Sacred Lagoon floor
+      if (z === 4 || z === -5) {
+        for (const px of [-3, 3]) {
+          for (let py = 16; py < y - 1; py++) {
+            w.set(px, py, z, (py % 6 === 0) ? B.GOLD : B.MARBLE_PILLAR);
+          }
+        }
+      }
+    }
+  }
+}
+
+// WONDER 2: Yggdrasil — The Luminous World Tree (-44, y=32, -10)
+function stampYggdrasil(w) {
+  const cx = -44, cz = -10, baseY = 32;
+  if (!w.overlaps(cx - 24, cx + 24, cz - 24, cz + 24)) return;
+
+  // Standing Rune Stones & Crystal Shrine Ring around the roots
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const rx = Math.round(cx + Math.cos(ang) * 15);
+    const rz = Math.round(cz + Math.sin(ang) * 15);
+    for (let y = baseY - 2; y <= baseY + 5; y++) {
+      w.set(rx, y, rz, y === baseY + 5 ? B.AETHER_CRYSTAL : (y === baseY + 4 ? B.RUNE_OBSIDIAN : B.ANCIENT_BRICK));
+    }
+  }
+
+  // 8 Massive Curving Gnarled Roots
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2 + 0.25;
+    for (let s = 0; s <= 15; s++) {
+      const t = s / 15;
+      const rx = cx + Math.cos(ang) * (2.5 + s * 0.9);
+      const rz = cz + Math.sin(ang) * (2.5 + s * 0.9);
+      const ry = baseY + 6 * Math.pow(1 - t, 1.5) - t * 2.5 + Math.sin(t * Math.PI) * 2.2;
+      const rad = 2.1 * (1 - t * 0.55);
+      w.sphere(rx, ry, rz, rad, (s % 5 === 0 && t > 0.3) ? B.AETHER_CRYSTAL : B.OAK_LOG);
+    }
+  }
+
+  // Colossal Braided Trunk (y = baseY .. baseY + 38)
+  for (let y = baseY - 2; y <= baseY + 38; y++) {
+    const t = Math.max(0, (y - baseY) / 38);
+    const twist = t * 2.2;
+    const ox = Math.sin(twist) * 1.3;
+    const oz = Math.cos(twist) * 1.1;
+    const rad = 4.4 * (1 - t * 0.48) + Math.pow(Math.max(0, 0.25 - t), 2) * 20;
+    const ir = Math.ceil(rad);
+    for (let dz = -ir; dz <= ir; dz++) {
+      for (let dx = -ir; dx <= ir; dx++) {
+        const d = Math.hypot(dx - ox, dz - oz);
+        if (d <= rad) {
+          // Glowing heartwood core inside lower hollow shrine
+          if (y >= baseY + 1 && y <= baseY + 6 && d < 2.2) {
+            w.set(cx + dx, y, cz + dz, (dx === 0 && dz === 0 && y === baseY + 2) ? B.LANTERN : B.AIR);
+          } else {
+            const barkGlow = (d > rad - 0.8 && Math.abs(Math.sin(y * 0.35 + Math.atan2(dz, dx) * 3)) > 0.94);
+            w.set(cx + dx, y, cz + dz, barkGlow ? B.AETHER_CRYSTAL : B.OAK_LOG);
+          }
+        }
+      }
+    }
+  }
+  // Entrance doorway into trunk shrine facing East (+X)
+  w.box(cx + 2, baseY + 1, cz - 1, cx + 7, baseY + 5, cz + 1, B.AIR);
+
+  // 8 Sweeping Mighty Boughs + Luminous Sakura & Emerald Ethereal Canopy
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const len = 14 + (i % 2) * 3;
+    for (let s = 1; s <= len; s++) {
+      const t = s / len;
+      const bx = cx + Math.cos(ang) * (2 + s * 0.95);
+      const bz = cz + Math.sin(ang) * (2 + s * 0.95);
+      const by = baseY + 32 + s * 0.52 + Math.sin(t * Math.PI) * 3.2;
+      w.sphere(bx, by, bz, Math.max(1.1, 2.2 - t * 1.1), B.OAK_LOG);
+
+      // Foliage clusters along outer branch
+      if (s >= len - 6 && s % 3 === 0) {
+        const leafId = (i % 3 === 0) ? B.OAK_LEAVES : B.SAKURA_LEAVES;
+        w.sphere(bx, by + 2.5, bz, 5.2, leafId, true);
+      }
+    }
+    // Hanging Crystal Blossom Vines under canopy tips
+    const vx = Math.round(cx + Math.cos(ang) * (len + 1));
+    const vz = Math.round(cz + Math.sin(ang) * (len + 1));
+    const vyTop = Math.round(baseY + 32 + len * 0.5);
+    for (let y = vyTop - 7; y <= vyTop; y++) {
+      w.set(vx, y, vz, (y === vyTop - 7) ? B.LANTERN : ((y % 2 === 0) ? B.AETHER_CRYSTAL : B.SAKURA_LEAVES));
+    }
+  }
+  // Grand Crown Canopy Dome
+  w.sphere(cx, baseY + 44, cz, 10.5, B.SAKURA_LEAVES, true);
+  w.sphere(cx + 5, baseY + 41, cz - 4, 7.2, B.SAKURA_LEAVES, true);
+  w.sphere(cx - 5, baseY + 41, cz + 4, 7.2, B.OAK_LEAVES, true);
+  w.set(cx, baseY + 55, cz, B.AETHER_CRYSTAL);
+  w.set(cx, baseY + 56, cz, B.LANTERN);
+}
+
+// WONDER 3: Obsidian Dragon Sanctum & Colossal Mythic Dragon Sculpture (44, y=33, -16)
+function stampDragonSanctum(w) {
+  const cx = 44, cz = -16, baseY = 33;
+  if (!w.overlaps(cx - 24, cx + 24, cz - 24, cz + 24)) return;
+
+  // Volcanic Obsidian Amphitheater & Magma Moat
+  const sx = Math.max(cx - 19, w.x0), ex = Math.min(cx + 19, w.x1);
+  const sz = Math.max(cz - 19, w.z0), ez = Math.min(cz + 19, w.z1);
+  for (let z = sz; z <= ez; z++) {
+    for (let x = sx; x <= ex; x++) {
+      const d = Math.hypot(x - cx, z - cz);
+      if (d > 18.5) continue;
+      for (let y = baseY - 3; y <= baseY; y++) {
+        let blk = B.OBSIDIAN;
+        if (y === baseY) {
+          if (d > 11.2 && d < 14.2) blk = B.MAGMA; // glowing magma moat
+          else if (d < 5.5) blk = ((Math.abs(x - cx) + Math.abs(z - cz)) % 2 === 0) ? B.RUNE_OBSIDIAN : B.OBSIDIAN;
+          else if (Math.abs(d - 16.5) < 1.1) blk = B.RUNE_OBSIDIAN;
+        }
+        w.set(x, y, z, blk);
+      }
+      // Clear above plaza
+      for (let y = baseY + 1; y <= baseY + 5; y++) w.set(x, y, z, B.AIR);
+    }
+  }
+
+  // 6 Curving Volcanic Obsidian Horn Spires around perimeter
+  for (let i = 0; i < 6; i++) {
+    const ang = (i / 6) * Math.PI * 2 + 0.3;
+    for (let h = 0; h <= 22; h++) {
+      const t = h / 22;
+      const r = 17.5 - Math.pow(t, 1.4) * 5.2;
+      const px = cx + Math.cos(ang) * r;
+      const pz = cz + Math.sin(ang) * r;
+      const rad = Math.max(0.8, 2.2 * (1 - t * 0.65));
+      w.sphere(px, baseY + h, pz, rad, (h % 5 === 0) ? B.RUNE_OBSIDIAN : B.OBSIDIAN);
+      if (h === 22) w.set(Math.round(px), baseY + h + 1, Math.round(pz), B.MAGMA);
+    }
+  }
+
+  // Central Altar Pedestal
+  w.box(cx - 3, baseY + 1, cz - 3, cx + 3, baseY + 2, cz + 3, B.OBSIDIAN);
+  w.box(cx - 2, baseY + 3, cz - 2, cx + 2, baseY + 3, cz + 2, B.GOLD);
+  w.set(cx, baseY + 4, cz, B.MAGMA);
+
+  // COLOSSAL VOXEL MYTHIC DRAGON SCULPTURE!
+  // 1) Coiled serpentine body rising from altar to head overlooking the lagoon (-X)
+  for (let s = 0; s <= 46; s++) {
+    const t = s / 46;
+    const ang = t * Math.PI * 2.15 + 0.5;
+    const coilR = 7.2 * (1 - t * 0.62);
+    const bx = cx + Math.cos(ang) * coilR - t * 3.5;
+    const bz = cz + Math.sin(ang) * coilR;
+    const by = baseY + 3 + t * 22;
+    const segR = 1.3 + Math.sin(t * Math.PI) * 1.35;
+    w.sphere(bx, by, bz, segR, (s % 4 === 0) ? B.RUNE_OBSIDIAN : B.OBSIDIAN);
+    // Golden dorsal ridge spines
+    w.set(Math.round(bx), Math.round(by + segR + 0.4), Math.round(bz), (s % 2 === 0) ? B.GOLD : B.MAGMA);
+  }
+
+  // 2) Sweeping Outstretched Dragon Wings (Left & Right along Z)
+  const shoulderX = cx - 2, shoulderY = baseY + 18, shoulderZ = cz;
+  for (const side of [-1, 1]) {
+    for (let u = 1; u <= 13; u++) {
+      const wt = u / 13;
+      const wz = shoulderZ + side * u;
+      const wx = shoulderX + Math.sin(wt * Math.PI * 0.8) * 3.5;
+      const topY = shoulderY + Math.sin(wt * Math.PI * 0.72) * 9.5 + wt * 2;
+      // Upper wing bone (Gold + Rune Obsidian)
+      w.set(Math.round(wx), Math.round(topY), Math.round(wz), B.GOLD);
+      w.set(Math.round(wx), Math.round(topY) - 1, Math.round(wz), B.RUNE_OBSIDIAN);
+      // Wing membrane hanging down
+      const span = Math.round(3 + Math.sin(wt * Math.PI) * 5);
+      for (let d = 2; d <= span; d++) {
+        const my = Math.round(topY - d);
+        const mx = Math.round(wx + d * 0.35);
+        w.set(mx, my, Math.round(wz), (d === span && u % 2 === 0) ? B.MAGMA : B.OBSIDIAN);
+      }
+    }
+  }
+
+  // 3) Sculpted Horned Dragon Head facing West (-X) toward the Pantheon & Lagoon!
+  const hx = cx - 6, hy = baseY + 25, hz = cz;
+  w.box(hx - 4, hy - 1, hz - 2, hx + 1, hy + 2, hz + 2, B.OBSIDIAN); // cranium & snout
+  w.box(hx - 6, hy - 1, hz - 1, hx - 4, hy + 1, hz + 1, B.OBSIDIAN); // jaw tip
+  w.set(hx - 2, hy + 1, hz - 2, B.AETHER_CRYSTAL); // glowing left eye
+  w.set(hx - 2, hy + 1, hz + 2, B.AETHER_CRYSTAL); // glowing right eye
+  // Swept-back Golden Dragon Horns
+  for (let k = 0; k < 5; k++) {
+    w.set(hx + 1 + k, hy + 2 + k, hz - 2 - (k >> 1), B.GOLD);
+    w.set(hx + 1 + k, hy + 2 + k, hz + 2 + (k >> 1), B.GOLD);
+  }
+  // Suspended Dragon-Fire Plume arcing out from jaws!
+  for (let f = 1; f <= 10; f++) {
+    const fx = hx - 6 - f;
+    const fy = hy - f * 0.25 + Math.sin(f * 0.6) * 0.8;
+    const fz = hz + Math.cos(f * 0.7) * 0.6;
+    const r = f < 4 ? 0.9 : 1.45;
+    w.sphere(fx, fy, fz, r, (f % 2 === 0) ? B.MAGMA : B.LANTERN);
+  }
+}
+
+// WONDER 4: Spawn Starlight Plaza + Twin Astral Obelisks + Sunken Atlantis Gate
+function stampPlazaAndAtlantis(w) {
+  // A. Spawn Starlight Compass Plaza at (0, y=29, z=17)
+  if (w.overlaps(-15, 15, 11, 26)) {
+    const cx = 0, cz = 17, py = 29;
+    const sx = Math.max(-14, w.x0), ex = Math.min(14, w.x1);
+    const sz = Math.max(11, w.z0), ez = Math.min(25, w.z1);
+    for (let z = sz; z <= ez; z++) {
+      for (let x = sx; x <= ex; x++) {
+        const d = Math.hypot(x - cx, z - cz);
+        if (d <= 8.8) {
+          for (let y = 24; y < py; y++) w.set(x, y, z, B.ANCIENT_BRICK);
+          let top = B.MARBLE;
+          if (Math.abs(d - 8.2) < 0.75) top = B.GOLD;
+          else if (Math.abs(d - 4.5) < 0.65) top = B.PRISMARINE;
+          else if (x === 0 || z === cz) top = B.AETHER_CRYSTAL;
+          w.set(x, py, z, top);
+          for (let y = py + 1; y <= py + 6; y++) w.set(x, y, z, B.AIR);
+        }
+      }
+    }
+
+    // Twin Astral Obelisks flanking the plaza at (-12, 16) and (+12, 16)
+    for (const ox of [-12, 12]) {
+      const oz = 16;
+      w.box(ox - 2, py - 4, oz - 2, ox + 2, py, oz + 2, B.PRISMARINE);
+      w.box(ox - 1, py + 1, oz - 1, ox + 1, py + 2, oz + 1, B.GOLD);
+      for (let h = 3; h <= 17; h++) {
+        const blk = (h % 4 === 0) ? B.RUNE_OBSIDIAN : B.PRISMARINE;
+        if (h <= 12) {
+          w.box(ox - 1, py + h, oz - 1, ox + 1, py + h, oz + 1, blk);
+        } else {
+          w.set(ox, py + h, oz, blk);
+        }
+      }
+      // Floating Crystal Beacon above obelisk tip!
+      w.set(ox, py + 20, oz, B.AETHER_CRYSTAL);
+      w.set(ox, py + 21, oz, B.LANTERN);
+      w.set(ox, py + 22, oz, B.AETHER_CRYSTAL);
+      w.set(ox - 1, py + 21, oz, B.GOLD);
+      w.set(ox + 1, py + 21, oz, B.GOLD);
+      w.set(ox, py + 21, oz - 1, B.GOLD);
+      w.set(ox, py + 21, oz + 1, B.GOLD);
+    }
+  }
+
+  // B. Sunken Atlantis Triumphal Archway standing in the southern bay (0, y, 36)
+  if (w.overlaps(-15, 15, 32, 41)) {
+    const gz = 36, base = 20, topY = 42;
+    // 4 Massive Pier Bases rising from seafloor
+    for (const px of [-11, -5, 5, 11]) {
+      w.box(px - 2, base - 2, gz - 2, px + 2, 29, gz + 2, B.PRISMARINE);
+      for (let y = 30; y <= topY - 4; y++) {
+        w.box(px - 1, y, gz - 1, px + 1, y, gz + 1, (y % 5 === 0) ? B.GOLD : B.MARBLE_PILLAR);
+      }
+    }
+    // Grand Central Arch & Side Arches
+    for (let x = -12; x <= 12; x++) {
+      for (let z = gz - 2; z <= gz + 2; z++) {
+        // Crown entablature
+        w.set(x, topY - 3, z, B.PRISMARINE);
+        w.set(x, topY - 2, z, (Math.abs(x) % 2 === 0) ? B.GOLD : B.MARBLE);
+        w.set(x, topY - 1, z, B.PRISMARINE);
+      }
+      // Pediment & Trident Finial
+      const pedH = Math.max(0, 5 - Math.floor(Math.abs(x) / 2.5));
+      for (let h = 0; h < pedH; h++) {
+        w.set(x, topY + h, gz, (h === pedH - 1) ? B.GOLD : B.PRISMARINE);
+      }
+    }
+    // Glowing Atlantis Sea-Trident Emblem at Crown
+    for (let y = topY + 5; y <= topY + 11; y++) w.set(0, y, gz, B.GOLD);
+    for (const dx of [-2, 2]) {
+      w.set(dx, topY + 8, gz, B.GOLD);
+      w.set(dx, topY + 9, gz, B.GOLD);
+      w.set(dx, topY + 10, gz, B.AETHER_CRYSTAL);
+    }
+    w.set(0, topY + 12, gz, B.AETHER_CRYSTAL);
+    w.set(0, topY + 9, gz, B.LANTERN);
+    // Arch curvature fills
+    for (let x = -4; x <= 4; x++) {
+      const archY = Math.round(33 + Math.sqrt(Math.max(0, 20 - x * x)));
+      for (let y = archY; y <= topY - 4; y++) {
+        w.set(x, y, gz - 1, B.MARBLE);
+        w.set(x, y, gz, B.PRISMARINE);
+        w.set(x, y, gz + 1, B.MARBLE);
+      }
+    }
+  }
+}
+
+// WONDER 5: Celestial Observatory Spire + Orbiting Astrolabe + Satellite Sky Islets
+function stampObservatoryAndSkyIsles(w) {
+  // A. Celestial Observatory Spire at (-28, y=34, 38)
+  const ox = -28, oz = 38, oy = 34;
+  if (w.overlaps(ox - 13, ox + 13, oz - 13, oz + 13)) {
+    // Stepped Circular Tower Body (height 34)
+    for (let h = -3; h <= 30; h++) {
+      const y = oy + h;
+      const rad = h < 4 ? 6.2 : (h < 18 ? 4.8 : 5.4);
+      const ir = Math.ceil(rad);
+      for (let dz = -ir; dz <= ir; dz++) {
+        for (let dx = -ir; dx <= ir; dx++) {
+          const d = Math.hypot(dx, dz);
+          if (d <= rad && d >= rad - 1.35) {
+            const isWin = (h > 6 && h < 26 && h % 6 === 0 && (Math.abs(dx) <= 1 || Math.abs(dz) <= 1));
+            if (isWin) w.set(ox + dx, y, oz + dz, B.LANTERN);
+            else w.set(ox + dx, y, oz + dz, (h % 8 === 0) ? B.GOLD : (h < 5 ? B.ANCIENT_BRICK : B.MARBLE));
+          } else if (d < rad - 1.35 && (h === 0 || h === 18 || h === 29)) {
+            w.set(ox + dx, y, oz + dz, B.PLANKS);
+          } else if (d < rad - 1.35 && h > 0) {
+            w.set(ox + dx, y, oz + dz, B.AIR);
+          }
+        }
+      }
+    }
+    // Glowing Aether Crystal Observatory Dome
+    for (let dy = 0; dy <= 7; dy++) {
+      for (let dz = -6; dz <= 6; dz++) {
+        for (let dx = -6; dx <= 6; dx++) {
+          const d = Math.hypot(dx, dy, dz);
+          if (d >= 4.7 && d <= 5.8) {
+            w.set(ox + dx, oy + 30 + dy, oz + dz, (dx === 0 || dz === 0) ? B.GOLD : B.AETHER_CRYSTAL);
+          }
+        }
+      }
+    }
+    // Intersecting Tilted Golden Astrolabe Rings around the Spire!
+    for (let a = 0; a < 72; a++) {
+      const ang = (a / 72) * Math.PI * 2;
+      const r = 9.5;
+      // Ring 1
+      w.set(Math.round(ox + Math.cos(ang) * r), Math.round(oy + 31 + Math.sin(ang) * 5.5), Math.round(oz + Math.sin(ang) * r * 0.65), (a % 9 === 0) ? B.AETHER_CRYSTAL : B.GOLD);
+      // Ring 2
+      w.set(Math.round(ox + Math.cos(ang) * r * 0.65), Math.round(oy + 31 - Math.sin(ang) * 5.5), Math.round(oz + Math.sin(ang) * r), (a % 9 === 0) ? B.LANTERN : B.GOLD);
+    }
+  }
+
+  // B. 3 Satellite Floating Crystal Sky Islets framing the horizon
+  const islets = [
+    { x: -34, y: 66, z: -48, r: 8.5, shrine: "sakura" },
+    { x:  34, y: 68, z: -46, r: 8.5, shrine: "crystal" },
+    { x:  30, y: 58, z:  28, r: 7.5, shrine: "obelisk" }
+  ];
+  for (const isl of islets) {
+    if (!w.overlaps(isl.x - 11, isl.x + 11, isl.z - 11, isl.z + 11)) continue;
+    const ir = Math.ceil(isl.r);
+    for (let dz = -ir; dz <= ir; dz++) {
+      for (let dx = -ir; dx <= ir; dx++) {
+        const d = Math.hypot(dx, dz);
+        if (d > isl.r) continue;
+        const depth = Math.floor((1 - d / isl.r) * 9 + 1.5);
+        for (let y = isl.y - depth; y <= isl.y; y++) {
+          let blk = y === isl.y ? B.GRASS : (y === isl.y - 1 ? B.DIRT : B.STONE);
+          if (y === isl.y - depth && d < 2.2) blk = B.AETHER_CRYSTAL;
+          w.set(isl.x + dx, y, isl.z + dz, blk);
+        }
+      }
+    }
+    if (isl.shrine === "sakura") {
+      for (let y = 1; y <= 7; y++) w.set(isl.x, isl.y + y, isl.z, B.OAK_LOG);
+      w.sphere(isl.x, isl.y + 8, isl.z, 3.8, B.SAKURA_LEAVES, true);
+      w.set(isl.x, isl.y + 12, isl.z, B.LANTERN);
+    } else if (isl.shrine === "crystal") {
+      w.box(isl.x - 2, isl.y + 1, isl.z - 2, isl.x + 2, isl.y + 1, isl.z + 2, B.MARBLE);
+      for (let y = 2; y <= 9; y++) w.set(isl.x, isl.y + y, isl.z, (y % 2 === 0) ? B.AETHER_CRYSTAL : B.GOLD);
+      w.set(isl.x, isl.y + 10, isl.z, B.LANTERN);
+    } else {
+      for (let y = 1; y <= 8; y++) w.set(isl.x, isl.y + y, isl.z, (y % 3 === 0) ? B.GOLD : B.MARBLE_PILLAR);
+      w.set(isl.x, isl.y + 9, isl.z, B.AETHER_CRYSTAL);
+    }
+  }
+}
+
+// Procedural Trees & Infinite Distant Mythic Sky Isles / Shrines
+function stampInfiniteWildernessDetails(w, cx, cz) {
+  const x0 = cx * CHUNK_SIZE, z0 = cz * CHUNK_SIZE;
+  // Deterministic tree & ruin placement inside chunk
+  for (let lz = 2; lz <= 13; lz += 3) {
+    for (let lx = 2; lx <= 13; lx += 3) {
+      const wx = x0 + lx, wz = z0 + lz;
+      // Keep central mythic monuments unobstructed
+      if (Math.hypot(wx, wz + 22) < 35) continue;
+      if (Math.hypot(wx, wz - 17) < 20) continue;
+      if (Math.hypot(wx + 44, wz + 10) < 25) continue;
+      if (Math.hypot(wx - 44, wz + 16) < 24) continue;
+      if (Math.hypot(wx, wz - 36) < 18) continue;
+      if (Math.hypot(wx + 28, wz - 38) < 16) continue;
+
+      const r = hash2i(wx, wz, 907);
+      const { height, biome } = sampleTerrain(wx, wz);
+      if (height <= SEA_LEVEL + 1 || height > 74) continue;
+
+      if (biome === "meadow" || biome === "sakura") {
+        if (r > 0.90) {
+          const th = 4 + ((wx * 7 + wz * 13) & 3);
+          const leaf = (biome === "sakura" || r > 0.975) ? B.SAKURA_LEAVES : B.OAK_LEAVES;
+          for (let y = 1; y <= th; y++) w.set(wx, height + y, wz, B.OAK_LOG);
+          for (let dy = -1; dy <= 2; dy++) {
+            const rad = dy === 2 ? 1 : 2;
+            for (let dz = -rad; dz <= rad; dz++) {
+              for (let dx = -rad; dx <= rad; dx++) {
+                if (Math.abs(dx) === rad && Math.abs(dz) === rad && dy >= 1) continue;
+                if (w.get(wx + dx, height + th + dy, wz + dz) === B.AIR) {
+                  w.set(wx + dx, height + th + dy, wz + dz, leaf);
+                }
+              }
+            }
+          }
+        }
+      } else if (biome === "frost" && r > 0.94) {
+        // Tall crystalline frost pine
+        const th = 6 + ((wx + wz) & 3);
+        for (let y = 1; y <= th; y++) w.set(wx, height + y, wz, B.OAK_LOG);
+        for (let dy = 2; dy <= th + 1; dy++) {
+          const rad = dy > th - 1 ? 1 : 2;
+          for (let dz = -rad; dz <= rad; dz++)
+            for (let dx = -rad; dx <= rad; dx++)
+              if (Math.abs(dx) + Math.abs(dz) <= rad && w.get(wx + dx, height + dy, wz + dz) === B.AIR)
+                w.set(wx + dx, height + dy, wz + dz, (dy === th + 1) ? B.ICE : B.OAK_LEAVES);
+        }
+      }
+    }
+  }
+
+  // Far-out infinite world: occasional Mythic Ancient Shrines & Drifting Sky Isles!
+  if (Math.hypot(x0 + 8, z0 + 8) > 100) {
+    const chHash = hash2i(cx, cz, 4099);
+    if (chHash > 0.955) {
+      // Procedural Mini Floating Aether Isle high in the infinite sky!
+      const ix = x0 + 8, iz = z0 + 8, iy = 72 + Math.floor(hash2i(cx, cz, 4111) * 16);
+      const rad = 5.5;
+      for (let dz = -6; dz <= 6; dz++) {
+        for (let dx = -6; dx <= 6; dx++) {
+          const d = Math.hypot(dx, dz);
+          if (d > rad) continue;
+          const dep = Math.floor((1 - d / rad) * 6 + 1);
+          for (let y = iy - dep; y <= iy; y++) {
+            w.set(ix + dx, y, iz + dz, y === iy ? B.GRASS : (y === iy - dep && d < 1.8 ? B.AETHER_CRYSTAL : B.STONE));
+          }
+        }
+      }
+      w.set(ix, iy + 1, iz, B.MARBLE_PILLAR);
+      w.set(ix, iy + 2, iz, B.MARBLE_PILLAR);
+      w.set(ix, iy + 3, iz, B.LANTERN);
+    } else if (chHash < 0.03) {
+      // Procedural Ancient Marble Ruin Pavilion on the ground
+      const rx = x0 + 8, rz = z0 + 8;
+      const { height } = sampleTerrain(rx, rz);
+      if (height > SEA_LEVEL + 2 && height < 62) {
+        w.box(rx - 3, height, rz - 3, rx + 3, height, rz + 3, B.ANCIENT_BRICK);
+        for (const dx of [-2, 2]) for (const dz of [-2, 2]) {
+          for (let y = 1; y <= 5; y++) w.set(rx + dx, height + y, rz + dz, B.MARBLE_PILLAR);
+        }
+        w.box(rx - 2, height + 6, rz - 2, rx + 2, height + 6, rz + 2, B.MARBLE);
+        w.set(rx, height + 1, rz, B.GOLD);
+        w.set(rx, height + 2, rz, B.AETHER_CRYSTAL);
+      }
+    }
+  }
+}
+
+/* ============================================================================
+ * 6. CHUNK STORAGE, GENERATION & FAST VOXEL MESHING (WITH AO + BLOCK LIGHT!)
+ * ============================================================================ */
+const chunks = new Map(); // "cx,cz" -> Chunk
+let renderDistance = 6;
+
+function chunkKey(cx, cz) { return cx + "," + cz; }
+
+function createChunk(cx, cz) {
+  const blocks = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
+  const x0 = cx * CHUNK_SIZE, z0 = cz * CHUNK_SIZE;
+  const nearSanctuary = Math.hypot(x0 + 8, z0 + 8) < 92;
+
+  // 1. Base Perlin Terrain + Subterranean Caves & Gold Ore
+  for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+    const wz = z0 + lz;
+    for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+      const wx = x0 + lx;
+      const { height, biome } = sampleTerrain(wx, wz);
+
+      for (let y = 0; y < CHUNK_HEIGHT; y++) {
+        const idx = (y << 8) | (lz << 4) | lx;
+        if (y === 0) {
+          blocks[idx] = B.BEDROCK;
+        } else if (y <= height) {
+          // 3D Perlin caves (avoid breaking sanctuary structures)
+          if (!nearSanctuary && y > 4 && y < height - 4 && perlin.noise3(wx * 0.065, y * 0.085, wz * 0.065) > 0.37) {
+            blocks[idx] = B.AIR;
+            continue;
+          }
+          if (y === height) {
+            if (height < SEA_LEVEL + 1) blocks[idx] = B.SAND;
+            else if (biome === "desert") blocks[idx] = B.SAND;
+            else if (biome === "frost") blocks[idx] = B.SNOW;
+            else if (biome === "volcanic") blocks[idx] = B.OBSIDIAN;
+            else blocks[idx] = B.GRASS;
+          } else if (y >= height - 3) {
+            blocks[idx] = (biome === "desert" || height < SEA_LEVEL + 1) ? B.SAND : (biome === "volcanic" ? B.OBSIDIAN : B.DIRT);
+          } else {
+            // Deep stone with occasional Gold Ore
+            blocks[idx] = (y < 22 && hash2i(wx, wz, y * 13) > 0.975) ? B.GOLD_ORE : B.STONE;
+          }
+        } else if (y <= SEA_LEVEL) {
+          blocks[idx] = (biome === "frost" && y === SEA_LEVEL) ? B.ICE : B.WATER;
+        }
+      }
+    }
+  }
+
+  // 2. Stamp Deterministic Mythic Wonders & Wilderness Details
+  const w = makeChunkWriter(cx, cz, blocks);
+  stampFloatingPantheon(w);
+  stampYggdrasil(w);
+  stampDragonSanctum(w);
+  stampPlazaAndAtlantis(w);
+  stampObservatoryAndSkyIsles(w);
+  stampInfiniteWildernessDetails(w, cx, cz);
+
+  const chunk = {
+    cx, cz, blocks,
+    dirty: true,
+    opaqueBuf: null, opaqueVerts: 0,
+    transBuf: null,  transVerts: 0,
+    minY: 0, maxY: CHUNK_HEIGHT - 1
+  };
+  chunks.set(chunkKey(cx, cz), chunk);
+  // Mark already-loaded neighbors dirty so seam culling & AO update
+  for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+    const nb = chunks.get(chunkKey(cx + dx, cz + dz));
+    if (nb) nb.dirty = true;
+  }
+  return chunk;
+}
+
+function getBlock(wx, wy, wz) {
+  if (wy < 0 || wy >= CHUNK_HEIGHT) return B.AIR;
+  const cx = Math.floor(wx / CHUNK_SIZE);
+  const cz = Math.floor(wz / CHUNK_SIZE);
+  const chunk = chunks.get(chunkKey(cx, cz));
+  if (!chunk) return B.AIR;
+  const lx = wx - cx * CHUNK_SIZE;
+  const lz = wz - cz * CHUNK_SIZE;
+  return chunk.blocks[(wy << 8) | (lz << 4) | lx];
+}
+
+function setBlock(wx, wy, wz, id) {
+  if (wy < 1 || wy >= CHUNK_HEIGHT) return false;
+  const cx = Math.floor(wx / CHUNK_SIZE);
+  const cz = Math.floor(wz / CHUNK_SIZE);
+  const chunk = chunks.get(chunkKey(cx, cz));
+  if (!chunk) return false;
+  const lx = wx - cx * CHUNK_SIZE;
+  const lz = wz - cz * CHUNK_SIZE;
+  chunk.blocks[(wy << 8) | (lz << 4) | lx] = id;
+  chunk.dirty = true;
+  if (lx === 0)  { const n = chunks.get(chunkKey(cx - 1, cz)); if (n) n.dirty = true; }
+  if (lx === 15) { const n = chunks.get(chunkKey(cx + 1, cz)); if (n) n.dirty = true; }
+  if (lz === 0)  { const n = chunks.get(chunkKey(cx, cz - 1)); if (n) n.dirty = true; }
+  if (lz === 15) { const n = chunks.get(chunkKey(cx, cz + 1)); if (n) n.dirty = true; }
+  return true;
+}
+
+function isOpaqueBlock(id) {
+  return id !== B.AIR && !BLOCKS[id].transparent;
+}
+
+// 6 face definitions with exact CCW winding & tangent U, V basis for AO
+const FACES = [
+  // +Y Top
+  { dir: [0, 1, 0],  u: [1, 0, 0],  v: [0, 0, -1], shade: 1.00, tex: "top",
+    verts: [[0,1,1], [1,1,1], [1,1,0], [0,1,0]] },
+  // -Y Bottom
+  { dir: [0, -1, 0], u: [1, 0, 0],  v: [0, 0, 1],  shade: 0.56, tex: "bottom",
+    verts: [[0,0,0], [1,0,0], [1,0,1], [0,0,1]] },
+  // +Z South
+  { dir: [0, 0, 1],  u: [1, 0, 0],  v: [0, 1, 0],  shade: 0.84, tex: "side",
+    verts: [[0,0,1], [1,0,1], [1,1,1], [0,1,1]] },
+  // -Z North
+  { dir: [0, 0, -1], u: [-1, 0, 0], v: [0, 1, 0],  shade: 0.84, tex: "side",
+    verts: [[1,0,0], [0,0,0], [0,1,0], [1,1,0]] },
+  // +X East
+  { dir: [1, 0, 0],  u: [0, 0, -1], v: [0, 1, 0],  shade: 0.74, tex: "side",
+    verts: [[1,0,1], [1,0,0], [1,1,0], [1,1,1]] },
+  // -X West
+  { dir: [-1, 0, 0], u: [0, 0, 1],  v: [0, 1, 0],  shade: 0.74, tex: "side",
+    verts: [[0,0,0], [0,0,1], [0,1,1], [0,1,0]] }
+];
+const CORNER_DUV = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+const AO_CURVE = [0.46, 0.66, 0.84, 1.0];
+
+// Reusable dynamic float arrays to minimize GC during chunk meshing
+let opaqueScratch = new Float32Array(262144);
+let transScratch  = new Float32Array(65536);
+const lightMapScratch = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
+const lightQueue = new Int32Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
+const colTopY = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+
+function ensureScratch(arr, needed) {
+  if (needed <= arr.length) return arr;
+  const next = new Float32Array(Math.max(arr.length * 2, needed + 16384));
+  next.set(arr);
+  return next;
+}
+
+function buildChunkMesh(gl, chunk) {
+  const { cx, cz, blocks } = chunk;
+  const wx0 = cx * CHUNK_SIZE, wz0 = cz * CHUNK_SIZE;
+
+  // 1. Precompute column sky-height & chunk-local emissive block light BFS!
+  lightMapScratch.fill(0);
+  let qHead = 0, qTail = 0;
+
+  for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+    for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+      let topSolid = 0;
+      for (let y = CHUNK_HEIGHT - 1; y >= 0; y--) {
+        const idx = (y << 8) | (lz << 4) | lx;
+        const id = blocks[idx];
+        if (id !== B.AIR) {
+          if (topSolid === 0 && !BLOCKS[id].transparent) topSolid = y;
+          const lv = BLOCKS[id].light;
+          if (lv) {
+            lightMapScratch[idx] = lv;
+            lightQueue[qTail++] = idx;
+          }
+        }
+      }
+      colTopY[(lz << 4) | lx] = topSolid;
+    }
+  }
+
+  // Fast BFS light propagation (illuminates temples, caves, dragon altar at night!)
+  while (qHead < qTail) {
+    const idx = lightQueue[qHead++];
+    const lv = lightMapScratch[idx];
+    if (lv <= 1) continue;
+    const nl = lv - 2; // smooth falloff over ~7 blocks
+    if (nl <= 0) continue;
+    const lx = idx & 15, lz = (idx >> 4) & 15, y = idx >> 8;
+
+    // 6 neighbors inside chunk
+    if (lx > 0) { const ni = idx - 1; if (lightMapScratch[ni] < nl && !isOpaqueBlock(blocks[ni])) { lightMapScratch[ni] = nl; lightQueue[qTail++] = ni; } }
+    if (lx < 15){ const ni = idx + 1; if (lightMapScratch[ni] < nl && !isOpaqueBlock(blocks[ni])) { lightMapScratch[ni] = nl; lightQueue[qTail++] = ni; } }
+    if (lz > 0) { const ni = idx - 16; if (lightMapScratch[ni] < nl && !isOpaqueBlock(blocks[ni])) { lightMapScratch[ni] = nl; lightQueue[qTail++] = ni; } }
+    if (lz < 15){ const ni = idx + 16; if (lightMapScratch[ni] < nl && !isOpaqueBlock(blocks[ni])) { lightMapScratch[ni] = nl; lightQueue[qTail++] = ni; } }
+    if (y > 1)  { const ni = idx - 256; if (lightMapScratch[ni] < nl && !isOpaqueBlock(blocks[ni])) { lightMapScratch[ni] = nl; lightQueue[qTail++] = ni; } }
+    if (y < CHUNK_HEIGHT - 1) { const ni = idx + 256; if (lightMapScratch[ni] < nl && !isOpaqueBlock(blocks[ni])) { lightMapScratch[ni] = nl; lightQueue[qTail++] = ni; } }
+  }
+
+  // Fast local/neighbor block lookup
+  const nbXP = chunks.get(chunkKey(cx + 1, cz));
+  const nbXM = chunks.get(chunkKey(cx - 1, cz));
+  const nbZP = chunks.get(chunkKey(cx, cz + 1));
+  const nbZM = chunks.get(chunkKey(cx, cz - 1));
+
+  function getFast(lx, y, lz) {
+    if (y < 0 || y >= CHUNK_HEIGHT) return B.AIR;
+    if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16) return blocks[(y << 8) | (lz << 4) | lx];
+    if (lx >= 16 && lz >= 0 && lz < 16) return nbXP ? nbXP.blocks[(y << 8) | (lz << 4) | (lx - 16)] : B.AIR;
+    if (lx < 0   && lz >= 0 && lz < 16) return nbXM ? nbXM.blocks[(y << 8) | (lz << 4) | (lx + 16)] : B.AIR;
+    if (lz >= 16 && lx >= 0 && lx < 16) return nbZP ? nbZP.blocks[(y << 8) | ((lz - 16) << 4) | lx] : B.AIR;
+    if (lz < 0   && lx >= 0 && lx < 16) return nbZM ? nbZM.blocks[(y << 8) | ((lz + 16) << 4) | lx] : B.AIR;
+    return getBlock(wx0 + lx, y, wz0 + lz);
+  }
+
+  let oPtr = 0, tPtr = 0;
+  let minY = CHUNK_HEIGHT, maxY = 0;
+  const tileStep = 1.0 / ATLAS_TILES;
+  const eps = 0.0012; // prevents atlas seam bleeding
+
+  // Vertex stride: 8 floats [x, y, z, u, v, shadeAO, skyLight, blockLightOrEmissive]
+  for (let y = 0; y < CHUNK_HEIGHT; y++) {
+    for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        const id = blocks[(y << 8) | (lz << 4) | lx];
+        if (id === B.AIR) continue;
+        const info = BLOCKS[id];
+        const isTrans = !!info.transparent;
+        const isWater = id === B.WATER;
+        const emissive = info.emissive || 0;
+
+        for (let f = 0; f < 6; f++) {
+          const face = FACES[f];
+          const nx = lx + face.dir[0], ny = y + face.dir[1], nz = lz + face.dir[2];
+          const nid = getFast(nx, ny, nz);
+
+          // Face culling rules
+          if (!isTrans) {
+            if (isOpaqueBlock(nid)) continue;
+          } else {
+            if (nid === id) continue;
+            if (isWater && isOpaqueBlock(nid)) continue;
+            if (!isWater && isOpaqueBlock(nid)) continue;
+          }
+
+          if (y < minY) minY = y;
+          if (y + 1 > maxY) maxY = y + 1;
+
+          // Tile UVs
+          const tileIdx = info[face.tex];
+          const tu = (tileIdx % ATLAS_TILES) * tileStep;
+          const tv = Math.floor(tileIdx / ATLAS_TILES) * tileStep;
+          const u0 = tu + eps, u1 = tu + tileStep - eps;
+          const v0 = tv + eps, v1 = tv + tileStep - eps;
+          const uvs = [[u0, v1], [u1, v1], [u1, v0], [u0, v0]];
+
+          // Skylight & local block light at face neighbor
+          const clx = Math.max(0, Math.min(15, nx));
+          const clz = Math.max(0, Math.min(15, nz));
+          const cTop = colTopY[(clz << 4) | clx];
+          const skyL = (ny >= cTop) ? 1.0 : Math.max(0.36, 1.0 - (cTop - ny) * 0.055);
+          let bLight = emissive;
+          if (nx >= 0 && nx < 16 && nz >= 0 && nz < 16 && ny >= 0 && ny < CHUNK_HEIGHT) {
+            const lm = lightMapScratch[(ny << 8) | (nz << 4) | nx] / 14.0;
+            if (lm > bLight) bLight = lm;
+          }
+
+          // Compute 4-corner Voxel Ambient Occlusion
+          const aos = [1, 1, 1, 1];
+          if (!isTrans) {
+            const ux = face.u[0], uy = face.u[1], uz = face.u[2];
+            const vx = face.v[0], vy = face.v[1], vz = face.v[2];
+            for (let c = 0; c < 4; c++) {
+              const du = CORNER_DUV[c][0], dv = CORNER_DUV[c][1];
+              const s1 = isOpaqueBlock(getFast(nx + ux * du, ny + uy * du, nz + uz * du)) ? 1 : 0;
+              const s2 = isOpaqueBlock(getFast(nx + vx * dv, ny + vy * dv, nz + vz * dv)) ? 1 : 0;
+              const cr = (s1 && s2) ? 1 : (isOpaqueBlock(getFast(nx + ux * du + vx * dv, ny + uy * du + vy * dv, nz + uz * du + vz * dv)) ? 1 : 0);
+              aos[c] = AO_CURVE[(s1 && s2) ? 0 : (3 - s1 - s2 - cr)];
+            }
+          }
+
+          // Water top sits slightly lower (-0.12) when exposed to air for authentic Minecraft look
+          const waterDrop = (isWater && getFast(lx, y + 1, lz) !== B.WATER) ? 0.12 : 0.0;
+
+          // Choose diagonal flip to avoid AO anisotropy
+          const triOrder = (aos[0] + aos[2] > aos[1] + aos[3])
+            ? [0, 1, 2, 0, 2, 3]
+            : [1, 2, 3, 1, 3, 0];
+
+          // Encode special wave/portal animation tag in negative/fractional sign if needed, or use emissive channel
+          // For transparent pass, pack (isWater ? 2.0 : emissive) in attr 7!
+          const extra = isTrans ? (isWater ? 2.0 : (id === B.PORTAL ? 3.0 : 0.0)) : bLight;
+
+          if (!isTrans) {
+            opaqueScratch = ensureScratch(opaqueScratch, oPtr + 48);
+            for (let k = 0; k < 6; k++) {
+              const ci = triOrder[k];
+              const v = face.verts[ci];
+              opaqueScratch[oPtr++] = wx0 + lx + v[0];
+              opaqueScratch[oPtr++] = y + v[1];
+              opaqueScratch[oPtr++] = wz0 + lz + v[2];
+              opaqueScratch[oPtr++] = uvs[ci][0];
+              opaqueScratch[oPtr++] = uvs[ci][1];
+              opaqueScratch[oPtr++] = face.shade * aos[ci];
+              opaqueScratch[oPtr++] = skyL;
+              opaqueScratch[oPtr++] = extra;
+            }
+          } else {
+            transScratch = ensureScratch(transScratch, tPtr + 48);
+            for (let k = 0; k < 6; k++) {
+              const ci = triOrder[k];
+              const v = face.verts[ci];
+              const vy = y + v[1] - (v[1] === 1 ? waterDrop : 0);
+              transScratch[tPtr++] = wx0 + lx + v[0];
+              transScratch[tPtr++] = vy;
+              transScratch[tPtr++] = wz0 + lz + v[2];
+              transScratch[tPtr++] = uvs[ci][0];
+              transScratch[tPtr++] = uvs[ci][1];
+              transScratch[tPtr++] = face.shade;
+              transScratch[tPtr++] = skyL;
+              transScratch[tPtr++] = extra;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  chunk.minY = minY <= maxY ? minY : 0;
+  chunk.maxY = minY <= maxY ? maxY : 1;
+
+  if (oPtr > 0) {
+    if (!chunk.opaqueBuf) chunk.opaqueBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, chunk.opaqueBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, opaqueScratch.subarray(0, oPtr), gl.STATIC_DRAW);
+    chunk.opaqueVerts = oPtr / 8;
+  } else {
+    chunk.opaqueVerts = 0;
+  }
+
+  if (tPtr > 0) {
+    if (!chunk.transBuf) chunk.transBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, chunk.transBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, transScratch.subarray(0, tPtr), gl.STATIC_DRAW);
+    chunk.transVerts = tPtr / 8;
+  } else {
+    chunk.transVerts = 0;
+  }
+
+  chunk.dirty = false;
+}
+
+/* ============================================================================
+ * 7. MATRIX MATH & FRUSTUM CULLING
+ * ============================================================================ */
+function mat4Perspective(fovRad, aspect, near, far) {
+  const f = 1.0 / Math.tan(fovRad * 0.5);
+  const nf = 1.0 / (near - far);
+  return new Float32Array([
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) * nf, -1,
+    0, 0, 2 * far * near * nf, 0
+  ]);
+}
+
+function mat4View(px, py, pz, yaw, pitch) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const fx = -sy * cp, fy = sp, fz = -cy * cp;
+  const rx = cy, ry = 0, rz = -sy;
+  const uX = sy * sp, uY = cp, uZ = cy * sp;
+
+  return new Float32Array([
+    rx, uX, -fx, 0,
+    ry, uY, -fy, 0,
+    rz, uZ, -fz, 0,
+    -(rx * px + ry * py + rz * pz),
+    -(uX * px + uY * py + uZ * pz),
+    (fx * px + fy * py + fz * pz),
+    1
+  ]);
+}
+
+function mat4Mul(a, b) {
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++) {
+    for (let r = 0; r < 4; r++) {
+      o[c * 4 + r] =
+        a[0 * 4 + r] * b[c * 4 + 0] +
+        a[1 * 4 + r] * b[c * 4 + 1] +
+        a[2 * 4 + r] * b[c * 4 + 2] +
+        a[3 * 4 + r] * b[c * 4 + 3];
+    }
+  }
+  return o;
+}
+
+function extractFrustumPlanes(m) {
+  const planes = [];
+  const add = (a, b, c, d) => {
+    const l = Math.hypot(a, b, c) || 1;
+    planes.push([a / l, b / l, c / l, d / l]);
+  };
+  add(m[3] + m[0], m[7] + m[4], m[11] + m[8],  m[15] + m[12]); // Left
+  add(m[3] - m[0], m[7] - m[4], m[11] - m[8],  m[15] - m[12]); // Right
+  add(m[3] + m[1], m[7] + m[5], m[11] + m[9],  m[15] + m[13]); // Bottom
+  add(m[3] - m[1], m[7] - m[5], m[11] - m[9],  m[15] - m[13]); // Top
+  add(m[3] + m[2], m[7] + m[6], m[11] + m[10], m[15] + m[14]); // Near
+  add(m[3] - m[2], m[7] - m[6], m[11] - m[10], m[15] - m[14]); // Far
+  return planes;
+}
+
+function isBoxInFrustum(planes, minX, minY, minZ, maxX, maxY, maxZ) {
+  for (let i = 0; i < 6; i++) {
+    const p = planes[i];
+    const px = p[0] >= 0 ? maxX : minX;
+    const py = p[1] >= 0 ? maxY : minY;
+    const pz = p[2] >= 0 ? maxZ : minZ;
+    if (p[0] * px + p[1] * py + p[2] * pz + p[3] < 0) return false;
+  }
+  return true;
+}
+
+/* ============================================================================
+ * 8. WEBGL RENDERING ENGINE (SKY + AURORA + CHUNKS + WATER + PARTICLES + HAND)
+ * ============================================================================ */
+const canvas = document.getElementById("glcanvas");
+const gl = canvas.getContext("webgl", { antialias: false, alpha: false, powerPreference: "high-performance" });
+if (!gl) {
+  alert("您的浏览器不支持 WebGL，无法启动 3D 体素引擎。");
+  throw new Error("WebGL unavailable");
+}
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    throw new Error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+function createProgram(vsSrc, fsSrc, attribBindings) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsSrc));
+  if (attribBindings) {
+    for (const [name, loc] of Object.entries(attribBindings)) {
+      gl.bindAttribLocation(p, loc, name);
+    }
+  }
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    throw new Error(gl.getProgramInfoLog(p));
+  }
+  return p;
+}
+
+// Helper to keep WebGL vertex attrib arrays cleanly synced across shader switches
+let enabledAttribsMask = 0;
+function setEnabledAttribs(count) {
+  for (let i = 0; i < 5; i++) {
+    const bit = 1 << i;
+    const want = i < count;
+    if (want && !(enabledAttribsMask & bit)) {
+      gl.enableVertexAttribArray(i);
+      enabledAttribsMask |= bit;
+    } else if (!want && (enabledAttribsMask & bit)) {
+      gl.disableVertexAttribArray(i);
+      enabledAttribsMask &= ~bit;
+    }
+  }
+}
+
+// --- A. Procedural Mythic Sky + Sun + Moon + Stars + Aurora Shader ---
+const skyProg = createProgram(`
+  attribute vec2 aPos;
+  varying vec2 vNdc;
+  void main() {
+    vNdc = aPos;
+    gl_Position = vec4(aPos, 0.9999, 1.0);
+  }
+`, `
+  precision highp float;
+  varying vec2 vNdc;
+  uniform vec3 uForward;
+  uniform vec3 uRight;
+  uniform vec3 uUp;
+  uniform float uTanHalfFov;
+  uniform float uAspect;
+  uniform float uTime;
+  uniform vec3 uSkyZenith;
+  uniform vec3 uSkyHorizon;
+  uniform vec3 uSunDir;
+  uniform vec3 uSunColor;
+  uniform float uNightFactor;
+
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  void main() {
+    vec3 dir = normalize(uForward + uRight * (vNdc.x * uAspect * uTanHalfFov) + uUp * (vNdc.y * uTanHalfFov));
+    float elev = clamp(dir.y, -0.25, 1.0);
+    float grad = pow(clamp(elev, 0.0, 1.0), 0.52);
+    vec3 col = mix(uSkyHorizon, uSkyZenith, grad);
+
+    // Subtle below-horizon mist
+    if (dir.y < 0.0) {
+      col = mix(uSkyHorizon, uSkyHorizon * 0.65, clamp(-dir.y * 3.0, 0.0, 1.0));
+    }
+
+    // Sun disc + golden atmospheric halo
+    float sunDot = max(dot(dir, normalize(uSunDir)), 0.0);
+    col += uSunColor * pow(sunDot, 8.0) * 0.35 * (1.0 - uNightFactor * 0.7);
+    col += uSunColor * smoothstep(0.9965, 0.9985, sunDot) * 1.45 * (1.0 - uNightFactor * 0.85);
+
+    // Moon opposite sun
+    float moonDot = max(dot(dir, normalize(-uSunDir)), 0.0);
+    col += vec3(0.76, 0.88, 1.0) * smoothstep(0.997, 0.9986, moonDot) * 1.15 * uNightFactor;
+    col += vec3(0.45, 0.65, 0.95) * pow(moonDot, 14.0) * 0.25 * uNightFactor;
+
+    // Twinkling stars + Mythic Aurora Borealis ribbons at twilight & night
+    if (dir.y > 0.04) {
+      vec2 skyUV = dir.xz / (dir.y + 0.35);
+      // Drifting blocky clouds
+      vec2 cUV = floor((skyUV * 5.2 + vec2(uTime * 0.08, uTime * 0.03)) * 2.0);
+      float cn = hash21(cUV) * 0.6 + hash21(cUV + vec2(1.0, 0.0)) * 0.4;
+      float cloud = smoothstep(0.70, 0.86, cn) * smoothstep(0.05, 0.28, dir.y) * smoothstep(0.95, 0.35, dir.y);
+      vec3 cloudCol = mix(vec3(1.0, 0.98, 0.95), uSkyHorizon * 1.25, 0.35) * (1.0 - uNightFactor * 0.65);
+      col = mix(col, cloudCol, cloud * 0.42);
+
+      // Stars
+      if (uNightFactor > 0.15) {
+        vec2 sCell = floor(skyUV * 95.0);
+        float st = hash21(sCell);
+        if (st > 0.986) {
+          float tw = 0.55 + 0.45 * sin(uTime * 3.0 + st * 90.0);
+          col += vec3(0.88, 0.95, 1.0) * tw * uNightFactor * smoothstep(0.05, 0.22, dir.y);
+        }
+        // Mythic Aurora ribbons
+        float wave = sin(skyUV.x * 2.4 + uTime * 0.35 + sin(skyUV.y * 1.8 - uTime * 0.2));
+        float band = exp(-abs(skyUV.y * 0.85 - wave * 0.55 - 0.3) * 3.8);
+        vec3 aurCol = mix(vec3(0.15, 0.92, 0.78), vec3(0.62, 0.32, 0.98), 0.5 + 0.5 * sin(skyUV.x * 1.5 + uTime * 0.25));
+        col += aurCol * band * 0.38 * uNightFactor * smoothstep(0.06, 0.32, dir.y);
+      }
+    }
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`, { aPos: 0 });
+
+// --- B. Voxel World Shader (Opaque + Translucent Water/Portal) ---
+const voxelProg = createProgram(`
+  attribute vec3 aPos;
+  attribute vec2 aUV;
+  attribute float aShade;
+  attribute float aSky;
+  attribute float aExtra;
+
+  uniform mat4 uProjView;
+  uniform vec3 uCamPos;
+  uniform float uTime;
+  uniform float uIsTrans;
+
+  varying vec2 vUV;
+  varying float vShade;
+  varying float vSky;
+  varying float vExtra;
+  varying float vDist;
+  varying vec3 vWorldPos;
+
+  void main() {
+    vec3 pos = aPos;
+    if (uIsTrans > 0.5 && aExtra > 1.5 && aExtra < 2.5) {
+      // Gentle living water wave ripple
+      pos.y += sin(pos.x * 0.75 + uTime * 2.2) * 0.045 + cos(pos.z * 0.75 + uTime * 1.8) * 0.045;
+    }
+    vec4 wp = vec4(pos, 1.0);
+    gl_Position = uProjView * wp;
+    vUV = aUV;
+    vShade = aShade;
+    vSky = aSky;
+    vExtra = aExtra;
+    vWorldPos = pos;
+    vDist = length(pos - uCamPos);
+  }
+`, `
+  precision highp float;
+  uniform sampler2D uAtlas;
+  uniform vec3 uSunLight;
+  uniform vec3 uAmbientLight;
+  uniform vec3 uFogColor;
+  uniform float uFogStart;
+  uniform float uFogEnd;
+  uniform float uTime;
+  uniform float uIsTrans;
+  uniform float uUnderwater;
+
+  varying vec2 vUV;
+  varying float vShade;
+  varying float vSky;
+  varying float vExtra;
+  varying float vDist;
+  varying vec3 vWorldPos;
+
+  void main() {
+    vec2 uv = vUV;
+    // Subtle shimmering animation on Portal energy
+    if (uIsTrans > 0.5 && vExtra > 2.5) {
+      uv.y += sin(uTime * 3.0 + vWorldPos.x * 1.5) * 0.004;
+    }
+    vec4 tex = texture2D(uAtlas, uv);
+    if (tex.a < 0.05) discard;
+
+    // Sky + Sun + Local Emissive Block Light
+    float blockLight = (uIsTrans > 0.5) ? (vExtra > 2.5 ? 0.95 : 0.15) : vExtra;
+    vec3 skyLit = (uAmbientLight + uSunLight * vSky) * vShade;
+    // Warm golden-cyan mythic glow from lanterns, crystals, runes & magma
+    vec3 glowTint = vec3(1.05, 0.92, 0.78);
+    float pulse = 1.0 + 0.08 * sin(uTime * 3.0 + vWorldPos.x * 0.4 + vWorldPos.z * 0.4);
+    vec3 finalLight = max(skyLit, glowTint * blockLight * 1.15 * pulse);
+
+    vec3 col = tex.rgb * finalLight;
+
+    // Shimmering specular glint on Crystal Water
+    if (uIsTrans > 0.5 && vExtra > 1.5 && vExtra < 2.5) {
+      float glint = pow(max(0.0, sin(vWorldPos.x * 1.7 + uTime * 2.4) * cos(vWorldPos.z * 1.5 - uTime * 1.9)), 6.0);
+      col += vec3(0.45, 0.78, 0.92) * glint * 0.4;
+    }
+
+    // Distance atmospheric fog
+    float fogT = clamp((vDist - uFogStart) / (uFogEnd - uFogStart), 0.0, 1.0);
+    fogT = fogT * fogT;
+    vec3 fogC = uUnderwater > 0.5 ? vec3(0.08, 0.34, 0.48) : uFogColor;
+    if (uUnderwater > 0.5) fogT = clamp(vDist / 26.0, 0.0, 0.85);
+    col = mix(col, fogC, fogT);
+
+    float alpha = (uIsTrans > 0.5) ? tex.a : 1.0;
+    gl_FragColor = vec4(col, alpha);
+  }
+`, { aPos: 0, aUV: 1, aShade: 2, aSky: 3, aExtra: 4 });
+
+// --- C. Simple Colored Geometry Shader (Selection Wireframe + Break Particles) ---
+const colorProg = createProgram(`
+  attribute vec3 aPos;
+  attribute vec3 aCol;
+  uniform mat4 uProjView;
+  varying vec3 vCol;
+  void main() {
+    gl_Position = uProjView * vec4(aPos, 1.0);
+    vCol = aCol;
+  }
+`, `
+  precision mediump float;
+  varying vec3 vCol;
+  uniform float uAlpha;
+  void main() {
+    gl_FragColor = vec4(vCol, uAlpha);
+  }
+`, { aPos: 0, aCol: 1 });
+
+// Create GPU Texture Atlas
+const atlasCanvas = buildTextureAtlas();
+const atlasTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, atlasTex);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlasCanvas);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+// Sky Fullscreen Quad Buffer
+const skyBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, 1,1, -1,-1, 1,1, -1,1]), gl.STATIC_DRAW);
+
+// Wireframe Selection Box Buffer (12 edges = 24 vertices)
+const selBuf = gl.createBuffer();
+const particleBuf = gl.createBuffer();
+const handBuf = gl.createBuffer();
+
+// Cache Uniform & Attribute locations
+const locSky = {
+  aPos: gl.getAttribLocation(skyProg, "aPos"),
+  uForward: gl.getUniformLocation(skyProg, "uForward"),
+  uRight: gl.getUniformLocation(skyProg, "uRight"),
+  uUp: gl.getUniformLocation(skyProg, "uUp"),
+  uTanHalfFov: gl.getUniformLocation(skyProg, "uTanHalfFov"),
+  uAspect: gl.getUniformLocation(skyProg, "uAspect"),
+  uTime: gl.getUniformLocation(skyProg, "uTime"),
+  uSkyZenith: gl.getUniformLocation(skyProg, "uSkyZenith"),
+  uSkyHorizon: gl.getUniformLocation(skyProg, "uSkyHorizon"),
+  uSunDir: gl.getUniformLocation(skyProg, "uSunDir"),
+  uSunColor: gl.getUniformLocation(skyProg, "uSunColor"),
+  uNightFactor: gl.getUniformLocation(skyProg, "uNightFactor")
+};
+
+const locVox = {
+  aPos: gl.getAttribLocation(voxelProg, "aPos"),
+  aUV: gl.getAttribLocation(voxelProg, "aUV"),
+  aShade: gl.getAttribLocation(voxelProg, "aShade"),
+  aSky: gl.getAttribLocation(voxelProg, "aSky"),
+  aExtra: gl.getAttribLocation(voxelProg, "aExtra"),
+  uProjView: gl.getUniformLocation(voxelProg, "uProjView"),
+  uCamPos: gl.getUniformLocation(voxelProg, "uCamPos"),
+  uTime: gl.getUniformLocation(voxelProg, "uTime"),
+  uIsTrans: gl.getUniformLocation(voxelProg, "uIsTrans"),
+  uAtlas: gl.getUniformLocation(voxelProg, "uAtlas"),
+  uSunLight: gl.getUniformLocation(voxelProg, "uSunLight"),
+  uAmbientLight: gl.getUniformLocation(voxelProg, "uAmbientLight"),
+  uFogColor: gl.getUniformLocation(voxelProg, "uFogColor"),
+  uFogStart: gl.getUniformLocation(voxelProg, "uFogStart"),
+  uFogEnd: gl.getUniformLocation(voxelProg, "uFogEnd"),
+  uUnderwater: gl.getUniformLocation(voxelProg, "uUnderwater")
+};
+
+const locCol = {
+  aPos: gl.getAttribLocation(colorProg, "aPos"),
+  aCol: gl.getAttribLocation(colorProg, "aCol"),
+  uProjView: gl.getUniformLocation(colorProg, "uProjView"),
+  uAlpha: gl.getUniformLocation(colorProg, "uAlpha")
+};
+
+function bindVoxelAttribs(buf) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  const stride = 32; // 8 floats
+  setEnabledAttribs(5);
+  gl.vertexAttribPointer(locVox.aPos, 3, gl.FLOAT, false, stride, 0);
+  gl.vertexAttribPointer(locVox.aUV, 2, gl.FLOAT, false, stride, 12);
+  gl.vertexAttribPointer(locVox.aShade, 1, gl.FLOAT, false, stride, 20);
+  gl.vertexAttribPointer(locVox.aSky, 1, gl.FLOAT, false, stride, 24);
+  gl.vertexAttribPointer(locVox.aExtra, 1, gl.FLOAT, false, stride, 28);
+}
+
+/* ============================================================================
+ * 9. PROCEDURAL WEB AUDIO SYNTHESIZER (CRISP VOXEL SFX!)
+ * ============================================================================ */
+let audioCtx = null;
+let audioEnabled = true;
+
+function playSound(type) {
+  if (!audioEnabled) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const now = audioCtx.currentTime;
+
+    if (type === "crystal") {
+      // Shimmering mythic crystal chime
+      const freqs = [880, 1318.5, 1760];
+      const f = freqs[(Math.random() * freqs.length) | 0] * (0.94 + Math.random() * 0.12);
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(f, now);
+      osc.frequency.exponentialRampToValueAtTime(f * 1.15, now + 0.14);
+      gain.gain.setValueAtTime(0.11, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + 0.23);
+    } else {
+      // Filtered noise burst for grass / stone / wood / water / place
+      const dur = type === "water" ? 0.16 : 0.085;
+      const bufSize = Math.floor(audioCtx.sampleRate * dur);
+      const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.35));
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = type === "stone" ? "bandpass" : "lowpass";
+      filter.frequency.value = type === "stone" ? 1100 : (type === "wood" ? 540 : (type === "water" ? 720 : 880));
+      filter.Q.value = type === "stone" ? 1.8 : 0.8;
+
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(type === "step" ? 0.045 : 0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+      src.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+      src.start(now);
+    }
+  } catch (_) {}
+}
+
+/* ============================================================================
+ * 10. PLAYER PHYSICS, VOXEL RAYCASTING & BREAK PARTICLES
+ * ============================================================================ */
+const player = {
+  x: 0.5, y: 31.2, z: 18.5,
+  vx: 0, vy: 0, vz: 0,
+  yaw: 0.0, pitch: 0.14,
+  width: 0.62, height: 1.78, eyeHeight: 1.56,
+  onGround: false, flying: false,
+  walkPhase: 0, swingAnim: 0, stepAccum: 0
+};
+
+const keys = Object.create(null);
+let lastSpaceTime = 0;
+let isLocked = false;
+let isDragging = false;
+let lastMouseX = 0, lastMouseY = 0;
+let currentHit = null;
+
+// 3D Break Particles
+const particles = [];
+function spawnBreakParticles(bx, by, bz, blockId) {
+  const col = BLOCKS[blockId]?.col || [200, 200, 200];
+  for (let i = 0; i < 14; i++) {
+    const shade = 0.78 + Math.random() * 0.35;
+    particles.push({
+      x: bx + 0.15 + Math.random() * 0.7,
+      y: by + 0.15 + Math.random() * 0.7,
+      z: bz + 0.15 + Math.random() * 0.7,
+      vx: (Math.random() - 0.5) * 4.5,
+      vy: 1.8 + Math.random() * 3.6,
+      vz: (Math.random() - 0.5) * 4.5,
+      r: (col[0] / 255) * shade,
+      g: (col[1] / 255) * shade,
+      b: (col[2] / 255) * shade,
+      size: 0.055 + Math.random() * 0.05,
+      life: 0.45 + Math.random() * 0.35
+    });
+  }
+}
+
+// Exact 3D DDA Voxel Raycast (Amanatides & Woo)
+function raycastVoxel(ox, oy, oz, dx, dy, dz, maxDist = 7.5) {
+  let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
+  const stepX = dx > 0 ? 1 : (dx < 0 ? -1 : 0);
+  const stepY = dy > 0 ? 1 : (dy < 0 ? -1 : 0);
+  const stepZ = dz > 0 ? 1 : (dz < 0 ? -1 : 0);
+
+  const tDeltaX = dx !== 0 ? Math.abs(1 / dx) : 1e9;
+  const tDeltaY = dy !== 0 ? Math.abs(1 / dy) : 1e9;
+  const tDeltaZ = dz !== 0 ? Math.abs(1 / dz) : 1e9;
+
+  let tMaxX = dx > 0 ? (x + 1 - ox) * tDeltaX : (dx < 0 ? (ox - x) * tDeltaX : 1e9);
+  let tMaxY = dy > 0 ? (y + 1 - oy) * tDeltaY : (dy < 0 ? (oy - y) * tDeltaY : 1e9);
+  let tMaxZ = dz > 0 ? (z + 1 - oz) * tDeltaZ : (dz < 0 ? (oz - z) * tDeltaZ : 1e9);
+
+  let nx = 0, ny = 0, nz = 0;
+  let t = 0;
+
+  for (let i = 0; i < 64 && t <= maxDist; i++) {
+    const id = getBlock(x, y, z);
+    if (id !== B.AIR && id !== B.WATER) {
+      return { x, y, z, nx, ny, nz, id, dist: t };
+    }
+    if (tMaxX < tMaxY && tMaxX < tMaxZ) {
+      t = tMaxX; tMaxX += tDeltaX; x += stepX; nx = -stepX; ny = 0; nz = 0;
+    } else if (tMaxY < tMaxZ) {
+      t = tMaxY; tMaxY += tDeltaY; y += stepY; nx = 0; ny = -stepY; nz = 0;
+    } else {
+      t = tMaxZ; tMaxZ += tDeltaZ; z += stepZ; nx = 0; ny = 0; nz = -stepZ;
+    }
+  }
+  return null;
+}
+
+function isSolidAt(wx, wy, wz) {
+  const id = getBlock(Math.floor(wx), Math.floor(wy), Math.floor(wz));
+  return !!BLOCKS[id]?.solid;
+}
+
+function collidesAABB(px, py, pz) {
+  const hw = player.width * 0.5;
+  const minX = Math.floor(px - hw), maxX = Math.floor(px + hw);
+  const minY = Math.floor(py),      maxY = Math.floor(py + player.height - 0.01);
+  const minZ = Math.floor(pz - hw), maxZ = Math.floor(pz + hw);
+  for (let y = minY; y <= maxY; y++)
+    for (let z = minZ; z <= maxZ; z++)
+      for (let x = minX; x <= maxX; x++)
+        if (BLOCKS[getBlock(x, y, z)]?.solid) return true;
+  return false;
+}
+
+function updatePlayer(dt) {
+  const fwdX = -Math.sin(player.yaw), fwdZ = -Math.cos(player.yaw);
+  const rightX = Math.cos(player.yaw), rightZ = -Math.sin(player.yaw);
+
+  let moveX = 0, moveZ = 0;
+  if (keys["KeyW"]) { moveX += fwdX; moveZ += fwdZ; }
+  if (keys["KeyS"]) { moveX -= fwdX; moveZ -= fwdZ; }
+  if (keys["KeyD"]) { moveX += rightX; moveZ += rightZ; }
+  if (keys["KeyA"]) { moveX -= rightX; moveZ -= rightZ; }
+
+  const mLen = Math.hypot(moveX, moveZ);
+  if (mLen > 0) { moveX /= mLen; moveZ /= mLen; }
+
+  const inWater = getBlock(Math.floor(player.x), Math.floor(player.y + 0.5), Math.floor(player.z)) === B.WATER;
+  const sprinting = keys["ShiftLeft"] || keys["ShiftRight"];
+
+  if (player.flying) {
+    const boost = keys["ControlLeft"] || keys["ControlRight"];
+    const speed = boost ? 24.0 : 13.5;
+    player.vx = moveX * speed;
+    player.vz = moveZ * speed;
+    let vy = 0;
+    if (keys["Space"]) vy += speed * 0.78;
+    if (sprinting || keys["KeyC"]) vy -= speed * 0.78;
+    player.vy = vy;
+  } else {
+    const speed = inWater ? 4.2 : (sprinting ? 8.8 : 5.8);
+    const accel = player.onGround ? 14.0 : 5.5;
+    player.vx += (moveX * speed - player.vx) * Math.min(1, accel * dt);
+    player.vz += (moveZ * speed - player.vz) * Math.min(1, accel * dt);
+
+    if (inWater) {
+      player.vy -= 8.0 * dt;
+      if (keys["Space"]) player.vy = Math.min(4.8, player.vy + 22.0 * dt);
+      player.vy *= Math.pow(0.2, dt);
+    } else {
+      player.vy -= 26.0 * dt;
+      if (player.vy < -36) player.vy = -36;
+      if (keys["Space"] && player.onGround) {
+        player.vy = 9.0;
+        player.onGround = false;
+        playSound("step");
+      }
+    }
+  }
+
+  // Axis-separated swept AABB resolution (with smooth 1-block auto-step for stairs!)
+  const nx = player.x + player.vx * dt;
+  if (!collidesAABB(nx, player.y, player.z)) {
+    player.x = nx;
+  } else if (player.onGround && !player.flying && !collidesAABB(nx, player.y + 1.05, player.z)) {
+    player.y += 1.01;
+    player.x = nx;
+  } else {
+    player.vx = 0;
+  }
+
+  const nz = player.z + player.vz * dt;
+  if (!collidesAABB(player.x, player.y, nz)) {
+    player.z = nz;
+  } else if (player.onGround && !player.flying && !collidesAABB(player.x, player.y + 1.05, nz)) {
+    player.y += 1.01;
+    player.z = nz;
+  } else {
+    player.vz = 0;
+  }
+
+  const ny = player.y + player.vy * dt;
+  if (!collidesAABB(player.x, ny, player.z)) {
+    player.y = ny;
+    player.onGround = false;
+  } else {
+    if (player.vy < 0) player.onGround = true;
+    player.vy = 0;
+  }
+
+  if (player.y < 2) { player.y = 65; player.vy = 0; }
+
+  // Walk head-bob & footsteps
+  const hSpeed = Math.hypot(player.vx, player.vz);
+  if (hSpeed > 0.4 && player.onGround && !player.flying) {
+    player.walkPhase += dt * hSpeed * 1.9;
+    player.stepAccum += dt * hSpeed;
+    if (player.stepAccum > 2.3) {
+      player.stepAccum = 0;
+      playSound("step");
+    }
+  }
+  if (player.swingAnim > 0) player.swingAnim = Math.max(0, player.swingAnim - dt * 4.8);
+}
+
+/* ============================================================================
+ * 11. TIME OF DAY / ATMOSPHERE PRESETS
+ * ============================================================================ */
+const SKY_PRESETS = [
+  { name: "神圣拂晓", zenith: [0.22, 0.34, 0.62], horizon: [0.98, 0.68, 0.46], sunDir: [0.75, 0.28, -0.58], sunCol: [1.0, 0.82, 0.56], sunL: [1.02, 0.84, 0.68], ambL: [0.34, 0.32, 0.42], night: 0.22 },
+  { name: "辉光正午", zenith: [0.18, 0.48, 0.88], horizon: [0.68, 0.86, 0.98], sunDir: [0.42, 0.82, -0.38], sunCol: [1.0, 0.98, 0.88], sunL: [0.95, 0.95, 0.92], ambL: [0.38, 0.42, 0.48], night: 0.0  },
+  { name: "诸神黄昏", zenith: [0.16, 0.14, 0.38], horizon: [0.92, 0.42, 0.38], sunDir: [-0.78, 0.18, -0.58], sunCol: [1.0, 0.52, 0.34], sunL: [0.85, 0.56, 0.48], ambL: [0.26, 0.22, 0.36], night: 0.55 },
+  { name: "极光星夜", zenith: [0.02, 0.04, 0.13], horizon: [0.08, 0.16, 0.28], sunDir: [0.35, -0.65, -0.66], sunCol: [0.55, 0.72, 1.0], sunL: [0.24, 0.30, 0.44], ambL: [0.16, 0.20, 0.30], night: 1.0  }
+];
+let timeMode = 1; // Radiant Day default so mythic landmarks shine vividly immediately!
+
+function lerp3(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+function getSkyState(tSec) {
+  if (timeMode < 4) return SKY_PRESETS[timeMode];
+  // Smooth continuous auto-cycle across all 4 presets
+  const cycle = (tSec * 0.025) % 4;
+  const i0 = Math.floor(cycle) % 4;
+  const i1 = (i0 + 1) % 4;
+  const frac = cycle - Math.floor(cycle);
+  const a = SKY_PRESETS[i0], b = SKY_PRESETS[i1];
+  return {
+    name: "昼夜流转",
+    zenith:  lerp3(a.zenith, b.zenith, frac),
+    horizon: lerp3(a.horizon, b.horizon, frac),
+    sunDir:  lerp3(a.sunDir, b.sunDir, frac),
+    sunCol:  lerp3(a.sunCol, b.sunCol, frac),
+    sunL:    lerp3(a.sunL, b.sunL, frac),
+    ambL:    lerp3(a.ambL, b.ambL, frac),
+    night:   a.night + (b.night - a.night) * frac
+  };
+}
+
+/* ============================================================================
+ * 12. ISOMETRIC BLOCK ICON RENDERER FOR HOTBAR & PALETTE UI
+ * ============================================================================ */
+function renderBlockIcon(blockId) {
+  const c = document.createElement("canvas");
+  c.width = 48; c.height = 48;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  const info = BLOCKS[blockId];
+  if (!info) return c;
+
+  function drawFace(tileIdx, transform, tint) {
+    const tx = (tileIdx % ATLAS_TILES) * TILE_PX;
+    const ty = Math.floor(tileIdx / ATLAS_TILES) * TILE_PX;
+    ctx.save();
+    ctx.transform(...transform);
+    ctx.drawImage(atlasCanvas, tx, ty, TILE_PX, TILE_PX, 0, 0, 16, 16);
+    if (tint) {
+      ctx.fillStyle = tint;
+      ctx.fillRect(0, 0, 16, 16);
+    }
+    ctx.restore();
+  }
+
+  // Isometric cube projection centered in 48x48
+  // Top diamond
+  drawFace(info.top,  [1.15, 0.58, -1.15, 0.58, 24, 5], null);
+  // Left face
+  drawFace(info.side, [1.15, 0.58, 0, 1.32, 5.6, 14.3], "rgba(0,0,0,0.16)");
+  // Right face
+  drawFace(info.side, [1.15, -0.58, 0, 1.32, 24, 23.6], "rgba(0,0,0,0.32)");
+  return c;
+}
+
+/* ============================================================================
+ * 13. UI WIRING (HOTBAR, PALETTE, LANDMARK TELEPORTS, INPUTS)
+ * ============================================================================ */
+const overlay = document.getElementById("overlay");
+const crosshair = document.getElementById("crosshair");
+const hotbarEl = document.getElementById("hotbar");
+const paletteModal = document.getElementById("palette-modal");
+const paletteGrid = document.getElementById("palette-grid");
+const toastEl = document.getElementById("toast");
+let toastTimer = null;
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2000);
+}
+
+function rebuildHotbar() {
+  hotbarEl.innerHTML = "";
+  hotbarSlots.forEach((id, idx) => {
+    const slot = document.createElement("div");
+    slot.className = "slot" + (idx === activeSlot ? " active" : "");
+    slot.title = BLOCKS[id].name;
+    const num = document.createElement("span");
+    num.className = "slot-num";
+    num.textContent = idx + 1;
+    slot.appendChild(num);
+    slot.appendChild(renderBlockIcon(id));
+    slot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectSlot(idx);
+    });
+    hotbarEl.appendChild(slot);
+  });
+}
+
+function selectSlot(idx) {
+  activeSlot = ((idx % 9) + 9) % 9;
+  const slots = hotbarEl.children;
+  for (let i = 0; i < slots.length; i++) slots[i].classList.toggle("active", i === activeSlot);
+  showToast("当前方块：" + BLOCKS[hotbarSlots[activeSlot]].name);
+  rebuildHeldBlockMesh();
+}
+
+function initPalette() {
+  paletteGrid.innerHTML = "";
+  PALETTE_LIST.forEach((id) => {
+    const item = document.createElement("div");
+    item.className = "palette-item";
+    item.appendChild(renderBlockIcon(id));
+    const label = document.createElement("span");
+    label.textContent = BLOCKS[id].name.split(" · ")[0];
+    item.appendChild(label);
+    item.addEventListener("click", () => {
+      hotbarSlots[activeSlot] = id;
+      rebuildHotbar();
+      rebuildHeldBlockMesh();
+      showToast("已装备至槽位 " + (activeSlot + 1) + "：" + BLOCKS[id].name);
+      togglePalette(false);
+    });
+    paletteGrid.appendChild(item);
+  });
+}
+
+function togglePalette(force) {
+  const open = force !== undefined ? force : !paletteModal.classList.contains("open");
+  paletteModal.classList.toggle("open", open);
+  if (open && document.pointerLockElement) document.exitPointerLock();
+}
+
+function teleportTo(lm) {
+  player.x = lm.pos[0];
+  player.z = lm.pos[2];
+  player.yaw = lm.yaw;
+  player.pitch = lm.pitch;
+  player.vx = player.vy = player.vz = 0;
+  // Ensure chunks around destination exist immediately
+  const pcx = Math.floor(player.x / CHUNK_SIZE), pcz = Math.floor(player.z / CHUNK_SIZE);
+  for (let dz = -2; dz <= 2; dz++)
+    for (let dx = -2; dx <= 2; dx++)
+      if (!chunks.has(chunkKey(pcx + dx, pcz + dz))) createChunk(pcx + dx, pcz + dz);
+  // Guarantee safe non-colliding Y height
+  let safeY = lm.pos[1];
+  while (safeY < CHUNK_HEIGHT - 3 && collidesAABB(player.x, safeY, player.z)) safeY += 1.0;
+  player.y = safeY;
+  showToast("✦ 已传送至：" + lm.title);
+  overlay.classList.add("hidden");
+  crosshair.style.display = "block";
+}
+
+function initWarpButtons() {
+  const hudWarps = document.getElementById("hud-warps");
+  const menuWarps = document.getElementById("menu-warps");
+  LANDMARKS.forEach((lm) => {
+    const b1 = document.createElement("button");
+    b1.className = "btn-chip"; b1.textContent = lm.label;
+    b1.addEventListener("click", (e) => { e.stopPropagation(); teleportTo(lm); });
+    hudWarps.appendChild(b1);
+
+    const b2 = document.createElement("button");
+    b2.className = "btn-chip"; b2.textContent = lm.label;
+    b2.addEventListener("click", () => {
+      teleportTo(lm);
+      canvas.requestPointerLock?.();
+    });
+    menuWarps.appendChild(b2);
+  });
+}
+
+// Held 3D block viewmodel mesh in local cube coords [-0.5..0.5]
+function rebuildHeldBlockMesh() {
+  const id = hotbarSlots[activeSlot];
+  const info = BLOCKS[id];
+  const tileStep = 1 / ATLAS_TILES;
+  const eps = 0.0012;
+  const verts = [];
+  for (let f = 0; f < 6; f++) {
+    const face = FACES[f];
+    const tileIdx = info[face.tex];
+    const tu = (tileIdx % ATLAS_TILES) * tileStep;
+    const tv = Math.floor(tileIdx / ATLAS_TILES) * tileStep;
+    const uvs = [[tu+eps, tv+tileStep-eps], [tu+tileStep-eps, tv+tileStep-eps], [tu+tileStep-eps, tv+eps], [tu+eps, tv+eps]];
+    const order = [0, 1, 2, 0, 2, 3];
+    for (const ci of order) {
+      const v = face.verts[ci];
+      verts.push(v[0] - 0.5, v[1] - 0.5, v[2] - 0.5, uvs[ci][0], uvs[ci][1], face.shade, 1.0, info.emissive || 0.0);
+    }
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, handBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+}
+
+// Pointer Lock & Mouse Look
+document.getElementById("btn-start").addEventListener("click", () => {
+  overlay.classList.add("hidden");
+  crosshair.style.display = "block";
+  canvas.requestPointerLock?.();
+});
+
+document.getElementById("btn-palette-open").addEventListener("click", () => {
+  overlay.classList.add("hidden");
+  togglePalette(true);
+});
+document.getElementById("btn-palette-close").addEventListener("click", () => togglePalette(false));
+
+document.getElementById("btn-audio-toggle").addEventListener("click", (e) => {
+  audioEnabled = !audioEnabled;
+  e.target.textContent = audioEnabled ? "🔊 音效: 开" : "🔇 音效: 关";
+});
+
+document.getElementById("sel-time").addEventListener("change", (e) => {
+  timeMode = parseInt(e.target.value, 10);
+});
+
+document.getElementById("rng-dist").addEventListener("input", (e) => {
+  renderDistance = parseInt(e.target.value, 10);
+  document.getElementById("lbl-dist").textContent = renderDistance;
+});
+
+document.addEventListener("pointerlockchange", () => {
+  isLocked = document.pointerLockElement === canvas;
+  crosshair.style.display = isLocked ? "block" : (overlay.classList.contains("hidden") ? "block" : "none");
+  if (!isLocked && !paletteModal.classList.contains("open")) {
+    overlay.classList.remove("hidden");
+  }
+});
+
+let dragDownX = 0, dragDownY = 0, dragBtn = -1;
+canvas.addEventListener("mousedown", (e) => {
+  if (!overlay.classList.contains("hidden") || paletteModal.classList.contains("open")) return;
+  if (!isLocked) {
+    canvas.requestPointerLock?.();
+    // Fallback drag-to-look & click-to-mine/place when pointer lock is unavailable
+    isDragging = true;
+    dragDownX = lastMouseX = e.clientX;
+    dragDownY = lastMouseY = e.clientY;
+    dragBtn = e.button;
+    return;
+  }
+  handleBlockAction(e.button);
+});
+
+window.addEventListener("mouseup", (e) => {
+  if (isDragging && !isLocked && overlay.classList.contains("hidden")) {
+    if (Math.hypot(e.clientX - dragDownX, e.clientY - dragDownY) < 4) {
+      handleBlockAction(dragBtn);
+    }
+  }
+  isDragging = false;
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (isLocked) {
+    const sens = 0.0022;
+    player.yaw -= e.movementX * sens;
+    player.pitch = Math.max(-1.54, Math.min(1.54, player.pitch - e.movementY * sens));
+  } else if (isDragging && overlay.classList.contains("hidden")) {
+    const dx = e.clientX - lastMouseX, dy = e.clientY - lastMouseY;
+    lastMouseX = e.clientX; lastMouseY = e.clientY;
+    player.yaw -= dx * 0.0045;
+    player.pitch = Math.max(-1.54, Math.min(1.54, player.pitch - dy * 0.0045));
+  }
+});
+
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+window.addEventListener("wheel", (e) => {
+  if (!overlay.classList.contains("hidden") || paletteModal.classList.contains("open")) return;
+  selectSlot(activeSlot + (e.deltaY > 0 ? 1 : -1));
+}, { passive: true });
+
+window.addEventListener("keydown", (e) => {
+  if (e.code === "KeyE") {
+    if (overlay.classList.contains("hidden")) {
+      e.preventDefault();
+      togglePalette();
+    }
+    return;
+  }
+  if (paletteModal.classList.contains("open")) {
+    if (e.code === "Escape") togglePalette(false);
+    return;
+  }
+  if (e.code === "Escape") {
+    if (!isLocked) overlay.classList.toggle("hidden");
+    return;
+  }
+  if (!overlay.classList.contains("hidden")) return;
+
+  if (e.code === "Space" && !keys["Space"]) {
+    const now = performance.now();
+    if (now - lastSpaceTime < 280) {
+      player.flying = !player.flying;
+      player.vy = 0;
+      showToast(player.flying ? "🕊️ 已开启自由飞行模式 (Shift 下降)" : "🥾 已切换步行物理模式");
+    }
+    lastSpaceTime = now;
+  }
+  if (e.code === "KeyF" && !keys["KeyF"]) {
+    player.flying = !player.flying;
+    player.vy = 0;
+    showToast(player.flying ? "🕊️ 已开启自由飞行模式" : "🥾 已切换步行物理模式");
+  }
+  if (e.code === "KeyG" && !keys["KeyG"]) {
+    timeMode = (timeMode + 1) % 5;
+    document.getElementById("sel-time").value = String(timeMode);
+    showToast("✦ 天象切换：" + (timeMode < 4 ? SKY_PRESETS[timeMode].name : "动态昼夜流转"));
+  }
+  if (e.code.startsWith("Digit")) {
+    const n = parseInt(e.code.slice(5), 10);
+    if (n >= 1 && n <= 9) selectSlot(n - 1);
+  }
+  keys[e.code] = true;
+});
+
+window.addEventListener("keyup", (e) => { keys[e.code] = false; });
+
+function handleBlockAction(button) {
+  if (!currentHit) return;
+  player.swingAnim = 1.0;
+
+  if (button === 0) {
+    // Left click: Break block
+    if (BLOCKS[currentHit.id]?.unbreakable) {
+      showToast("基岩无法破坏！");
+      return;
+    }
+    const oldId = currentHit.id;
+    if (setBlock(currentHit.x, currentHit.y, currentHit.z, B.AIR)) {
+      spawnBreakParticles(currentHit.x, currentHit.y, currentHit.z, oldId);
+      playSound(BLOCKS[oldId]?.sound || "stone");
+    }
+  } else if (button === 2) {
+    // Right click: Place active block on adjacent face
+    const tx = currentHit.x + currentHit.nx;
+    const ty = currentHit.y + currentHit.ny;
+    const tz = currentHit.z + currentHit.nz;
+    const placeId = hotbarSlots[activeSlot];
+
+    // Prevent placing solid block intersecting player AABB
+    if (BLOCKS[placeId]?.solid) {
+      const hw = player.width * 0.5;
+      const overlapX = (player.x + hw > tx) && (player.x - hw < tx + 1);
+      const overlapY = (player.y + player.height > ty) && (player.y < ty + 1);
+      const overlapZ = (player.z + hw > tz) && (player.z - hw < tz + 1);
+      if (overlapX && overlapY && overlapZ) return;
+    }
+
+    if (setBlock(tx, ty, tz, placeId)) {
+      playSound(BLOCKS[placeId]?.sound || "stone");
+    }
+  }
+}
+
+/* ============================================================================
+ * 14. CHUNK STREAMING SCHEDULER & MAIN RENDER LOOP
+ * ============================================================================ */
+function streamChunksAroundPlayer(maxGenPerFrame, maxMeshPerFrame) {
+  const pcx = Math.floor(player.x / CHUNK_SIZE);
+  const pcz = Math.floor(player.z / CHUNK_SIZE);
+
+  // Spiral-sorted generation around player
+  let generated = 0, meshed = 0;
+  for (let r = 0; r <= renderDistance; r++) {
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
+        if (dx * dx + dz * dz > (renderDistance + 0.5) * (renderDistance + 0.5)) continue;
+        const cx = pcx + dx, cz = pcz + dz;
+        const key = chunkKey(cx, cz);
+        let ch = chunks.get(key);
+        if (!ch) {
+          if (generated >= maxGenPerFrame) continue;
+          ch = createChunk(cx, cz);
+          generated++;
+        }
+        if (ch.dirty && meshed < maxMeshPerFrame) {
+          buildChunkMesh(gl, ch);
+          meshed++;
+        }
+      }
+    }
+  }
+
+  // Unload very far chunks to keep memory flat during infinite exploration
+  const unloadDist = renderDistance + 4;
+  if (chunks.size > (unloadDist * 2 + 1) * (unloadDist * 2 + 1) + 40) {
+    for (const [k, ch] of chunks) {
+      if (Math.abs(ch.cx - pcx) > unloadDist || Math.abs(ch.cz - pcz) > unloadDist) {
+        if (ch.opaqueBuf) gl.deleteBuffer(ch.opaqueBuf);
+        if (ch.transBuf) gl.deleteBuffer(ch.transBuf);
+        chunks.delete(k);
+      }
+    }
+  }
+}
+
+function drawSelectionBox(projView, bx, by, bz) {
+  const e = 0.006;
+  const x0 = bx - e, y0 = by - e, z0 = bz - e;
+  const x1 = bx + 1 + e, y1 = by + 1 + e, z1 = bz + 1 + e;
+  const r = 1.0, g = 0.92, b = 0.55;
+  const segs = [
+    x0,y0,z0,r,g,b, x1,y0,z0,r,g,b,  x1,y0,z0,r,g,b, x1,y0,z1,r,g,b,
+    x1,y0,z1,r,g,b, x0,y0,z1,r,g,b,  x0,y0,z1,r,g,b, x0,y0,z0,r,g,b,
+    x0,y1,z0,r,g,b, x1,y1,z0,r,g,b,  x1,y1,z0,r,g,b, x1,y1,z1,r,g,b,
+    x1,y1,z1,r,g,b, x0,y1,z1,r,g,b,  x0,y1,z1,r,g,b, x0,y1,z0,r,g,b,
+    x0,y0,z0,r,g,b, x0,y1,z0,r,g,b,  x1,y0,z0,r,g,b, x1,y1,z0,r,g,b,
+    x1,y0,z1,r,g,b, x1,y1,z1,r,g,b,  x0,y0,z1,r,g,b, x0,y1,z1,r,g,b
+  ];
+  gl.useProgram(colorProg);
+  gl.uniformMatrix4fv(locCol.uProjView, false, projView);
+  gl.uniform1f(locCol.uAlpha, 0.92);
+  gl.bindBuffer(gl.ARRAY_BUFFER, selBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(segs), gl.DYNAMIC_DRAW);
+  setEnabledAttribs(2);
+  gl.vertexAttribPointer(locCol.aPos, 3, gl.FLOAT, false, 24, 0);
+  gl.vertexAttribPointer(locCol.aCol, 3, gl.FLOAT, false, 24, 12);
+  gl.drawArrays(gl.LINES, 0, 24);
+}
+
+function updateAndDrawParticles(dt, projView) {
+  if (particles.length === 0) return;
+  const verts = [];
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    p.vy -= 14.0 * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    const s = p.size * Math.min(1, p.life * 3);
+    const { x, y, z, r, g, b } = p;
+    // Small 3D cross-quad particle
+    verts.push(
+      x-s, y-s, z, r,g,b,  x+s, y-s, z, r,g,b,  x+s, y+s, z, r,g,b,
+      x-s, y-s, z, r,g,b,  x+s, y+s, z, r,g,b,  x-s, y+s, z, r,g,b,
+      x, y-s, z-s, r*0.85,g*0.85,b*0.85,  x, y-s, z+s, r*0.85,g*0.85,b*0.85,  x, y+s, z+s, r*0.85,g*0.85,b*0.85,
+      x, y-s, z-s, r*0.85,g*0.85,b*0.85,  x, y+s, z+s, r*0.85,g*0.85,b*0.85,  x, y+s, z-s, r*0.85,g*0.85,b*0.85
+    );
+  }
+  if (verts.length === 0) return;
+  gl.disable(gl.CULL_FACE);
+  gl.useProgram(colorProg);
+  gl.uniformMatrix4fv(locCol.uProjView, false, projView);
+  gl.uniform1f(locCol.uAlpha, 1.0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, particleBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.DYNAMIC_DRAW);
+  setEnabledAttribs(2);
+  gl.vertexAttribPointer(locCol.aPos, 3, gl.FLOAT, false, 24, 0);
+  gl.vertexAttribPointer(locCol.aCol, 3, gl.FLOAT, false, 24, 12);
+  gl.drawArrays(gl.TRIANGLES, 0, verts.length / 6);
+  gl.enable(gl.CULL_FACE);
+}
+
+function drawHeldBlock(aspect, sky, tSec) {
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  const proj = mat4Perspective(58 * Math.PI / 180, aspect, 0.05, 10);
+  const bobX = Math.cos(player.walkPhase) * 0.032;
+  const bobY = Math.abs(Math.sin(player.walkPhase)) * 0.036;
+  const swing = Math.sin(player.swingAnim * Math.PI);
+
+  // Build simple local transform: translate to bottom-right + rotate cube nicely
+  const tx = 0.62 + bobX - swing * 0.14;
+  const ty = -0.52 - bobY + swing * 0.08;
+  const tz = -1.08 + swing * 0.12;
+  const ry = 0.62 + swing * 0.45;
+  const rx = 0.28 + swing * 0.65;
+  const sc = 0.34;
+  const cy = Math.cos(ry), sy = Math.sin(ry);
+  const cx = Math.cos(rx), sx = Math.sin(rx);
+
+  const model = new Float32Array([
+    sc * cy,      sc * sy * sx,  sc * sy * cx, 0,
+    0,            sc * cx,       -sc * sx,     0,
+    -sc * sy,     sc * cy * sx,  sc * cy * cx, 0,
+    tx,           ty,            tz,           1
+  ]);
+  const mvp = mat4Mul(proj, model);
+
+  gl.useProgram(voxelProg);
+  gl.uniformMatrix4fv(locVox.uProjView, false, mvp);
+  gl.uniform3f(locVox.uCamPos, 0, 0, 0);
+  gl.uniform1f(locVox.uTime, tSec);
+  gl.uniform1f(locVox.uIsTrans, 0.0);
+  gl.uniform3fv(locVox.uSunLight, sky.sunL);
+  gl.uniform3fv(locVox.uAmbientLight, sky.ambL);
+  gl.uniform3fv(locVox.uFogColor, sky.horizon);
+  gl.uniform1f(locVox.uFogStart, 50.0);
+  gl.uniform1f(locVox.uFogEnd, 100.0);
+  gl.uniform1f(locVox.uUnderwater, 0.0);
+  bindVoxelAttribs(handBuf);
+  gl.drawArrays(gl.TRIANGLES, 0, 36);
+}
+
+// Resize handling
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.floor(window.innerWidth * dpr);
+  canvas.height = Math.floor(window.innerHeight * dpr);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener("resize", resize);
+resize();
+
+// Initialize UI & Pre-generate the Mythic Sanctuary panoramic vista immediately!
+rebuildHotbar();
+initPalette();
+initWarpButtons();
+rebuildHeldBlockMesh();
+
+// Pre-build initial ring around spawn so the opening frame already showcases the Pantheon, World Tree & Dragon!
+for (let r = 0; r <= 4; r++) {
+  for (let dz = -r; dz <= r; dz++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
+      createChunk(dx, dz - 1);
+    }
+  }
+}
+for (const ch of chunks.values()) buildChunkMesh(gl, ch);
+
+const hudRealm = document.getElementById("hud-realm");
+const hudPos = document.getElementById("hud-pos");
+const hudMode = document.getElementById("hud-mode");
+const hudFps = document.getElementById("hud-fps");
+const hudSky = document.getElementById("hud-sky");
+const hudTarget = document.getElementById("hud-target");
+
+let lastTime = performance.now();
+let fpsFrames = 0, fpsAccum = 0, hudTimer = 0;
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  const tSec = now * 0.001;
+
+  fpsFrames++; fpsAccum += dt;
+  if (fpsAccum >= 0.5) {
+    hudFps.textContent = Math.round(fpsFrames / fpsAccum) + " FPS";
+    fpsFrames = 0; fpsAccum = 0;
+  }
+
+  // Update simulation if playing
+  const playing = overlay.classList.contains("hidden") && !paletteModal.classList.contains("open");
+  if (playing) updatePlayer(dt);
+
+  // Stream infinite chunks smoothly in background
+  streamChunksAroundPlayer(3, 5);
+
+  // Camera basis
+  const bobOffset = (playing && !player.flying && player.onGround) ? Math.sin(player.walkPhase * 2) * 0.04 : 0;
+  const camX = player.x;
+  const camY = player.y + player.eyeHeight + bobOffset;
+  const camZ = player.z;
+  const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
+  const cp = Math.cos(player.pitch), sp = Math.sin(player.pitch);
+  const fwd = [-sy * cp, sp, -cy * cp];
+  const right = [cy, 0, -sy];
+  const up = [sy * sp, cp, cy * sp];
+
+  // Voxel raycast from camera center
+  currentHit = raycastVoxel(camX, camY, camZ, fwd[0], fwd[1], fwd[2], 7.5);
+
+  const aspect = canvas.width / Math.max(1, canvas.height);
+  const fov = 70 * Math.PI / 180;
+  const proj = mat4Perspective(fov, aspect, 0.1, renderDistance * CHUNK_SIZE + 90);
+  const view = mat4View(camX, camY, camZ, player.yaw, player.pitch);
+  const projView = mat4Mul(proj, view);
+  const frustum = extractFrustumPlanes(projView);
+  const sky = getSkyState(tSec);
+  const headInWater = getBlock(Math.floor(camX), Math.floor(camY), Math.floor(camZ)) === B.WATER;
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+  gl.frontFace(gl.CCW);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+
+  // 1. Render Procedural Mythic Sky Dome
+  gl.depthMask(false);
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(skyProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf);
+  setEnabledAttribs(1);
+  gl.vertexAttribPointer(locSky.aPos, 2, gl.FLOAT, false, 0, 0);
+  gl.uniform3fv(locSky.uForward, fwd);
+  gl.uniform3fv(locSky.uRight, right);
+  gl.uniform3fv(locSky.uUp, up);
+  gl.uniform1f(locSky.uTanHalfFov, Math.tan(fov * 0.5));
+  gl.uniform1f(locSky.uAspect, aspect);
+  gl.uniform1f(locSky.uTime, tSec);
+  gl.uniform3fv(locSky.uSkyZenith, sky.zenith);
+  gl.uniform3fv(locSky.uSkyHorizon, sky.horizon);
+  gl.uniform3fv(locSky.uSunDir, sky.sunDir);
+  gl.uniform3fv(locSky.uSunColor, sky.sunCol);
+  gl.uniform1f(locSky.uNightFactor, sky.night);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthMask(true);
+
+  // Gather frustum-visible chunks
+  const visible = [];
+  const pcx = Math.floor(player.x / CHUNK_SIZE), pcz = Math.floor(player.z / CHUNK_SIZE);
+  const maxR2 = (renderDistance + 1) * (renderDistance + 1);
+  for (const ch of chunks.values()) {
+    const dcx = ch.cx - pcx, dcz = ch.cz - pcz;
+    if (dcx * dcx + dcz * dcz > maxR2) continue;
+    const x0 = ch.cx * CHUNK_SIZE, z0 = ch.cz * CHUNK_SIZE;
+    if (!isBoxInFrustum(frustum, x0, ch.minY, z0, x0 + CHUNK_SIZE, ch.maxY, z0 + CHUNK_SIZE)) continue;
+    visible.push(ch);
+  }
+
+  // 2. Render Opaque Voxel Chunks
+  gl.useProgram(voxelProg);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, atlasTex);
+  gl.uniform1i(locVox.uAtlas, 0);
+  gl.uniformMatrix4fv(locVox.uProjView, false, projView);
+  gl.uniform3f(locVox.uCamPos, camX, camY, camZ);
+  gl.uniform1f(locVox.uTime, tSec);
+  gl.uniform1f(locVox.uIsTrans, 0.0);
+  gl.uniform3fv(locVox.uSunLight, sky.sunL);
+  gl.uniform3fv(locVox.uAmbientLight, sky.ambL);
+  gl.uniform3fv(locVox.uFogColor, sky.horizon);
+  const fogEnd = renderDistance * CHUNK_SIZE * 0.96;
+  gl.uniform1f(locVox.uFogStart, fogEnd * 0.56);
+  gl.uniform1f(locVox.uFogEnd, fogEnd);
+  gl.uniform1f(locVox.uUnderwater, headInWater ? 1.0 : 0.0);
+
+  gl.disable(gl.BLEND);
+  for (let i = 0; i < visible.length; i++) {
+    const ch = visible[i];
+    if (ch.opaqueVerts === 0) continue;
+    bindVoxelAttribs(ch.opaqueBuf);
+    gl.drawArrays(gl.TRIANGLES, 0, ch.opaqueVerts);
+  }
+
+  // 3. Render Translucent Pass (Crystal Water, Astral Portal, Glacial Ice)
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.disable(gl.CULL_FACE);
+  gl.uniform1f(locVox.uIsTrans, 1.0);
+  for (let i = 0; i < visible.length; i++) {
+    const ch = visible[i];
+    if (ch.transVerts === 0) continue;
+    bindVoxelAttribs(ch.transBuf);
+    gl.drawArrays(gl.TRIANGLES, 0, ch.transVerts);
+  }
+  gl.enable(gl.CULL_FACE);
+  gl.depthMask(true);
+
+  // 4. Selection Wireframe & 3D Break Particles
+  if (currentHit && playing) {
+    drawSelectionBox(projView, currentHit.x, currentHit.y, currentHit.z);
+  }
+  updateAndDrawParticles(dt, projView);
+  gl.disable(gl.BLEND);
+
+  // 5. First-person Held Block Viewmodel
+  if (playing) drawHeldBlock(aspect, sky, tSec);
+
+  // 6. Periodic HUD Telemetry Update
+  hudTimer += dt;
+  if (hudTimer >= 0.12) {
+    hudTimer = 0;
+    hudRealm.textContent = getRealmLabel(player.x, player.y, player.z);
+    hudPos.textContent = `${Math.floor(player.x)}, ${Math.floor(player.y)}, ${Math.floor(player.z)}`;
+    hudMode.textContent = player.flying ? "飞行中" : "步行";
+    hudSky.textContent = `${sky.name} · ${chunks.size} 区块`;
+    hudTarget.textContent = currentHit ? BLOCKS[currentHit.id].name.split(" · ")[0] : "无";
+  }
+}
+
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
