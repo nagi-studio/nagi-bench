@@ -1,0 +1,4452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>太虚我的世界 · AETHERIA — 神话幻想体素世界</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0c1322; font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; color: #f4f7ff; }
+  #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+  /* Underwater tint overlay */
+  #underwater-overlay {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(circle at center, rgba(16, 118, 168, 0.25) 0%, rgba(7, 56, 94, 0.62) 100%);
+    transition: opacity 0.18s ease;
+    z-index: 5;
+  }
+  #underwater-overlay.active { opacity: 1; }
+
+  /* Crosshair */
+  #crosshair {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 22px; height: 22px; pointer-events: none; z-index: 15;
+    mix-blend-mode: difference; opacity: 0; transition: opacity 0.2s;
+  }
+  #crosshair.visible { opacity: 0.92; }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: #ffffff; border-radius: 1px;
+  }
+  #crosshair::before { left: 10px; top: 2px; width: 2px; height: 18px; }
+  #crosshair::after { top: 10px; left: 2px; width: 18px; height: 2px; }
+
+  /* HUD Top Left */
+  #hud-top-left {
+    position: fixed; top: 14px; left: 14px; z-index: 20;
+    display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+    opacity: 0; transition: opacity 0.25s;
+  }
+  #hud-top-left.visible { opacity: 1; }
+  .hud-pill {
+    background: rgba(11, 18, 32, 0.62);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 224, 150, 0.22);
+    border-radius: 10px; padding: 7px 12px;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.32);
+    font-size: 12.5px; line-height: 1.45;
+  }
+  .landmark-name {
+    font-size: 14px; font-weight: 700; letter-spacing: 0.4px;
+    background: linear-gradient(90deg, #ffe9a8, #7cf4ff);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hud-mono { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; font-size: 11.5px; color: #c7d6f0; }
+  .hud-badges { display: flex; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+  .badge {
+    font-size: 11px; padding: 2px 7px; border-radius: 99px;
+    background: rgba(124, 244, 255, 0.14); border: 1px solid rgba(124, 244, 255, 0.32); color: #a9f4ff;
+  }
+  .badge.gold { background: rgba(255, 206, 92, 0.16); border-color: rgba(255, 206, 92, 0.4); color: #ffe39b; }
+
+  /* HUD Top Right Controls */
+  #hud-controls {
+    position: fixed; top: 14px; right: 14px; z-index: 20;
+    background: rgba(11, 18, 32, 0.58);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px; padding: 9px 13px;
+    font-size: 11.5px; line-height: 1.7; color: #dbe6fa;
+    pointer-events: none; opacity: 0; transition: opacity 0.25s;
+    max-width: 248px;
+  }
+  #hud-controls.visible { opacity: 1; }
+  #hud-controls.collapsed { opacity: 0 !important; }
+  .kbd {
+    display: inline-block; padding: 0 5px; margin-right: 4px;
+    border-radius: 4px; background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    font-family: ui-monospace, monospace; font-size: 10.5px; color: #fff;
+  }
+
+  /* Block name toast above hotbar */
+  #block-toast {
+    position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%);
+    z-index: 20; pointer-events: none;
+    padding: 5px 14px; border-radius: 99px;
+    background: rgba(10, 16, 28, 0.72); border: 1px solid rgba(255, 224, 145, 0.35);
+    font-size: 13px; font-weight: 600; color: #fff2cc; letter-spacing: 0.4px;
+    opacity: 0; transition: opacity 0.28s ease;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  }
+  #block-toast.show { opacity: 1; }
+
+  /* Hotbar */
+  #hotbar {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 20; display: flex; gap: 4px; padding: 5px;
+    background: rgba(12, 18, 30, 0.75);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 232, 178, 0.26);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    opacity: 0; transition: opacity 0.25s;
+  }
+  #hotbar.visible { opacity: 1; }
+  .hotbar-slot {
+    position: relative; width: 52px; height: 52px;
+    border-radius: 8px; background: rgba(255, 255, 255, 0.06);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: transform 0.12s, border-color 0.12s, background 0.12s;
+  }
+  .hotbar-slot:hover { background: rgba(255, 255, 255, 0.13); }
+  .hotbar-slot.active {
+    border-color: #ffd875;
+    background: rgba(255, 214, 112, 0.18);
+    box-shadow: 0 0 14px rgba(255, 212, 102, 0.45), inset 0 0 8px rgba(255, 230, 150, 0.22);
+    transform: translateY(-3px) scale(1.04);
+  }
+  .hotbar-slot canvas { width: 40px; height: 40px; image-rendering: pixelated; }
+  .slot-num {
+    position: absolute; top: 2px; left: 5px;
+    font-size: 10px; font-weight: 700; color: rgba(255, 255, 255, 0.65);
+    text-shadow: 0 1px 2px #000;
+  }
+
+  /* Overlay Screens (Start, Pause, Inventory, Teleport) */
+  .overlay-backdrop {
+    position: fixed; inset: 0; z-index: 40;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at center, rgba(10, 16, 30, 0.28) 0%, rgba(6, 10, 22, 0.68) 100%);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    transition: opacity 0.3s ease;
+  }
+  .overlay-backdrop.hidden { opacity: 0; pointer-events: none; display: none; }
+
+  .glass-card {
+    background: rgba(13, 20, 36, 0.84);
+    border: 1px solid rgba(255, 224, 150, 0.32);
+    border-radius: 18px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    padding: 28px 34px; max-width: 680px; width: calc(100% - 32px);
+    max-height: 88vh; overflow-y: auto;
+  }
+  .title-hero { text-align: center; }
+  .title-eyebrow {
+    font-size: 12px; letter-spacing: 3.5px; text-transform: uppercase;
+    color: #82ecff; font-weight: 600; margin-bottom: 8px;
+  }
+  .title-main {
+    font-size: clamp(28px, 5vw, 44px); font-weight: 800; letter-spacing: 2px;
+    background: linear-gradient(135deg, #fff7d6 0%, #ffd36e 45%, #7ff2ff 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 4px 18px rgba(255, 205, 92, 0.25));
+    margin-bottom: 8px;
+  }
+  .title-sub { color: #c7d6f0; font-size: 14px; line-height: 1.65; margin-bottom: 20px; }
+
+  .wonder-chips {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-bottom: 22px;
+  }
+  .wonder-chip {
+    font-size: 12px; padding: 5px 11px; border-radius: 99px;
+    background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 224, 150, 0.25);
+    color: #f3e8c8;
+  }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 34px; border-radius: 12px; border: none; cursor: pointer;
+    font-size: 16px; font-weight: 700; letter-spacing: 0.8px; color: #161108;
+    background: linear-gradient(135deg, #ffe799 0%, #f5b942 100%);
+    box-shadow: 0 8px 26px rgba(245, 185, 66, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    transition: transform 0.14s ease, box-shadow 0.14s ease;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(245, 185, 66, 0.56); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-secondary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 16px; border-radius: 10px; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: #e4eeff;
+    background: rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: background 0.14s, border-color 0.14s;
+  }
+  .btn-secondary:hover { background: rgba(255, 255, 255, 0.17); border-color: rgba(255, 224, 150, 0.45); }
+
+  .controls-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+    gap: 8px; margin-top: 20px; text-align: left;
+    background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08); font-size: 12px; color: #cbd8ee;
+  }
+
+  /* Settings & Modals */
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .modal-title { font-size: 18px; font-weight: 700; color: #ffe59e; }
+  .setting-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; padding: 9px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 13.5px;
+  }
+  .setting-row input[type="range"] { width: 170px; accent-color: #f5b942; cursor: pointer; }
+  .setting-val { font-family: ui-monospace, monospace; color: #82ecff; min-width: 46px; text-align: right; font-size: 12.5px; }
+
+  /* Creative Inventory Grid */
+  .inv-cat-title { font-size: 12px; font-weight: 700; color: #82ecff; letter-spacing: 1px; margin: 12px 0 8px; }
+  .inv-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px;
+  }
+  .inv-item {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 9px 6px; border-radius: 10px; cursor: pointer;
+    background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: transform 0.12s, background 0.12s, border-color 0.12s;
+  }
+  .inv-item:hover {
+    background: rgba(255, 214, 112, 0.16); border-color: #ffd875; transform: translateY(-2px);
+  }
+  .inv-item canvas { width: 44px; height: 44px; image-rendering: pixelated; }
+  .inv-item span { font-size: 11.5px; color: #eaf1ff; text-align: center; line-height: 1.25; }
+
+  /* Teleport Grid */
+  .tp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .tp-card {
+    text-align: left; padding: 12px 14px; border-radius: 12px; cursor: pointer;
+    background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 224, 150, 0.2);
+    transition: transform 0.14s, background 0.14s, border-color 0.14s;
+  }
+  .tp-card:hover { background: rgba(124, 244, 255, 0.12); border-color: #7cf4ff; transform: translateY(-2px); }
+  .tp-card-title { font-size: 14px; font-weight: 700; color: #ffe8a3; margin-bottom: 4px; }
+  .tp-card-desc { font-size: 12px; color: #c4d3ec; line-height: 1.45; }
+
+  /* Quick Action Bar (bottom-right) */
+  #quick-buttons {
+    position: fixed; bottom: 18px; right: 16px; z-index: 20;
+    display: flex; gap: 8px; opacity: 0; transition: opacity 0.25s;
+  }
+  #quick-buttons.visible { opacity: 1; }
+  .qbtn {
+    padding: 7px 11px; border-radius: 9px; font-size: 12px; font-weight: 600;
+    background: rgba(12, 18, 30, 0.68); color: #e8f1ff;
+    border: 1px solid rgba(255, 255, 255, 0.2); cursor: pointer;
+    backdrop-filter: blur(8px);
+  }
+  .qbtn:hover { border-color: #ffd875; color: #ffe7a1; }
+</style>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="underwater-overlay"></div>
+<div id="crosshair"></div>
+
+<!-- Top-Left HUD -->
+<div id="hud-top-left">
+  <div class="hud-pill">
+    <div class="landmark-name" id="hud-location">星穹浮空神殿 · 朝圣观景台</div>
+    <div class="hud-mono" id="hud-coords">X: 0  Y: 40  Z: 52  |  FPS: 60</div>
+    <div class="hud-badges">
+      <span class="badge gold" id="hud-mode">行走模式</span>
+      <span class="badge" id="hud-time">晨曦 07:30</span>
+      <span class="badge" id="hud-chunks">区块: 0</span>
+    </div>
+  </div>
+</div>
+
+<!-- Top-Right Keybinds -->
+<div id="hud-controls">
+  <div><span class="kbd">WASD</span>移动 · <span class="kbd">鼠标</span>环视</div>
+  <div><span class="kbd">空格</span>跳跃 / <span class="kbd">双击空格</span>飞行</div>
+  <div><span class="kbd">Shift</span>潜行(防坠)/下降 · <span class="kbd">Ctrl</span>疾跑</div>
+  <div><span class="kbd">左键</span>破坏方块 · <span class="kbd">右键</span>放置方块</div>
+  <div><span class="kbd">1-9</span>/<span class="kbd">滚轮</span>切换 · <span class="kbd">Q</span>吸取方块</div>
+  <div><span class="kbd">E</span>方块图鉴 · <span class="kbd">G</span>神迹传送</div>
+  <div><span class="kbd">T</span>切换昼夜 · <span class="kbd">H</span>隐藏提示 · <span class="kbd">ESC</span>菜单</div>
+</div>
+
+<!-- Block Toast & Hotbar -->
+<div id="block-toast">草方块</div>
+<div id="hotbar"></div>
+
+<!-- Quick clickable buttons when cursor is unlocked or via shortcuts -->
+<div id="quick-buttons">
+  <button class="qbtn" id="btn-open-tp" title="神迹传送 (G)">✦ 神迹传送 (G)</button>
+  <button class="qbtn" id="btn-open-inv" title="方块图鉴 (E)">❖ 方块图鉴 (E)</button>
+  <button class="qbtn" id="btn-cycle-time" title="切换昼夜 (T)">☀ 昼夜 (T)</button>
+</div>
+
+<!-- Start Screen Overlay -->
+<div id="start-screen" class="overlay-backdrop">
+  <div class="glass-card title-hero">
+    <div class="title-eyebrow">INFINITE PERLIN VOXEL ENGINE · WEBGL2</div>
+    <h1 class="title-main">太虚我的世界 · AETHERIA</h1>
+    <p class="title-sub">
+      基于 2D/3D 柏林噪声实时生成的无限体素世界，内置七大无缝衔接的神话幻想奇观。<br/>
+      支持真实环境光遮蔽 (AO)、动态昼夜光照、自发光晶石、33 种经典像素材质与自由建造。
+    </p>
+    <div class="wonder-chips">
+      <span class="wonder-chip">✦ 星穹浮空神殿与天瀑</span>
+      <span class="wonder-chip">🌳 太古建木神树</span>
+      <span class="wonder-chip">🐉 盘龙熔岩山与星界门</span>
+      <span class="wonder-chip">🏯 九重云海宝塔</span>
+      <span class="wonder-chip">🔱 亚特兰蒂斯沉没神庙</span>
+      <span class="wonder-chip">💫 星辰巨环与浮空群岛</span>
+      <span class="wonder-chip">💎 水晶地脉洞窟</span>
+    </div>
+    <div>
+      <button class="btn-primary" id="btn-start">✦ 进入太虚圣境</button>
+    </div>
+    <div class="controls-grid">
+      <div><span class="kbd">WASD</span> 前后左右移动</div>
+      <div><span class="kbd">鼠标</span> 第一人称环视</div>
+      <div><span class="kbd">左键 / 右键</span> 破坏 / 放置方块</div>
+      <div><span class="kbd">双击空格 / F</span> 切换飞行模式</div>
+      <div><span class="kbd">E</span> 33种方块图鉴</div>
+      <div><span class="kbd">G</span> 七大神迹瞬移罗盘</div>
+    </div>
+  </div>
+</div>
+
+<!-- Pause & Settings Menu -->
+<div id="pause-menu" class="overlay-backdrop hidden">
+  <div class="glass-card" style="max-width: 500px;">
+    <div class="modal-header">
+      <div class="modal-title">✦ 圣境设置与菜单</div>
+      <button class="btn-secondary" id="btn-resume">继续探索</button>
+    </div>
+    <div class="setting-row">
+      <span>视距半径 (Render Distance)</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="opt-render-dist" min="4" max="9" step="1" value="6" />
+        <span class="setting-val" id="val-render-dist">6 区块</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span>天时时刻 (Time of Day)</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="opt-time" min="0" max="100" step="1" value="28" />
+        <span class="setting-val" id="val-time">07:45</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span>动态昼夜流转</span>
+      <input type="checkbox" id="opt-cycle" checked style="width:18px;height:18px;accent-color:#f5b942;" />
+    </div>
+    <div class="setting-row">
+      <span>视野角度 (FOV)</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="opt-fov" min="55" max="100" step="1" value="72" />
+        <span class="setting-val" id="val-fov">72°</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span>鼠标灵敏度</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="opt-sens" min="1" max="10" step="0.5" value="4" />
+        <span class="setting-val" id="val-sens">4.0</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span>游戏音效 (Web Audio)</span>
+      <input type="checkbox" id="opt-sound" checked style="width:18px;height:18px;accent-color:#f5b942;" />
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;justify-content:center;">
+      <button class="btn-secondary" id="btn-toggle-fly">🕊 切换飞行模式 (F)</button>
+      <button class="btn-secondary" id="btn-pause-tp">✦ 打开神迹传送 (G)</button>
+      <button class="btn-secondary" id="btn-pause-inv">❖ 方块图鉴 (E)</button>
+      <button class="btn-primary" id="btn-resume-2" style="padding:10px 26px;font-size:14px;">返回世界</button>
+    </div>
+  </div>
+</div>
+
+<!-- Creative Inventory Modal -->
+<div id="inventory-modal" class="overlay-backdrop hidden">
+  <div class="glass-card" style="max-width: 760px;">
+    <div class="modal-header">
+      <div class="modal-title">❖ 创世方块图鉴（点击装备至当前快捷栏）</div>
+      <button class="btn-secondary" id="btn-close-inv">关闭 (E)</button>
+    </div>
+    <div id="inventory-content"></div>
+  </div>
+</div>
+
+<!-- Teleport Landmark Modal -->
+<div id="teleport-modal" class="overlay-backdrop hidden">
+  <div class="glass-card" style="max-width: 720px;">
+    <div class="modal-header">
+      <div class="modal-title">✦ 太虚神迹罗盘 · 一键传送</div>
+      <button class="btn-secondary" id="btn-close-tp">关闭 (G)</button>
+    </div>
+    <div class="tp-grid" id="teleport-grid"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ============================================================================
+ * 1. BLOCK DEFINITIONS & METADATA
+ * ============================================================================ */
+const CHUNK_SIZE = 16;
+const CHUNK_HEIGHT = 128;
+const SEA_LEVEL = 30;
+const CHUNK_VOL = CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE;
+
+const B = {
+  AIR: 0,
+  GRASS: 1,
+  DIRT: 2,
+  STONE: 3,
+  COBBLE: 4,
+  OAK_LOG: 5,
+  OAK_PLANKS: 6,
+  OAK_LEAVES: 7,
+  SAND: 8,
+  SANDSTONE: 9,
+  WATER: 10,
+  GLASS: 11,
+  OBSIDIAN: 12,
+  MARBLE: 13,
+  PILLAR: 14,
+  GOLD: 15,
+  AZURE_TILE: 16,
+  VERMILION: 17,
+  GLOWSTONE: 18,
+  ASTRAL_CRYSTAL: 19,
+  STONE_BRICKS: 20,
+  MOSSY_BRICKS: 21,
+  SNOW_GRASS: 22,
+  SNOW: 23,
+  SAKURA_LEAVES: 24,
+  GOLDEN_LEAVES: 25,
+  BASALT: 26,
+  MAGMA: 27,
+  JADE: 28,
+  LANTERN: 29,
+  TALL_GRASS: 30,
+  POPPY: 31,
+  MOONFLOWER: 32,
+  ASTRAL_PORTAL: 33,
+};
+
+// Texture layer index map (populated by texture generator)
+const TEX = {};
+const BLOCK_LIST = [
+  { id: B.GRASS,          name: '草方块',       en: 'Grass Block',      cat: '自然地形', solid: true,  opaque: true,  light: 0,  sound: 'grass',  faces: { top: 'grass_top', side: 'grass_side', bottom: 'dirt' } },
+  { id: B.DIRT,           name: '泥土',         en: 'Dirt',             cat: '自然地形', solid: true,  opaque: true,  light: 0,  sound: 'grass',  faces: { all: 'dirt' } },
+  { id: B.STONE,          name: '石头',         en: 'Stone',            cat: '自然地形', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { all: 'stone' } },
+  { id: B.COBBLE,         name: '圆石',         en: 'Cobblestone',      cat: '自然地形', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { all: 'cobble' } },
+  { id: B.SAND,           name: '沙子',         en: 'Sand',             cat: '自然地形', solid: true,  opaque: true,  light: 0,  sound: 'sand',   faces: { all: 'sand' } },
+  { id: B.SANDSTONE,      name: '砂岩',         en: 'Sandstone',        cat: '自然地形', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { top: 'sandstone_top', side: 'sandstone_side', bottom: 'sandstone_bottom' } },
+  { id: B.SNOW_GRASS,     name: '覆雪草地',     en: 'Snowy Grass',      cat: '自然地形', solid: true,  opaque: true,  light: 0,  sound: 'grass',  faces: { top: 'snow', side: 'snow_side', bottom: 'dirt' } },
+  { id: B.SNOW,           name: '雪块',         en: 'Snow Block',       cat: '自然地形', solid: true,  opaque: true,  light: 0,  sound: 'sand',   faces: { all: 'snow' } },
+  { id: B.WATER,          name: '圣泉之水',     en: 'Water',            cat: '自然地形', solid: false, opaque: false, translucent: true, liquid: true, light: 0, sound: 'water', faces: { all: 'water' } },
+
+  { id: B.OAK_LOG,        name: '橡木原木',     en: 'Oak Log',          cat: '建筑木石', solid: true,  opaque: true,  light: 0,  sound: 'wood',   faces: { top: 'oak_log_top', side: 'oak_log_side', bottom: 'oak_log_top' } },
+  { id: B.OAK_PLANKS,     name: '橡木木板',     en: 'Oak Planks',       cat: '建筑木石', solid: true,  opaque: true,  light: 0,  sound: 'wood',   faces: { all: 'oak_planks' } },
+  { id: B.STONE_BRICKS,   name: '石砖',         en: 'Stone Bricks',     cat: '建筑木石', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { all: 'stone_bricks' } },
+  { id: B.MOSSY_BRICKS,   name: '苔石砖',       en: 'Mossy Bricks',     cat: '建筑木石', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { all: 'mossy_bricks' } },
+  { id: B.GLASS,          name: '琉璃玻璃',     en: 'Glass',            cat: '建筑木石', solid: true,  opaque: false, cutout: true, light: 0, sound: 'crystal', faces: { all: 'glass' } },
+  { id: B.OBSIDIAN,       name: '黑曜石',       en: 'Obsidian',         cat: '建筑木石', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { all: 'obsidian' } },
+  { id: B.BASALT,         name: '深渊玄岩',     en: 'Abyssal Basalt',   cat: '建筑木石', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { all: 'basalt' } },
+
+  { id: B.MARBLE,         name: '神殿白玉石',   en: 'Mythic Marble',    cat: '神话圣材', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { all: 'marble' } },
+  { id: B.PILLAR,         name: '雕纹玉柱',     en: 'Carved Pillar',    cat: '神话圣材', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { top: 'pillar_top', side: 'pillar_side', bottom: 'pillar_top' } },
+  { id: B.GOLD,           name: '圣金块',       en: 'Sacred Gold',      cat: '神话圣材', solid: true,  opaque: true,  light: 0,  sound: 'crystal', faces: { all: 'gold' } },
+  { id: B.AZURE_TILE,     name: '天穹琉璃瓦',   en: 'Azure Roof Tile',  cat: '神话圣材', solid: true,  opaque: true,  light: 0,  sound: 'stone',  faces: { top: 'azure_tile_top', side: 'azure_tile', bottom: 'azure_tile' } },
+  { id: B.VERMILION,      name: '朱红丹柱',     en: 'Vermilion Pillar', cat: '神话圣材', solid: true,  opaque: true,  light: 0,  sound: 'wood',   faces: { top: 'vermilion_top', side: 'vermilion_side', bottom: 'vermilion_top' } },
+  { id: B.JADE,           name: '帝王碧玉砖',   en: 'Imperial Jade',    cat: '神话圣材', solid: true,  opaque: true,  light: 0,  sound: 'crystal', faces: { all: 'jade' } },
+
+  { id: B.LANTERN,        name: '灵火灯笼',     en: 'Celestial Lantern',cat: '光源晶石', solid: true,  opaque: true,  light: 15, emissive: true, sound: 'wood',    faces: { top: 'lantern_top', side: 'lantern_side', bottom: 'lantern_top' } },
+  { id: B.GLOWSTONE,      name: '星辉萤石',     en: 'Glowstone',        cat: '光源晶石', solid: true,  opaque: true,  light: 15, emissive: true, sound: 'crystal', faces: { all: 'glowstone' } },
+  { id: B.ASTRAL_CRYSTAL, name: '苍穹灵晶',     en: 'Astral Crystal',   cat: '光源晶石', solid: true,  opaque: true,  light: 14, emissive: true, pulse: true, sound: 'crystal', faces: { all: 'astral_crystal' } },
+  { id: B.MAGMA,          name: '炽焰岩浆',     en: 'Molten Magma',     cat: '光源晶石', solid: true,  opaque: true,  light: 15, emissive: true, pulse: true, sound: 'stone', faces: { all: 'magma' } },
+  { id: B.ASTRAL_PORTAL,  name: '星界传送膜',   en: 'Astral Portal',    cat: '光源晶石', solid: false, opaque: false, translucent: true, light: 13, emissive: true, pulse: true, sound: 'crystal', faces: { all: 'astral_portal' } },
+
+  { id: B.OAK_LEAVES,     name: '橡树树叶',     en: 'Oak Leaves',       cat: '植物灵花', solid: true,  opaque: false, cutout: true, sway: true, light: 0, sound: 'grass', faces: { all: 'oak_leaves' } },
+  { id: B.SAKURA_LEAVES,  name: '樱花花簇',     en: 'Sakura Blossoms',  cat: '植物灵花', solid: true,  opaque: false, cutout: true, sway: true, light: 0, sound: 'grass', faces: { all: 'sakura_leaves' } },
+  { id: B.GOLDEN_LEAVES,  name: '建木神树金叶', en: 'Divine Gold Leaf', cat: '植物灵花', solid: true,  opaque: false, cutout: true, sway: true, light: 5, emissive: true, sound: 'grass', faces: { all: 'golden_leaves' } },
+  { id: B.TALL_GRASS,     name: '翠野青草',     en: 'Tall Grass',       cat: '植物灵花', solid: false, opaque: false, cutout: true, cross: true, sway: true, light: 0, sound: 'grass', faces: { all: 'tall_grass' } },
+  { id: B.POPPY,          name: '绯红虞美人',   en: 'Red Poppy',        cat: '植物灵花', solid: false, opaque: false, cutout: true, cross: true, sway: true, light: 0, sound: 'grass', faces: { all: 'poppy' } },
+  { id: B.MOONFLOWER,     name: '星光灵花',     en: 'Moonflower',       cat: '植物灵花', solid: false, opaque: false, cutout: true, cross: true, sway: true, light: 8, emissive: true, sound: 'grass', faces: { all: 'moonflower' } },
+];
+
+const BLOCKS = new Array(64).fill(null);
+BLOCKS[0] = { id: 0, name: '空气', solid: false, opaque: false, light: 0 };
+for (const def of BLOCK_LIST) BLOCKS[def.id] = def;
+
+const IS_OPAQUE = new Uint8Array(64);
+const IS_SOLID = new Uint8Array(64);
+const IS_TRANSLUCENT = new Uint8Array(64);
+const IS_CROSS = new Uint8Array(64);
+const BLOCK_LIGHT_EMIT = new Uint8Array(64);
+for (const def of BLOCK_LIST) {
+  IS_OPAQUE[def.id] = def.opaque ? 1 : 0;
+  IS_SOLID[def.id] = def.solid ? 1 : 0;
+  IS_TRANSLUCENT[def.id] = def.translucent ? 1 : 0;
+  IS_CROSS[def.id] = def.cross ? 1 : 0;
+  BLOCK_LIGHT_EMIT[def.id] = def.light || 0;
+}
+
+/* ============================================================================
+ * 2. AUTHENTIC 16x16 PROCEDURAL PIXEL-ART TEXTURE GENERATOR
+ * ============================================================================ */
+function hash2i(x, y, seed = 1337) {
+  let n = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 1442695041);
+  n = (n ^ (n >>> 13)) * 1274126177;
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+
+function clampByte(v) { return v < 0 ? 0 : (v > 255 ? 255 : v | 0); }
+
+function buildAllTextures() {
+  const names = [];
+  const buffers = [];
+
+  function addTex(name, fn) {
+    const data = new Uint8Array(16 * 16 * 4);
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        const rgba = fn(x, y);
+        const i = (y * 16 + x) * 4;
+        data[i]     = clampByte(rgba[0]);
+        data[i + 1] = clampByte(rgba[1]);
+        data[i + 2] = clampByte(rgba[2]);
+        data[i + 3] = clampByte(rgba[3] === undefined ? 255 : rgba[3]);
+      }
+    }
+    TEX[name] = names.length;
+    names.push(name);
+    buffers.push(data);
+  }
+
+  function dirtPixel(x, y) {
+    const r = hash2i(x, y, 101);
+    const r2 = hash2i(x >> 1, y >> 1, 102);
+    if (r > 0.91) return [158, 128, 96, 255];      // tiny light pebble
+    if (r > 0.82) return [114, 83, 56, 255];       // dark clod
+    if (r < 0.14) return [102, 72, 47, 255];       // deep shadow soil
+    const v = (r - 0.5) * 26 + (r2 - 0.5) * 14;
+    return [136 + v, 98 + v * 0.78, 67 + v * 0.62, 255];
+  }
+
+  // 1. Grass Top (iconic rich speckled Minecraft meadow green)
+  addTex('grass_top', (x, y) => {
+    const r = hash2i(x, y, 11);
+    const r2 = hash2i((x + 3) >> 1, (y + 1) >> 1, 12);
+    const blade = (r * 0.65 + r2 * 0.35);
+    const g = 148 + (blade - 0.5) * 52;
+    const red = 84 + (blade - 0.5) * 34;
+    const blu = 52 + (blade - 0.5) * 22;
+    return [red, g, blu, 255];
+  });
+
+  // 2. Grass Side (dirt with iconic irregular hanging grass overhang & shadow)
+  const grassEdge = [3, 4, 5, 3, 2, 4, 6, 4, 3, 5, 4, 2, 3, 5, 4, 3];
+  addTex('grass_side', (x, y) => {
+    const edge = grassEdge[x];
+    if (y < edge) {
+      const r = hash2i(x, y, 15);
+      const shade = y === edge - 1 ? -14 : (y === 0 ? 10 : 0);
+      return [86 + (r - 0.5) * 28 + shade, 152 + (r - 0.5) * 36 + shade, 54 + (r - 0.5) * 18 + shade, 255];
+    }
+    const d = dirtPixel(x, y);
+    if (y === edge) return [d[0] * 0.76, d[1] * 0.76, d[2] * 0.76, 255];
+    return d;
+  });
+
+  // 3. Dirt
+  addTex('dirt', dirtPixel);
+
+  // 4. Stone (classic layered horizontal gray striations)
+  addTex('stone', (x, y) => {
+    const h = hash2i(x, y, 31);
+    const streak = hash2i(x >> 2, y, 32);
+    const band = hash2i(x >> 1, y >> 1, 33);
+    let base = 128 + (streak - 0.5) * 26 + (band - 0.5) * 18 + (h - 0.5) * 18;
+    if (h < 0.08) base -= 20;
+    if (h > 0.93) base += 18;
+    return [base, base + 1, base + 4, 255];
+  });
+
+  // 5. Cobblestone (interlocking hand-crafted rounded stones with dark mortar)
+  const cobbleGrid = [
+    '0001111000222200',
+    '0333333044444400',
+    '0333333044444405',
+    '0333330004444055',
+    '0000006660000555',
+    '7770666666088055',
+    '7770666666088800',
+    '7700066660088809',
+    '00aaa0000bb00099',
+    '0aaaaa0bbbbbb099',
+    '0aaaaa0bbbbbb099',
+    '00aaa000bbbb0000',
+    'cc000ddd0000eee0',
+    'ccc0ddddd0eeeee0',
+    'ccc0ddddd0eeeee0',
+    'cc000ddd000eee00',
+  ];
+  addTex('cobble', (x, y) => {
+    const ch = cobbleGrid[y][x];
+    const n = (hash2i(x, y, 41) - 0.5) * 22;
+    if (ch === '0') return [68 + n * 0.5, 69 + n * 0.5, 73 + n * 0.5, 255];
+    const id = parseInt(ch, 36);
+    const stoneTone = 114 + (id % 5) * 10;
+    // Slight top-left bevel highlight inside each cobble
+    const upMortar = cobbleGrid[(y + 15) & 15][x] === '0';
+    const leftMortar = cobbleGrid[y][(x + 15) & 15] === '0';
+    const downMortar = cobbleGrid[(y + 1) & 15][x] === '0';
+    const bevel = (upMortar || leftMortar ? 18 : 0) - (downMortar ? 16 : 0);
+    const v = stoneTone + bevel + n;
+    return [v, v + 1, v + 3, 255];
+  });
+
+  // 6. Oak Log Side (vertical bark ridges)
+  addTex('oak_log_side', (x, y) => {
+    const colTone = hash2i(x, 0, 51);
+    const grain = hash2i(x, y >> 1, 52);
+    const fine = hash2i(x, y, 53);
+    const ridge = ((x % 4 === 0) ? -18 : (x % 4 === 2 ? 12 : 0)) + (colTone - 0.5) * 24;
+    const v = ridge + (grain - 0.5) * 22 + (fine - 0.5) * 12;
+    return [108 + v, 84 + v * 0.78, 54 + v * 0.52, 255];
+  });
+
+  // 7. Oak Log Top (bark rim + concentric growth rings)
+  addTex('oak_log_top', (x, y) => {
+    const dx = x - 7.5, dy = y - 7.5;
+    const dist = Math.hypot(dx, dy);
+    const n = (hash2i(x, y, 55) - 0.5) * 16;
+    if (x === 0 || x === 15 || y === 0 || y === 15 || dist > 7.4) {
+      return [94 + n, 72 + n * 0.8, 46 + n * 0.6, 255];
+    }
+    const ring = Math.sin(dist * 2.2) > 0.25 ? -18 : 10;
+    return [176 + ring + n, 144 + ring * 0.85 + n, 94 + ring * 0.65 + n, 255];
+  });
+
+  // 8. Oak Planks (4 crisp horizontal planks with staggered vertical seams)
+  addTex('oak_planks', (x, y) => {
+    const row = y >> 2;
+    const ly = y & 3;
+    const seamX = [3, 11, 6, 14][row];
+    const n = (hash2i(x, y, 61) - 0.5) * 16;
+    const plankVar = (hash2i(row, x >= seamX ? 1 : 0, 62) - 0.5) * 18;
+    if (ly === 0) return [112 + n * 0.5, 84 + n * 0.5, 48 + n * 0.4, 255];
+    if (x === seamX) return [118 + n * 0.5, 88 + n * 0.5, 50 + n * 0.4, 255];
+    const highlight = ly === 1 ? 14 : (ly === 3 ? -10 : 0);
+    const grain = Math.sin(x * 0.9 + row * 2.1) * 6;
+    const v = plankVar + highlight + grain + n;
+    return [174 + v, 138 + v * 0.84, 84 + v * 0.58, 255];
+  });
+
+  // 9. Oak Leaves (classic airy pixel-art foliage with cutout holes)
+  addTex('oak_leaves', (x, y) => {
+    const n = hash2i(x, y, 71);
+    const cluster = hash2i((x + (y & 1)) >> 1, y >> 1, 72);
+    if (n < 0.17 && cluster < 0.58) return [0, 0, 0, 0];
+    const shade = (cluster - 0.5) * 48 + (n - 0.5) * 30;
+    return [56 + shade * 0.6, 126 + shade, 44 + shade * 0.45, 255];
+  });
+
+  // 10. Sand (warm golden dunes with fine speckles)
+  addTex('sand', (x, y) => {
+    const n = hash2i(x, y, 81);
+    const ripple = Math.sin(y * 0.8 + x * 0.25) * 6;
+    const v = (n - 0.5) * 24 + ripple;
+    return [226 + v, 212 + v * 0.92, 158 + v * 0.78, 255];
+  });
+
+  // 11. Sandstone Top/Side/Bottom
+  addTex('sandstone_top', (x, y) => {
+    const n = (hash2i(x, y, 91) - 0.5) * 18;
+    const border = (x === 0 || y === 0) ? 10 : (x === 15 || y === 15 ? -10 : 0);
+    return [222 + n + border, 206 + n + border, 154 + n + border, 255];
+  });
+  addTex('sandstone_side', (x, y) => {
+    const n = (hash2i(x, y, 92) - 0.5) * 18;
+    if (y === 0) return [232 + n, 218 + n, 168 + n, 255];
+    if (y === 3 || y === 7) return [178 + n, 160 + n, 114 + n, 255];
+    if (y > 3 && y < 7) {
+      const carve = ((x % 4 === 0) ? -18 : 10);
+      return [214 + carve + n, 196 + carve + n, 144 + carve + n, 255];
+    }
+    const band = Math.sin(y * 1.1) * 10;
+    return [216 + band + n, 198 + band + n, 146 + band + n, 255];
+  });
+  addTex('sandstone_bottom', (x, y) => {
+    const n = (hash2i(x, y, 93) - 0.5) * 24;
+    return [198 + n, 180 + n, 132 + n, 255];
+  });
+
+  // 12. Water (luminous turquoise-azure pixel ripples)
+  addTex('water', (x, y) => {
+    const w1 = Math.sin((x * 0.75 + y * 0.45) * 1.2);
+    const w2 = Math.cos((x * 0.35 - y * 0.9) * 1.4);
+    const n = (hash2i(x, y, 105) - 0.5) * 16;
+    const crest = (w1 + w2) * 16;
+    const foam = crest > 22 ? 32 : 0;
+    return [34 + crest * 0.5 + foam + n * 0.5, 144 + crest + foam + n, 212 + crest * 0.8 + foam + n, 202];
+  });
+
+  // 13. Glass (crisp framed pane with classic diagonal glint)
+  addTex('glass', (x, y) => {
+    const edge = x === 0 || x === 15 || y === 0 || y === 15;
+    if (edge) return [194, 232, 245, 255];
+    const inner = x === 1 || x === 14 || y === 1 || y === 14;
+    if (inner && ((x + y) % 3 === 0)) return [150, 205, 224, 255];
+    if ((x === 3 && y === 4) || (x === 4 && y === 3) || (x === 5 && y === 2) ||
+        (x === 11 && y === 12) || (x === 12 && y === 11)) {
+      return [238, 250, 255, 255];
+    }
+    return [0, 0, 0, 0];
+  });
+
+  // 14. Obsidian (volcanic dark indigo-black with amethyst flecks)
+  addTex('obsidian', (x, y) => {
+    const n = hash2i(x, y, 121);
+    const vein = hash2i((x + y) >> 1, (x - y + 16) >> 1, 122);
+    if (n > 0.87 && vein > 0.55) return [84, 52, 128, 255];
+    if (n > 0.72) return [42, 30, 66, 255];
+    const v = (n - 0.5) * 16;
+    return [24 + v, 18 + v, 36 + v, 255];
+  });
+
+  // 15. Mythic Marble (gleaming alabaster white with subtle pale-gold & pearl veining)
+  addTex('marble', (x, y) => {
+    const vein = Math.sin(x * 0.52 + y * 0.38 + hash2i(x >> 2, y >> 2, 131) * 3.0);
+    const n = (hash2i(x, y, 132) - 0.5) * 8;
+    const border = (x === 0 || y === 0) ? 8 : (x === 15 || y === 15 ? -10 : 0);
+    if (Math.abs(vein) < 0.14) return [218 + n, 214 + n, 204 + n, 255];
+    return [244 + n + border, 241 + n + border, 234 + n + border, 255];
+  });
+
+  // 16. Carved Temple Pillar (fluted classical marble grooves + golden capital trim)
+  addTex('pillar_side', (x, y) => {
+    const n = (hash2i(x, y, 141) - 0.5) * 8;
+    if (y === 0 || y === 15) return [224 + n, 194 + n, 114 + n, 255]; // golden trim bands
+    if (y === 1 || y === 14) return [195 + n, 188 + n, 174 + n, 255];
+    const flute = x % 4;
+    const shade = flute === 0 ? -24 : (flute === 1 ? -8 : (flute === 2 ? 10 : 4));
+    return [238 + shade + n, 235 + shade + n, 228 + shade + n, 255];
+  });
+  addTex('pillar_top', (x, y) => {
+    const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5);
+    const d = Math.max(dx, dy);
+    const n = (hash2i(x, y, 142) - 0.5) * 8;
+    if (d > 6.5) return [228 + n, 198 + n, 116 + n, 255];
+    if (d > 5.0 && d < 6.0) return [192 + n, 186 + n, 174 + n, 255];
+    if (Math.hypot(dx, dy) < 2.6) return [242 + n, 212 + n, 128 + n, 255];
+    return [242 + n, 239 + n, 232 + n, 255];
+  });
+
+  // 17. Sacred Gold Block (classic beveled glowing ingot sheen)
+  addTex('gold', (x, y) => {
+    const n = (hash2i(x, y, 151) - 0.5) * 14;
+    const d = Math.min(x, y, 15 - x, 15 - y);
+    if (d === 0) {
+      const lit = (x === 0 || y === 0) ? 28 : -34;
+      return [232 + lit, 186 + lit * 0.9, 54 + lit * 0.5, 255];
+    }
+    if (d === 1) {
+      const lit = (x === 1 || y === 1) ? 18 : -18;
+      return [246 + lit, 202 + lit, 68 + lit, 255];
+    }
+    const diag = Math.sin((x - y) * 0.35) * 16;
+    const gleam = (x + y === 6 || x + y === 7) ? 26 : 0;
+    return [252 + diag * 0.3 + gleam + n, 208 + diag + gleam + n, 68 + diag * 0.6 + gleam + n, 255];
+  });
+
+  // 18. Azure Roof Tile (celestial lapis glazed curved roof tiles with gold pin)
+  addTex('azure_tile', (x, y) => {
+    const n = (hash2i(x, y, 161) - 0.5) * 12;
+    const row = y % 4;
+    const col = x % 4;
+    if (row === 3) return [22, 46, 102, 255];
+    if (y === 0 && (x % 4 === 1 || x % 4 === 2)) return [236, 198, 92, 255]; // golden ridge cap
+    const curve = (col === 0 ? -18 : (col === 2 ? 18 : 4)) + (row === 0 ? 12 : -4);
+    return [34 + curve * 0.6 + n, 82 + curve + n, 168 + curve * 1.2 + n, 255];
+  });
+  addTex('azure_tile_top', (x, y) => {
+    const n = (hash2i(x, y, 162) - 0.5) * 12;
+    const rib = x % 4;
+    const curve = rib === 0 ? -20 : (rib === 2 ? 20 : 2);
+    const tileJoint = (y % 8 === 0) ? -18 : 0;
+    return [32 + curve * 0.6 + tileJoint + n, 84 + curve + tileJoint + n, 174 + curve * 1.1 + tileJoint + n, 255];
+  });
+
+  // 19. Vermilion Lacquer Pillar (imperial cinnabar wood with subtle gold bands)
+  addTex('vermilion_side', (x, y) => {
+    const n = (hash2i(x, y, 171) - 0.5) * 10;
+    if (y === 1 || y === 14) return [236 + n, 192 + n, 82 + n, 255];
+    if (y === 0 || y === 15) return [124 + n, 26 + n, 24 + n, 255];
+    const shine = Math.sin(x * 0.42) * 16;
+    return [184 + shine + n, 44 + shine * 0.4 + n, 38 + shine * 0.35 + n, 255];
+  });
+  addTex('vermilion_top', (x, y) => {
+    const edge = x === 0 || x === 15 || y === 0 || y === 15;
+    if (edge) return [232, 188, 78, 255];
+    const n = (hash2i(x, y, 172) - 0.5) * 12;
+    return [162 + n, 38 + n, 34 + n, 255];
+  });
+
+  // 20. Glowstone (classic warm faceted amber-gold luminous crystal clusters)
+  addTex('glowstone', (x, y) => {
+    const n = hash2i(x, y, 181);
+    const cell = hash2i((x + (y & 2)) >> 1, y >> 1, 182);
+    if (n < 0.14 && cell < 0.45) return [142, 92, 34, 255]; // dark mineral seams
+    const glow = cell * 0.7 + n * 0.3;
+    return [215 + glow * 40, 165 + glow * 82, 72 + glow * 112, 255];
+  });
+
+  // 21. Astral Crystal (ethereal cyan-turquoise luminescent mana crystal)
+  addTex('astral_crystal', (x, y) => {
+    const n = hash2i(x, y, 191);
+    const facet = Math.abs(Math.sin((x + y * 0.7) * 0.65) * Math.cos((x * 0.6 - y) * 0.55));
+    const core = 1.0 - Math.min(1, Math.hypot(x - 7.5, y - 7.5) / 10.5);
+    const e = facet * 0.55 + core * 0.45 + (n - 0.5) * 0.14;
+    return [70 + e * 145, 200 + e * 55, 224 + e * 31, 255];
+  });
+
+  // 22. Stone Bricks (clean staggered ashlar masonry)
+  addTex('stone_bricks', (x, y) => {
+    const n = (hash2i(x, y, 201) - 0.5) * 16;
+    const row = y >> 3;
+    const ly = y & 7;
+    const bx = (x + (row ? 8 : 0)) & 15;
+    if (ly === 0 || bx === 0) return [72 + n * 0.5, 74 + n * 0.5, 79 + n * 0.5, 255];
+    const bevel = (ly === 1 || bx === 1) ? 16 : ((ly === 7 || bx === 15) ? -14 : 0);
+    const bTone = (hash2i(row, bx < 8 ? 0 : 1, 202) - 0.5) * 14;
+    const v = 132 + bevel + bTone + n;
+    return [v, v + 2, v + 5, 255];
+  });
+
+  // 23. Mossy Stone Bricks
+  addTex('mossy_bricks', (x, y) => {
+    const n = (hash2i(x, y, 211) - 0.5) * 16;
+    const row = y >> 3;
+    const ly = y & 7;
+    const bx = (x + (row ? 8 : 0)) & 15;
+    const mossNoise = hash2i(x, y, 212) * 0.65 + hash2i(x >> 1, y >> 1, 213) * 0.35;
+    const nearMortar = ly <= 1 || ly === 7 || bx <= 1 || bx === 15;
+    if ((nearMortar && mossNoise > 0.38) || mossNoise > 0.76) {
+      return [62 + n, 118 + n * 1.2, 48 + n * 0.6, 255];
+    }
+    if (ly === 0 || bx === 0) return [68 + n * 0.5, 72 + n * 0.5, 72 + n * 0.5, 255];
+    const bevel = (ly === 1 || bx === 1) ? 14 : ((ly === 7 || bx === 15) ? -12 : 0);
+    const v = 126 + bevel + n;
+    return [v, v + 3, v + 2, 255];
+  });
+
+  // 24. Snow & Snow Grass Side
+  addTex('snow', (x, y) => {
+    const n = (hash2i(x, y, 221) - 0.5) * 14;
+    return [240 + n, 246 + n, 254 + n * 0.4, 255];
+  });
+  addTex('snow_side', (x, y) => {
+    const edge = grassEdge[x] + 1;
+    if (y < edge) {
+      const n = (hash2i(x, y, 222) - 0.5) * 12;
+      const sh = y === edge - 1 ? -14 : 0;
+      return [238 + n + sh, 244 + n + sh, 252 + n + sh, 255];
+    }
+    const d = dirtPixel(x, y);
+    if (y === edge) return [d[0] * 0.8, d[1] * 0.82, d[2] * 0.88, 255];
+    return d;
+  });
+
+  // 25. Sakura Blossoms (delicate cherry-pink petals with airy cutouts)
+  addTex('sakura_leaves', (x, y) => {
+    const n = hash2i(x, y, 231);
+    const cluster = hash2i((x + (y & 1)) >> 1, y >> 1, 232);
+    if (n < 0.16 && cluster < 0.55) return [0, 0, 0, 0];
+    const bright = cluster * 0.6 + n * 0.4;
+    return [238 + (bright - 0.5) * 32, 152 + (bright - 0.5) * 58, 194 + (bright - 0.5) * 44, 255];
+  });
+
+  // 26. Golden World-Tree Divine Leaves (radiant amber-gold shimmering foliage)
+  addTex('golden_leaves', (x, y) => {
+    const n = hash2i(x, y, 241);
+    const cluster = hash2i((x + (y & 1)) >> 1, y >> 1, 242);
+    if (n < 0.14 && cluster < 0.52) return [0, 0, 0, 0];
+    const b = cluster * 0.6 + n * 0.4;
+    if (b > 0.82) return [255, 242, 164, 255]; // sunlit golden tips
+    return [232 + (b - 0.5) * 44, 174 + (b - 0.5) * 58, 42 + (b - 0.5) * 32, 255];
+  });
+
+  // 27. Abyssal Basalt (dark carved volcanic slate with subtle glowing ember specks)
+  addTex('basalt', (x, y) => {
+    const n = hash2i(x, y, 251);
+    const col = Math.sin(x * 1.55) * 8;
+    const base = 46 + col + (n - 0.5) * 18;
+    return [base + 4, base + 2, base + 8, 255];
+  });
+
+  // 28. Molten Magma (glowing orange-gold lava cracks through dark volcanic crust)
+  addTex('magma', (x, y) => {
+    const v1 = Math.sin(x * 0.62 + Math.cos(y * 0.55) * 1.6);
+    const v2 = Math.cos(y * 0.68 - Math.sin(x * 0.48) * 1.4);
+    const heat = Math.abs(v1 + v2) * 0.5 + (hash2i(x, y, 261) - 0.5) * 0.16;
+    if (heat < 0.32) return [255, 238, 128, 255];
+    if (heat < 0.58) return [255, 134, 24, 255];
+    if (heat < 0.78) return [196, 52, 16, 255];
+    return [76, 26, 22, 255];
+  });
+
+  // 29. Imperial Jade Brick (rich translucent-looking emerald carved tile with gold corner)
+  addTex('jade', (x, y) => {
+    const n = (hash2i(x, y, 271) - 0.5) * 14;
+    const d = Math.min(x, y, 15 - x, 15 - y);
+    if (d === 0) return [24 + n * 0.4, 96 + n * 0.5, 76 + n * 0.5, 255];
+    if (d === 1 && (x === 1 || y === 1)) return [96 + n, 218 + n, 174 + n, 255];
+    if ((x === 2 || x === 13) && (y === 2 || y === 13)) return [242, 206, 102, 255];
+    const sheen = Math.sin((x + y) * 0.4) * 14;
+    return [46 + sheen * 0.5 + n, 166 + sheen + n, 128 + sheen * 0.8 + n, 255];
+  });
+
+  // 30. Celestial Lantern (ornate dark-gold lattice frame over radiant warm lantern glow)
+  addTex('lantern_side', (x, y) => {
+    const frame = x === 0 || x === 15 || y === 0 || y === 15 ||
+                  x === 1 || x === 14 || y === 1 || y === 14;
+    if (frame) {
+      const goldTrim = (x === 1 || x === 14 || y === 1 || y === 14);
+      return goldTrim ? [232, 186, 76, 255] : [68, 44, 30, 255];
+    }
+    if ((x === 7 || x === 8) && (y === 4 || y === 11)) return [214, 154, 58, 255];
+    const dx = (x - 7.5) / 6.5, dy = (y - 7.5) / 6.5;
+    const glow = Math.max(0, 1 - Math.hypot(dx, dy) * 0.65);
+    return [255, 212 + glow * 42, 118 + glow * 105, 255];
+  });
+  addTex('lantern_top', (x, y) => {
+    const d = Math.min(x, y, 15 - x, 15 - y);
+    if (d === 0) return [64, 42, 28, 255];
+    if (d === 1 || d === 5) return [228, 182, 74, 255];
+    return [148, 86, 42, 255];
+  });
+
+  // 31. Tall Grass (cross-mesh sprite)
+  addTex('tall_grass', (x, y) => {
+    const blades = [2, 5, 7, 10, 13];
+    for (let i = 0; i < blades.length; i++) {
+      const bx = blades[i];
+      const topY = 3 + (i % 3) * 2;
+      const lean = Math.round(Math.sin((16 - y) * 0.25 + i) * 1.1);
+      if (y >= topY && Math.abs(x - (bx + lean)) <= (y > 11 ? 1 : 0)) {
+        const g = 134 + (16 - y) * 4 + (hash2i(x, y, 290) - 0.5) * 22;
+        return [68, g, 46, 255];
+      }
+    }
+    return [0, 0, 0, 0];
+  });
+
+  // 32. Red Poppy (cross-mesh flower)
+  addTex('poppy', (x, y) => {
+    if (y >= 8 && (x === 7 || x === 8)) return [58, 132, 46, 255];
+    if ((y === 11 && x === 6) || (y === 10 && x === 9)) return [66, 146, 52, 255];
+    const d = Math.hypot(x - 7.5, y - 5.5);
+    if (d < 1.5) return [38, 22, 22, 255];
+    if (d < 3.4) {
+      const n = (hash2i(x, y, 295) - 0.5) * 26;
+      return [228 + n, 38 + n * 0.4, 44 + n * 0.4, 255];
+    }
+    return [0, 0, 0, 0];
+  });
+
+  // 33. Moonflower (glowing mystical cyan-violet blossom)
+  addTex('moonflower', (x, y) => {
+    if (y >= 8 && (x === 7 || x === 8)) return [52, 138, 118, 255];
+    if ((y === 12 && x === 6) || (y === 11 && x === 9)) return [64, 166, 148, 255];
+    const d = Math.hypot(x - 7.5, y - 5.5);
+    if (d < 1.6) return [245, 252, 255, 255];
+    if (d < 3.8 && ((x + y) & 1 || d < 2.8)) {
+      return [112, 232, 255, 255];
+    }
+    return [0, 0, 0, 0];
+  });
+
+  // 34. Astral Portal (swirling violet-cyan magical vortex)
+  addTex('astral_portal', (x, y) => {
+    const dx = x - 7.5, dy = y - 7.5;
+    const ang = Math.atan2(dy, dx);
+    const dist = Math.hypot(dx, dy);
+    const swirl = Math.sin(dist * 1.15 - ang * 2.0);
+    const bright = (swirl * 0.5 + 0.5);
+    return [122 + bright * 110, 62 + bright * 155, 238 + bright * 17, 198];
+  });
+
+  // Resolve texture indices onto block definitions
+  for (const def of BLOCK_LIST) {
+    const f = def.faces;
+    if (f.all) {
+      def.texTop = def.texSide = def.texBottom = TEX[f.all];
+    } else {
+      def.texTop = TEX[f.top];
+      def.texSide = TEX[f.side];
+      def.texBottom = TEX[f.bottom];
+    }
+  }
+
+  return { names, buffers, count: names.length };
+}
+
+const TEXTURES = buildAllTextures();
+
+/* Render crisp 3D isometric thumbnail canvas for any block ID (for Hotbar & Inventory) */
+const blockIconCache = new Map();
+function getBlockIconDataURL(blockId) {
+  if (blockIconCache.has(blockId)) return blockIconCache.get(blockId);
+  const def = BLOCKS[blockId];
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 48;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  function texToCanvas(layerIdx) {
+    const tc = document.createElement('canvas');
+    tc.width = 16; tc.height = 16;
+    const tctx = tc.getContext('2d');
+    const img = tctx.createImageData(16, 16);
+    img.data.set(TEXTURES.buffers[layerIdx]);
+    tctx.putImageData(img, 0, 0);
+    return tc;
+  }
+
+  if (def.cross) {
+    const tc = texToCanvas(def.texSide);
+    ctx.drawImage(tc, 6, 4, 36, 40);
+  } else {
+    const topC = texToCanvas(def.texTop);
+    const leftC = texToCanvas(def.texSide);
+    const rightC = texToCanvas(def.texSide);
+
+    // Top face (rhombus)
+    ctx.save();
+    ctx.transform(1.18, 0.58, -1.18, 0.58, 24, 5);
+    ctx.drawImage(topC, 0, 0, 16, 16);
+    ctx.restore();
+
+    // Left face
+    ctx.save();
+    ctx.transform(1.18, 0.58, 0, 1.32, 5.1, 14.3);
+    ctx.drawImage(leftC, 0, 0, 16, 16);
+    ctx.fillStyle = 'rgba(0,0,0,0.14)';
+    ctx.fillRect(0, 0, 16, 16);
+    ctx.restore();
+
+    // Right face
+    ctx.save();
+    ctx.transform(1.18, -0.58, 0, 1.32, 24, 23.6);
+    ctx.drawImage(rightC, 0, 0, 16, 16);
+    ctx.fillStyle = 'rgba(0,0,0,0.32)';
+    ctx.fillRect(0, 0, 16, 16);
+    ctx.restore();
+  }
+  const url = c.toDataURL();
+  blockIconCache.set(blockId, url);
+  return url;
+}
+
+function drawBlockIconToCanvas(canvas, blockId) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const img = new Image();
+  img.onload = () => {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  };
+  img.src = getBlockIconDataURL(blockId);
+}
+
+/* ============================================================================
+ * 3. SEEDED 2D & 3D PERLIN NOISE ENGINE
+ * ============================================================================ */
+class PerlinNoise {
+  constructor(seed = 20261125) {
+    this.p = new Uint8Array(512);
+    const perm = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) perm[i] = i;
+    let s = seed >>> 0;
+    for (let i = 255; i > 0; i--) {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      const j = s % (i + 1);
+      const tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
+    }
+    for (let i = 0; i < 512; i++) this.p[i] = perm[i & 255];
+  }
+  static fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  static lerp(a, b, t) { return a + t * (b - a); }
+  static grad2(hash, x, y) {
+    switch (hash & 7) {
+      case 0: return  x + y;
+      case 1: return -x + y;
+      case 2: return  x - y;
+      case 3: return -x - y;
+      case 4: return  x;
+      case 5: return -x;
+      case 6: return  y;
+      default: return -y;
+    }
+  }
+  static grad3(hash, x, y, z) {
+    const h = hash & 15;
+    const u = h < 8 ? x : y;
+    const v = h < 4 ? y : (h === 12 || h === 14 ? x : z);
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+  }
+  noise2D(x, y) {
+    const p = this.p;
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const X = xi & 255, Y = yi & 255;
+    const xf = x - xi, yf = y - yi;
+    const u = PerlinNoise.fade(xf), v = PerlinNoise.fade(yf);
+    const aa = p[p[X] + Y], ab = p[p[X] + Y + 1];
+    const ba = p[p[X + 1] + Y], bb = p[p[X + 1] + Y + 1];
+    const x1 = PerlinNoise.lerp(PerlinNoise.grad2(aa, xf, yf), PerlinNoise.grad2(ba, xf - 1, yf), u);
+    const x2 = PerlinNoise.lerp(PerlinNoise.grad2(ab, xf, yf - 1), PerlinNoise.grad2(bb, xf - 1, yf - 1), u);
+    return PerlinNoise.lerp(x1, x2, v);
+  }
+  noise3D(x, y, z) {
+    const p = this.p;
+    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    const X = xi & 255, Y = yi & 255, Z = zi & 255;
+    const xf = x - xi, yf = y - yi, zf = z - zi;
+    const u = PerlinNoise.fade(xf), v = PerlinNoise.fade(yf), w = PerlinNoise.fade(zf);
+    const A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z;
+    const B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+    return PerlinNoise.lerp(
+      PerlinNoise.lerp(
+        PerlinNoise.lerp(PerlinNoise.grad3(p[AA], xf, yf, zf), PerlinNoise.grad3(p[BA], xf - 1, yf, zf), u),
+        PerlinNoise.lerp(PerlinNoise.grad3(p[AB], xf, yf - 1, zf), PerlinNoise.grad3(p[BB], xf - 1, yf - 1, zf), u), v),
+      PerlinNoise.lerp(
+        PerlinNoise.lerp(PerlinNoise.grad3(p[AA + 1], xf, yf, zf - 1), PerlinNoise.grad3(p[BA + 1], xf - 1, yf, zf - 1), u),
+        PerlinNoise.lerp(PerlinNoise.grad3(p[AB + 1], xf, yf - 1, zf - 1), PerlinNoise.grad3(p[BB + 1], xf - 1, yf - 1, zf - 1), u), v),
+      w);
+  }
+  fbm2D(x, y, octaves = 4, lacunarity = 2.0, gain = 0.5) {
+    let sum = 0, amp = 0.5, freq = 1, norm = 0;
+    for (let i = 0; i < octaves; i++) {
+      sum += this.noise2D(x * freq, y * freq) * amp;
+      norm += amp;
+      freq *= lacunarity;
+      amp *= gain;
+    }
+    return sum / norm;
+  }
+  ridged2D(x, y, octaves = 4) {
+    let sum = 0, amp = 0.5, freq = 1, norm = 0;
+    for (let i = 0; i < octaves; i++) {
+      const n = 1.0 - Math.abs(this.noise2D(x * freq, y * freq));
+      sum += n * n * amp;
+      norm += amp;
+      freq *= 2.05;
+      amp *= 0.48;
+    }
+    return sum / norm;
+  }
+}
+
+const perlin = new PerlinNoise(88481337);
+const perlinBiome = new PerlinNoise(42069777);
+const perlinCave = new PerlinNoise(99117733);
+
+function smoothstep(edge0, edge1, x) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/* ============================================================================
+ * 4. MYTHOLOGICAL SANCTUARY BLUEPRINT BUILDER (7 INTERCONNECTED WONDERS)
+ * ============================================================================ */
+// Chunk-indexed sparse overlay for colossal multi-chunk monuments:
+// value 0 = untouched by blueprint, 1 = explicit AIR carve, (blockId + 1) = explicit block
+const structChunks = new Map();
+
+function structKey(cx, cz) { return cx + ',' + cz; }
+
+function setStruct(wx, wy, wz, blockId) {
+  const x = Math.floor(wx), y = Math.floor(wy), z = Math.floor(wz);
+  if (y < 1 || y >= CHUNK_HEIGHT - 1) return;
+  const cx = Math.floor(x / CHUNK_SIZE);
+  const cz = Math.floor(z / CHUNK_SIZE);
+  const key = structKey(cx, cz);
+  let arr = structChunks.get(key);
+  if (!arr) {
+    arr = new Uint8Array(CHUNK_VOL);
+    structChunks.set(key, arr);
+  }
+  const lx = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const lz = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  arr[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx] = blockId + 1;
+}
+
+function getStruct(wx, wy, wz) {
+  const x = Math.floor(wx), y = Math.floor(wy), z = Math.floor(wz);
+  if (y < 0 || y >= CHUNK_HEIGHT) return 0;
+  const cx = Math.floor(x / CHUNK_SIZE);
+  const cz = Math.floor(z / CHUNK_SIZE);
+  const arr = structChunks.get(structKey(cx, cz));
+  if (!arr) return 0;
+  const lx = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const lz = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  return arr[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx];
+}
+
+function fillBox(x0, y0, z0, x1, y1, z1, id) {
+  const xa = Math.min(x0, x1), xb = Math.max(x0, x1);
+  const ya = Math.min(y0, y1), yb = Math.max(y0, y1);
+  const za = Math.min(z0, z1), zb = Math.max(z0, z1);
+  for (let y = ya; y <= yb; y++)
+    for (let z = za; z <= zb; z++)
+      for (let x = xa; x <= xb; x++)
+        setStruct(x, y, z, id);
+}
+
+function fillCylinder(cx, y0, y1, cz, radius, id, hollow = false) {
+  const r2 = radius * radius;
+  const ir2 = Math.max(0, (radius - 1.2) * (radius - 1.2));
+  const ri = Math.ceil(radius);
+  for (let y = y0; y <= y1; y++) {
+    for (let dz = -ri; dz <= ri; dz++) {
+      for (let dx = -ri; dx <= ri; dx++) {
+        const d2 = dx * dx + dz * dz;
+        if (d2 <= r2 && (!hollow || d2 >= ir2)) {
+          setStruct(cx + dx, y, cz + dz, id);
+        }
+      }
+    }
+  }
+}
+
+function drawToriiGate(cx, baseY, cz, axisZ = true, width = 7, height = 8) {
+  // axisZ=true means pillars are separated along X, player walks through along Z
+  const half = Math.floor(width / 2);
+  for (let y = 0; y < height; y++) {
+    const b = y === 0 ? B.STONE_BRICKS : B.VERMILION;
+    if (axisZ) {
+      setStruct(cx - half, baseY + y, cz, b);
+      setStruct(cx + half, baseY + y, cz, b);
+    } else {
+      setStruct(cx, baseY + y, cz - half, b);
+      setStruct(cx, baseY + y, cz + half, b);
+    }
+  }
+  // Lower tie beam (nuki)
+  for (let i = -half - 1; i <= half + 1; i++) {
+    const b = (i === -half - 1 || i === half + 1) ? B.GOLD : B.VERMILION;
+    if (axisZ) setStruct(cx + i, baseY + height - 2, cz, b);
+    else setStruct(cx, baseY + height - 2, cz + i, b);
+  }
+  // Top upturned roof lintel (kasagi)
+  for (let i = -half - 2; i <= half + 2; i++) {
+    const lift = Math.abs(i) >= half + 1 ? 1 : 0;
+    const b = Math.abs(i) === half + 2 ? B.GOLD : B.AZURE_TILE;
+    if (axisZ) {
+      setStruct(cx + i, baseY + height + lift, cz, b);
+      setStruct(cx + i, baseY + height - 1, cz, B.VERMILION);
+    } else {
+      setStruct(cx, baseY + height + lift, cz + i, b);
+      setStruct(cx, baseY + height - 1, cz + i, B.VERMILION);
+    }
+  }
+  // Center golden plaque & hanging lanterns
+  setStruct(cx, baseY + height - 1, cz, B.GOLD);
+  if (axisZ) {
+    setStruct(cx - half, baseY + height - 3, cz + 1, B.LANTERN);
+    setStruct(cx + half, baseY + height - 3, cz + 1, B.LANTERN);
+  } else {
+    setStruct(cx + 1, baseY + height - 3, cz - half, B.LANTERN);
+    setStruct(cx + 1, baseY + height - 3, cz + half, B.LANTERN);
+  }
+}
+
+function drawSakuraOrGoldTree(cx, baseY, cz, leafBlock = B.SAKURA_LEAVES, height = 6) {
+  for (let y = 0; y < height; y++) setStruct(cx, baseY + y, cz, B.OAK_LOG);
+  const topY = baseY + height;
+  for (let dy = -2; dy <= 2; dy++) {
+    const rad = dy === 2 ? 1.5 : (dy === -2 ? 2.2 : 3.1);
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const d = Math.hypot(dx, dz) + Math.abs(dy) * 0.55;
+        if (d <= rad + hash2i(cx + dx, cz + dz + dy * 7, 501) * 0.65) {
+          if (dx === 0 && dz === 0 && dy < 0) continue;
+          setStruct(cx + dx, topY + dy, cz + dz, leafBlock);
+        }
+      }
+    }
+  }
+}
+
+function drawCrystalSpire(x0, y0, z0, dx, dy, dz, len, thickness, id = B.ASTRAL_CRYSTAL) {
+  for (let i = 0; i <= len; i++) {
+    const t = i / len;
+    const cx = x0 + dx * i, cy = y0 + dy * i, cz = z0 + dz * i;
+    const rad = Math.max(0.5, thickness * (1 - t * 0.72));
+    const ri = Math.ceil(rad);
+    for (let ox = -ri; ox <= ri; ox++)
+      for (let oy = -ri; oy <= ri; oy++)
+        for (let oz = -ri; oz <= ri; oz++)
+          if (ox * ox + oy * oy + oz * oz <= rad * rad)
+            setStruct(cx + ox, cy + oy, cz + oz, id);
+  }
+}
+
+/* Sculpted Terrain Height Function (Deterministic infinite Perlin + smooth sanctuary shaping) */
+function getTerrainInfo(wx, wz) {
+  // Base infinite Perlin biomes
+  const temp = perlinBiome.fbm2D(wx * 0.0038 + 11.3, wz * 0.0038 - 7.1, 3);
+  const moist = perlinBiome.fbm2D(wx * 0.0041 - 21.7, wz * 0.0041 + 14.9, 3);
+
+  let biome = 'emerald'; // Emerald Meadows
+  if (temp > 0.24 && moist < -0.05) biome = 'desert';
+  else if (temp < -0.22) biome = 'frost';
+  else if (moist > 0.14) biome = 'sakura';
+
+  // Infinite Perlin heightfield
+  const cont = perlin.fbm2D(wx * 0.0045, wz * 0.0045, 4);
+  const hills = perlin.fbm2D(wx * 0.016, wz * 0.016, 4);
+  const ridge = perlin.ridged2D(wx * 0.009 + 5.2, wz * 0.009 - 3.8, 4);
+
+  let h = SEA_LEVEL + 4 + cont * 24 + hills * 11;
+  if (biome === 'frost') {
+    h += ridge * 34;
+  } else if (biome === 'sakura') {
+    h += ridge * 14 + 4;
+  } else if (biome === 'desert') {
+    h = SEA_LEVEL + 3 + cont * 12 + Math.abs(hills) * 9;
+  } else {
+    h += Math.max(0, ridge - 0.52) * 26;
+  }
+
+  // Smooth Mythological Sanctuary Terrain Sculpting (seamlessly fades to 0 outside r=96)
+  const rCenter = Math.hypot(wx, wz);
+  if (rCenter < 105) {
+    // Force emerald/sakura palette in the sanctuary
+    if (rCenter < 85) biome = wz < -24 ? 'sakura' : 'emerald';
+
+    // 1. Central Mirror Basin Lake around (0, 0)
+    const lakeW = 1.0 - smoothstep(22, 42, rCenter);
+    if (lakeW > 0) {
+      const basinFloor = 19 + perlin.noise2D(wx * 0.08, wz * 0.08) * 3;
+      h = h * (1 - lakeW) + basinFloor * lakeW;
+    }
+
+    // 2. Spawn Pilgrim Overlook Plateau around (0, 52)
+    const rSpawn = Math.hypot(wx - 0, wz - 52);
+    const spawnW = 1.0 - smoothstep(10, 22, rSpawn);
+    if (spawnW > 0) {
+      h = h * (1 - spawnW) + 37.2 * spawnW;
+    }
+
+    // 3. World Tree Hill around (+54, -14)
+    const rTree = Math.hypot(wx - 54, wz + 14);
+    const treeW = 1.0 - smoothstep(12, 26, rTree);
+    if (treeW > 0) {
+      h = h * (1 - treeW) + (34.5 + hills * 3) * treeW;
+    }
+
+    // 4. Volcanic Dragon Crag Mountain around (-56, -18)
+    const rDragon = Math.hypot(wx + 56, wz + 18);
+    const dragW = 1.0 - smoothstep(8, 30, rDragon);
+    if (dragW > 0) {
+      const peak = 73 - rDragon * 1.15 + ridge * 14;
+      h = h * (1 - dragW) + Math.max(h, peak) * dragW;
+      if (rDragon < 25) biome = 'volcanic';
+    }
+
+    // 5. Cloud Pagoda Misty Peak around (0, -64)
+    const rPagoda = Math.hypot(wx - 0, wz + 64);
+    const pagW = 1.0 - smoothstep(10, 24, rPagoda);
+    if (pagW > 0) {
+      h = h * (1 - pagW) + 45.2 * pagW;
+      if (rPagoda < 20) biome = 'sakura';
+    }
+
+    // 6. Sunken Atlantis Lagoon around (-30, +56)
+    const rAtlantis = Math.hypot(wx + 30, wz - 56);
+    const atlW = 1.0 - smoothstep(15, 28, rAtlantis);
+    if (atlW > 0) {
+      h = h * (1 - atlW) + 17.5 * atlW;
+    }
+  }
+
+  return { height: Math.max(4, Math.min(CHUNK_HEIGHT - 16, Math.floor(h))), biome };
+}
+
+function buildMythicSanctuary() {
+  /* ------------------------------------------------------------------------
+   * WONDER 1: CELESTIAL ACROPOLIS OF AETHER (Floating Temple at 0, 52..105, 0)
+   * ------------------------------------------------------------------------ */
+  const topY = 55;
+  const islandR = 20;
+  // 1a. Sculpted Floating Island with stalactite crags & glowing Astral Crystal veins underneath
+  for (let dz = -islandR - 2; dz <= islandR + 2; dz++) {
+    for (let dx = -islandR - 2; dx <= islandR + 2; dx++) {
+      const dist = Math.hypot(dx, dz);
+      const edgeJitter = perlin.noise2D(dx * 0.14 + 3.1, dz * 0.14 - 2.4) * 2.4;
+      if (dist > islandR + edgeJitter) continue;
+      const norm = Math.min(1, dist / (islandR + 1));
+      const coneDepth = Math.pow(1 - norm, 0.72) * 16 + perlin.ridged2D(dx * 0.16, dz * 0.16, 3) * 6;
+      const botY = Math.floor(topY - Math.max(2, coneDepth));
+      for (let y = botY; y <= topY; y++) {
+        let blk = B.STONE;
+        if (y === topY) {
+          blk = dist > 15.5 ? B.GRASS : B.MARBLE;
+        } else if (y === topY - 1) {
+          blk = dist > 15.5 ? B.DIRT : B.STONE_BRICKS;
+        } else if (y <= botY + 2 && perlin.noise3D(dx * 0.28, y * 0.28, dz * 0.28) > 0.26) {
+          blk = B.ASTRAL_CRYSTAL;
+        } else if (y < topY - 4 && hash2i(dx + y, dz - y, 701) > 0.72) {
+          blk = B.COBBLE;
+        }
+        setStruct(dx, y, dz, blk);
+      }
+    }
+  }
+
+  // Hanging crystal stalactite core beneath center of floating island
+  drawCrystalSpire(0, 39, 0, 0, -1, 0, 8, 2.2, B.ASTRAL_CRYSTAL);
+  drawCrystalSpire(6, 43, 5, 0.25, -1, 0.2, 6, 1.3, B.ASTRAL_CRYSTAL);
+  drawCrystalSpire(-6, 43, -5, -0.25, -1, -0.2, 6, 1.3, B.ASTRAL_CRYSTAL);
+  drawCrystalSpire(-6, 43, 6, -0.2, -1, 0.25, 6, 1.3, B.ASTRAL_CRYSTAL);
+  drawCrystalSpire(6, 43, -6, 0.2, -1, -0.25, 6, 1.3, B.ASTRAL_CRYSTAL);
+
+  // 1b. Stepped Marble Stylobate & Sunburst Jade/Gold Sanctuary Floor (Y = 56..58)
+  fillBox(-14, 56, -14, 14, 56, 14, B.MARBLE);
+  fillBox(-12, 57, -12, 12, 57, 12, B.MARBLE);
+  // Decorative Jade & Gold compass floor inlay at Y=57
+  for (let dz = -11; dz <= 11; dz++) {
+    for (let dx = -11; dx <= 11; dx++) {
+      const adx = Math.abs(dx), adz = Math.abs(dz);
+      const d = Math.hypot(dx, dz);
+      if (Math.abs(d - 9.5) < 0.8) setStruct(dx, 57, dz, B.GOLD);
+      else if (Math.abs(d - 6.5) < 0.85) setStruct(dx, 57, dz, B.JADE);
+      else if (adx === 0 || adz === 0) setStruct(dx, 57, dz, B.GOLD);
+      else if (adx === adz && adx <= 8) setStruct(dx, 57, dz, B.AZURE_TILE);
+    }
+  }
+  // Sacred central fountain pool feeding 4 cardinal channels -> 4 Sky Waterfalls!
+  for (let dz = -3; dz <= 3; dz++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const d = Math.hypot(dx, dz);
+      if (d <= 3.1) {
+        setStruct(dx, 57, dz, d < 2.2 ? B.WATER : B.GOLD);
+        setStruct(dx, 56, dz, B.ASTRAL_CRYSTAL);
+      }
+    }
+  }
+  // 4 Sky Waterfalls pouring from edge of floating island straight into Mirror Basin!
+  const cardinals = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+  for (const [cx, cz] of cardinals) {
+    // Water spout channel at island rim
+    for (let i = 15; i <= 21; i++) {
+      const wx = cx * i, wz = cz * i;
+      setStruct(wx, 55, wz, B.WATER);
+      setStruct(wx + cz, 55, wz + cx, B.MARBLE);
+      setStruct(wx - cz, 55, wz - cx, B.MARBLE);
+      setStruct(wx + cz, 56, wz + cx, i === 20 ? B.LANTERN : B.GOLD);
+      setStruct(wx - cz, 56, wz - cx, i === 20 ? B.LANTERN : B.GOLD);
+    }
+    // Cascading vertical waterfall curtain (3 blocks wide at spout -> 1..2 wide)
+    const fx = cx * 21, fz = cz * 21;
+    for (let y = SEA_LEVEL; y <= 55; y++) {
+      setStruct(fx, y, fz, B.WATER);
+      if (y < 52) {
+        setStruct(fx + cz, y, fz + cx, B.WATER);
+      }
+    }
+    // Glowing splash crystals right under waterfall in the basin
+    setStruct(fx, SEA_LEVEL - 1, fz, B.ASTRAL_CRYSTAL);
+  }
+
+  // 1c. Grand Classical Colonnade (Fluted Carved Pillars + Gold Capitals)
+  const colPositions = [-11, -7, -3, 3, 7, 11];
+  for (const p of colPositions) {
+    const pts = [[p, -11], [p, 11], [-11, p], [11, p]];
+    for (const [px, pz] of pts) {
+      setStruct(px, 58, pz, B.GOLD);
+      for (let y = 59; y <= 69; y++) setStruct(px, y, pz, B.PILLAR);
+      setStruct(px, 70, pz, B.GOLD);
+      // Lantern braziers flanking the main entrances
+      if (Math.abs(px) === 3 || Math.abs(pz) === 3) {
+        setStruct(px, 60, pz + (pz > 0 ? 1 : (pz < 0 ? -1 : 0)), B.LANTERN);
+      }
+    }
+  }
+  // Ornate Entablature & Azure Roof Frieze (Y = 71..73)
+  for (let i = -12; i <= 12; i++) {
+    for (const side of [-11, 11]) {
+      setStruct(i, 71, side, B.MARBLE);
+      setStruct(side, 71, i, B.MARBLE);
+      setStruct(i, 72, side, (Math.abs(i) % 2 === 0) ? B.GOLD : B.AZURE_TILE);
+      setStruct(side, 72, i, (Math.abs(i) % 2 === 0) ? B.GOLD : B.AZURE_TILE);
+    }
+  }
+  for (let i = -13; i <= 13; i++) {
+    for (const side of [-12, 12]) {
+      setStruct(i, 73, side, B.AZURE_TILE);
+      setStruct(side, 73, i, B.AZURE_TILE);
+    }
+  }
+  // Corner upturned golden finials on the main cornice
+  for (const sx of [-13, 13]) {
+    for (const sz of [-13, 13]) {
+      setStruct(sx, 73, sz, B.GOLD);
+      setStruct(sx, 74, sz, B.GOLD);
+      setStruct(sx, 75, sz, B.LANTERN);
+    }
+  }
+
+  // 1d. Soaring Celestial Azure-Gold Rotunda & Dome (Y = 73..93)
+  // Upper drum colonnade
+  fillCylinder(0, 73, 74, 0, 9.5, B.MARBLE, true);
+  for (let a = 0; a < 12; a++) {
+    const ang = (a / 12) * Math.PI * 2;
+    const px = Math.round(Math.cos(ang) * 8.5);
+    const pz = Math.round(Math.sin(ang) * 8.5);
+    for (let y = 75; y <= 80; y++) setStruct(px, y, pz, B.PILLAR);
+    setStruct(px, 81, pz, B.GOLD);
+  }
+  // Dome shell (azure tile with 8 gleaming golden ribs!)
+  for (let dy = 0; dy <= 11; dy++) {
+    const r = Math.cos((dy / 11) * (Math.PI * 0.49)) * 9.3;
+    const ri = Math.ceil(r + 1);
+    for (let dz = -ri; dz <= ri; dz++) {
+      for (let dx = -ri; dx <= ri; dx++) {
+        const d = Math.hypot(dx, dz);
+        if (d <= r + 0.5 && d >= Math.max(0, r - 1.25)) {
+          const ang = Math.atan2(dz, dx);
+          const rib = Math.abs(Math.sin(ang * 4)) < 0.16;
+          setStruct(dx, 81 + dy, dz, (rib || dy === 0 || dy >= 10) ? B.GOLD : B.AZURE_TILE);
+        }
+      }
+    }
+  }
+  // Golden Sun Spire & Radiant Hovering Astral Halo (Y = 92..106)
+  for (let y = 92; y <= 104; y++) {
+    setStruct(0, y, 0, (y === 98 || y === 104) ? B.ASTRAL_CRYSTAL : B.GOLD);
+  }
+  // Hovering golden-crystal ring around the spire at Y = 98
+  for (let a = 0; a < 24; a++) {
+    const ang = (a / 24) * Math.PI * 2;
+    const rx = Math.round(Math.cos(ang) * 5.2);
+    const rz = Math.round(Math.sin(ang) * 5.2);
+    setStruct(rx, 98, rz, a % 3 === 0 ? B.ASTRAL_CRYSTAL : B.GOLD);
+  }
+  // Floating Radiant Astral Core inside the temple rotunda (Y = 66..74)
+  for (let dy = -3; dy <= 3; dy++) {
+    const r = 3 - Math.abs(dy);
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) + Math.abs(dz) <= r) {
+          setStruct(dx, 69 + dy, dz, (Math.abs(dx) + Math.abs(dz) + Math.abs(dy) === 3) ? B.GOLD : B.ASTRAL_CRYSTAL);
+        }
+      }
+    }
+  }
+
+  // 1e. Four Floating Runic Anchor Obelisks hovering around the Floating Island
+  for (const [ox, oz] of [[21, 21], [-21, 21], [21, -21], [-21, -21]]) {
+    for (let dy = -6; dy <= 8; dy++) {
+      const w = Math.abs(dy) > 4 ? 0 : 1;
+      for (let ix = -w; ix <= w; ix++) {
+        for (let iz = -w; iz <= w; iz++) {
+          if (Math.abs(ix) + Math.abs(iz) <= w) {
+            const blk = (dy === 0 || dy === 8 || dy === -6) ? B.ASTRAL_CRYSTAL :
+                        (Math.abs(dy) === 4 ? B.GOLD : B.MARBLE);
+            setStruct(ox + ix, 56 + dy, oz + iz, blk);
+          }
+        }
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+   * WONDER 2: PILGRIM OVERLOOK, JADE RAINBOW BRIDGE & FLOATING STAIRS
+   * ------------------------------------------------------------------------ */
+  // 2a. Spawn Pilgrim Overlook Terrace (centered at 0, 37, 52)
+  fillBox(-8, 36, 46, 8, 37, 58, B.MARBLE);
+  fillBox(-7, 37, 47, 7, 37, 57, B.STONE_BRICKS);
+  fillBox(-5, 37, 48, 5, 37, 56, B.MARBLE);
+  for (let i = -4; i <= 4; i++) {
+    setStruct(i, 37, 52, B.JADE);
+    setStruct(0, 37, 52 + i, B.JADE);
+  }
+  setStruct(0, 37, 52, B.GOLD);
+  // Overlook balustrade & glowing lanterns
+  for (let x = -8; x <= 8; x++) {
+    if (Math.abs(x) >= 3) {
+      setStruct(x, 38, 46, (Math.abs(x) % 2 === 0) ? B.PILLAR : B.MARBLE);
+      if (Math.abs(x) === 4 || Math.abs(x) === 8) setStruct(x, 39, 46, B.LANTERN);
+    }
+  }
+  // Framing Sakura trees on left and right of Overlook
+  drawSakuraOrGoldTree(-11, 37, 51, B.SAKURA_LEAVES, 6);
+  drawSakuraOrGoldTree(11, 37, 51, B.SAKURA_LEAVES, 6);
+  // Welcome Torii Archway at north edge of overlook (Z = 45)
+  drawToriiGate(0, 38, 45, true, 7, 7);
+
+  // 2b. Sweeping Arched Jade & Marble Rainbow Bridge (Z = 44 -> 22)
+  for (let z = 22; z <= 44; z++) {
+    const t = (z - 22) / 22; // 0..1
+    const archY = Math.round(33 + Math.sin(t * Math.PI) * 5.2);
+    for (let x = -2; x <= 2; x++) {
+      setStruct(x, archY, z, Math.abs(x) === 2 ? B.MARBLE : (x === 0 ? B.JADE : B.MARBLE));
+      setStruct(x, archY - 1, z, B.STONE_BRICKS);
+      // Clear air above bridge
+      for (let ay = 1; ay <= 5; ay++) setStruct(x, archY + ay, z, B.AIR);
+    }
+    // Balustrades & lanterns every 4 blocks
+    setStruct(-3, archY + 1, z, (z % 4 === 0) ? B.PILLAR : B.MARBLE);
+    setStruct(3, archY + 1, z, (z % 4 === 0) ? B.PILLAR : B.MARBLE);
+    if (z % 4 === 0) {
+      setStruct(-3, archY + 2, z, B.LANTERN);
+      setStruct(3, archY + 2, z, B.LANTERN);
+    }
+    // Bridge support piers into Mirror Basin
+    if (z === 26 || z === 33 || z === 40) {
+      for (let py = 18; py < archY; py++) {
+        setStruct(-2, py, z, B.STONE_BRICKS);
+        setStruct(2, py, z, B.STONE_BRICKS);
+      }
+    }
+  }
+  // Island landing plaza at Z = 22 -> Floating Marble Spiral Stairway up to Temple (Y = 33 -> 56)!
+  fillCylinder(0, 32, 33, 22, 3.5, B.MARBLE);
+  setStruct(0, 33, 22, B.GOLD);
+  // Graceful rising floating stepping-stone stairway curving up the SE side to Temple entrance
+  const stairSteps = 26;
+  for (let i = 0; i <= stairSteps; i++) {
+    const t = i / stairSteps;
+    const ang = Math.PI * 0.5 - t * Math.PI * 0.62; // arcs from South around East to South-East rim, then turns to temple
+    const rad = 22 - t * 6.5;
+    const sx = Math.round(Math.cos(ang) * rad);
+    const sz = Math.round(Math.sin(ang) * rad);
+    const sy = 34 + Math.round(t * 22);
+    for (let ox = -1; ox <= 1; ox++) {
+      for (let oz = -1; oz <= 1; oz++) {
+        setStruct(sx + ox, sy, sz + oz, (ox === 0 && oz === 0) ? B.GOLD : B.MARBLE);
+        for (let ay = 1; ay <= 4; ay++) setStruct(sx + ox, sy + ay, sz + oz, B.AIR);
+      }
+    }
+    if (i % 5 === 0) setStruct(sx + 1, sy + 1, sz + 1, B.LANTERN);
+  }
+  // Connect top of stairs cleanly into the South Temple Plaza
+  for (let x = 0; x <= 14; x++) {
+    for (let z = 11; z <= 16; z++) {
+      if (Math.hypot(x, z) <= 17.5 && Math.hypot(x, z) >= 12) {
+        setStruct(x, 56, z, B.MARBLE);
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+   * WONDER 3: WORLD TREE OF DAWN (太古建木神树 at +54, 33..105, -14)
+   * ------------------------------------------------------------------------ */
+  const tx = 54, tz = -14, tBase = 33;
+  // 3a. Colossal Gnarled Hollow Trunk (Y = 30..78) with spiral staircase & heartwood sanctuary!
+  for (let y = tBase - 3; y <= tBase + 44; y++) {
+    const hFrac = Math.max(0, (y - tBase) / 44);
+    const rad = 6.4 * (1 - hFrac * 0.44) + Math.max(0, 1 - hFrac * 5) * 2.4;
+    const twistX = Math.sin(hFrac * Math.PI * 1.4) * 1.6;
+    const twistZ = Math.cos(hFrac * Math.PI * 1.2) * 1.4;
+    const ri = Math.ceil(rad + 2);
+    for (let dz = -ri; dz <= ri; dz++) {
+      for (let dx = -ri; dx <= ri; dx++) {
+        const d = Math.hypot(dx - twistX, dz - twistZ);
+        const barkFlute = Math.sin(Math.atan2(dz, dx) * 7 + y * 0.14) * 0.65;
+        if (d <= rad + barkFlute) {
+          // Hollow sanctuary interior from y=tBase+1 to tBase+36
+          const innerR = rad - 1.8;
+          if (y >= tBase + 1 && y <= tBase + 36 && d < innerR) {
+            setStruct(tx + dx, y, tz + dz, B.AIR);
+          } else {
+            const isGoldVein = (Math.abs(barkFlute) > 0.56 && (y % 5 === 0));
+            setStruct(tx + dx, y, tz + dz, isGoldVein ? B.GOLD : B.OAK_LOG);
+          }
+        }
+      }
+    }
+    // Glowing central Astral Heartwood Core + climbable Spiral Staircase inside trunk!
+    if (y >= tBase && y <= tBase + 38) {
+      const cx = Math.round(tx + twistX), cz = Math.round(tz + twistZ);
+      setStruct(cx, y, cz, (y % 3 === 0) ? B.ASTRAL_CRYSTAL : B.GLOWSTONE);
+      const sang = y * 0.45;
+      for (let sr = 1; sr <= 2; sr++) {
+        const sx = Math.round(cx + Math.cos(sang) * sr);
+        const sz = Math.round(cz + Math.sin(sang) * sr);
+        setStruct(sx, y, sz, sr === 2 ? B.OAK_PLANKS : B.GOLD);
+      }
+    }
+  }
+  // Open arched West & South entrances into the Heartwood Sanctuary
+  fillBox(tx - 8, tBase + 1, tz - 1, tx - 2, tBase + 5, tz + 1, B.AIR);
+  fillBox(tx - 1, tBase + 1, tz + 2, tx + 1, tBase + 5, tz + 8, B.AIR);
+  setStruct(tx - 6, tBase + 5, tz - 2, B.LANTERN);
+  setStruct(tx - 6, tBase + 5, tz + 2, B.LANTERN);
+  fillCylinder(tx, tBase, tBase, tz, 4.5, B.MARBLE);
+  setStruct(tx, tBase, tz, B.ASTRAL_CRYSTAL);
+
+  // 3b. Sweeping Buttress Roots plunging into the hills and lake
+  for (let r = 0; r < 7; r++) {
+    const ang = (r / 7) * Math.PI * 2 + 0.3;
+    for (let s = 3; s <= 16; s++) {
+      const rx = tx + Math.cos(ang) * s;
+      const rz = tz + Math.sin(ang) * s;
+      const arch = Math.max(0, 1 - s / 15) * 6 + Math.sin(s * 0.42) * 1.4;
+      const ry = tBase + arch - s * 0.28;
+      const thick = s < 9 ? 1.8 : 1.1;
+      for (let oy = -1; oy <= 1; oy++)
+        for (let ox = -1; ox <= 1; ox++)
+          for (let oz = -1; oz <= 1; oz++)
+            if (ox * ox + oy * oy + oz * oz <= thick * thick)
+              setStruct(rx + ox, ry + oy, rz + oz, B.OAK_LOG);
+    }
+  }
+
+  // 3c. Colossal Spreading Canopy Boughs, Golden/Sakura Foliage Domes & Hanging Glow-Vines
+  const boughs = [];
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2 + 0.2;
+    const len = 14 + (i % 3) * 3;
+    const startY = tBase + 34 + (i % 2) * 5;
+    let bx = tx, by = startY, bz = tz;
+    for (let s = 0; s <= len; s++) {
+      const t = s / len;
+      bx = tx + Math.cos(ang) * s;
+      bz = tz + Math.sin(ang) * s;
+      by = startY + Math.sin(t * Math.PI * 0.72) * 9 + t * 5;
+      const rad = 2.0 * (1 - t * 0.55);
+      const ri = Math.ceil(rad);
+      for (let ox = -ri; ox <= ri; ox++)
+        for (let oy = -ri; oy <= ri; oy++)
+          for (let oz = -ri; oz <= ri; oz++)
+            if (ox * ox + oy * oy + oz * oz <= rad * rad)
+              setStruct(bx + ox, by + oy, bz + oz, B.OAK_LOG);
+    }
+    boughs.push([bx, by + 2, bz, 7.5 + (i % 2) * 1.5, i % 3 === 0 ? B.SAKURA_LEAVES : B.GOLDEN_LEAVES]);
+  }
+  // Crown central canopy dome
+  boughs.push([tx, tBase + 52, tz, 11.5, B.GOLDEN_LEAVES]);
+  boughs.push([tx + 5, tBase + 56, tz - 3, 7.5, B.SAKURA_LEAVES]);
+  boughs.push([tx - 4, tBase + 57, tz + 4, 7.0, B.GOLDEN_LEAVES]);
+
+  for (const [cx, cy, cz, rad, leafType] of boughs) {
+    const ri = Math.ceil(rad);
+    const ryMax = Math.ceil(rad * 0.62);
+    for (let dy = -Math.floor(ryMax * 0.55); dy <= ryMax; dy++) {
+      for (let dz = -ri; dz <= ri; dz++) {
+        for (let dx = -ri; dx <= ri; dx++) {
+          const d = Math.hypot(dx, dz, dy * 1.65);
+          const jitter = perlin.noise3D((cx + dx) * 0.2, (cy + dy) * 0.2, (cz + dz) * 0.2) * 2.1;
+          if (d <= rad + jitter) {
+            const cur = getStruct(cx + dx, cy + dy, cz + dz);
+            if (cur === 0) {
+              const blk = (leafType === B.GOLDEN_LEAVES && hash2i(cx + dx, cz + dz + dy, 808) > 0.84)
+                ? B.SAKURA_LEAVES : leafType;
+              setStruct(cx + dx, cy + dy, cz + dz, blk);
+            }
+          }
+        }
+      }
+    }
+    // Dangling luminous glow-vines beneath each major canopy cluster!
+    for (let v = 0; v < 4; v++) {
+      const va = v * 1.57 + cx * 0.1;
+      const vx = Math.round(cx + Math.cos(va) * (rad * 0.62));
+      const vz = Math.round(cz + Math.sin(va) * (rad * 0.62));
+      const vLen = 5 + ((Math.abs(vx + vz)) % 6);
+      for (let vy = 0; vy < vLen; vy++) {
+        setStruct(vx, cy - 3 - vy, vz, vy === vLen - 1 ? B.LANTERN : (vy % 2 === 0 ? B.GOLDEN_LEAVES : B.GLOWSTONE));
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+   * WONDER 4: OBSIDIAN DRAGON'S MAW, LAVA CASCADE & ASTRAL PORTAL (-56, y, -18)
+   * ------------------------------------------------------------------------ */
+  const dx0 = -56, dz0 = -18;
+  // 4a. Volcanic Crater & Cascading Molten Magma River pouring East into Mirror Lake!
+  for (let i = 0; i <= 26; i++) {
+    const t = i / 26;
+    const lx = dx0 + i;
+    const lz = dz0 + Math.round(Math.sin(t * Math.PI * 1.5) * 4);
+    const ly = Math.round(70 - t * 39);
+    for (let w = -1; w <= 1; w++) {
+      setStruct(lx, ly, lz + w, B.MAGMA);
+      setStruct(lx, ly - 1, lz + w, B.OBSIDIAN);
+      setStruct(lx, ly + 1, lz + w, B.AIR);
+      setStruct(lx, ly + 2, lz + w, B.AIR);
+    }
+    setStruct(lx, ly, lz - 2, B.BASALT);
+    setStruct(lx, ly, lz + 2, B.BASALT);
+  }
+
+  // 4b. Colossal Sculpted Voxel Dragon Head protruding East toward the Floating Temple!
+  const hx = -43, hy = 49, hz = -18;
+  // Upper skull & snout (facing +X)
+  fillBox(hx - 4, hy + 2, hz - 5, hx + 4, hy + 7, hz + 5, B.BASALT);
+  fillBox(hx + 3, hy + 2, hz - 4, hx + 10, hy + 5, hz + 4, B.OBSIDIAN);
+  fillBox(hx + 8, hy + 3, hz - 3, hx + 12, hy + 4, hz + 3, B.BASALT); // snout tip
+  // Glowing nostrils
+  setStruct(hx + 11, hy + 5, hz - 2, B.MAGMA);
+  setStruct(hx + 11, hy + 5, hz + 2, B.MAGMA);
+  // Blazing Molten Eyes & Brow ridges
+  fillBox(hx + 2, hy + 5, hz - 5, hx + 4, hy + 6, hz - 5, B.MAGMA);
+  fillBox(hx + 2, hy + 5, hz + 5, hx + 4, hy + 6, hz + 5, B.MAGMA);
+  fillBox(hx + 1, hy + 7, hz - 5, hx + 5, hy + 7, hz - 4, B.GOLD);
+  fillBox(hx + 1, hy + 7, hz + 4, hx + 5, hy + 7, hz + 5, B.GOLD);
+  // Swept Curved Dragon Horns (Gold & Obsidian)
+  for (let i = 0; i <= 9; i++) {
+    const blk = i % 3 === 0 ? B.GOLD : B.OBSIDIAN;
+    for (const s of [-1, 1]) {
+      setStruct(hx - i, hy + 7 + Math.floor(i * 0.75), hz + s * (4 + Math.floor(i * 0.5)), blk);
+      setStruct(hx - i, hy + 8 + Math.floor(i * 0.75), hz + s * (4 + Math.floor(i * 0.5)), blk);
+    }
+  }
+  // Open Lower Jaw + Marble Fangs (forms dramatic walkthrough entrance!)
+  fillBox(hx - 2, hy - 4, hz - 4, hx + 9, hy - 3, hz + 4, B.OBSIDIAN);
+  fillBox(hx - 1, hy - 2, hz - 3, hx + 9, hy + 1, hz + 3, B.AIR); // open maw interior!
+  for (let fx = hx + 4; fx <= hx + 10; fx += 3) {
+    setStruct(fx, hy + 1, hz - 3, B.MARBLE); // upper fangs
+    setStruct(fx, hy + 1, hz + 3, B.MARBLE);
+    setStruct(fx - 1, hy - 2, hz - 3, B.MARBLE); // lower fangs
+    setStruct(fx - 1, hy - 2, hz + 3, B.MARBLE);
+  }
+  // Fiery bridge runway leading into the Dragon's Maw
+  for (let bx = hx + 9; bx <= hx + 18; bx++) {
+    for (let bz = hz - 2; bz <= hz + 2; bz++) {
+      setStruct(bx, hy - 3, bz, Math.abs(bz - hz) === 2 ? B.OBSIDIAN : B.STONE_BRICKS);
+    }
+  }
+
+  // 4c. Dragon Soul Sanctum Chamber & Obsidian Astral Portal inside the Mountain!
+  fillBox(hx - 16, hy - 4, hz - 8, hx - 2, hy + 8, hz + 8, B.AIR);
+  fillBox(hx - 17, hy - 5, hz - 9, hx - 1, hy - 5, hz + 9, B.BASALT);
+  fillBox(hx - 17, hy + 9, hz - 9, hx - 1, hy + 9, hz + 9, B.BASALT);
+  // Lava trenches flanking the sanctum walkway
+  for (let x = hx - 15; x <= hx - 2; x++) {
+    setStruct(x, hy - 5, hz - 4, B.MAGMA);
+    setStruct(x, hy - 5, hz + 4, B.MAGMA);
+    setStruct(x, hy - 5, hz, B.GOLD);
+  }
+  // Towering Obsidian & Gold Astral Portal Frame at back of Dragon Sanctum (X = hx - 14)
+  const px = hx - 14;
+  for (let y = hy - 4; y <= hy + 6; y++) {
+    for (let z = hz - 4; z <= hz + 4; z++) {
+      const border = (y === hy - 4 || y === hy + 6 || z === hz - 4 || z === hz + 4);
+      if (border) {
+        const corner = (y === hy - 4 || y === hy + 6) && (z === hz - 4 || z === hz + 4);
+        setStruct(px, y, z, corner ? B.GOLD : B.OBSIDIAN);
+      } else {
+        setStruct(px, y, z, B.ASTRAL_PORTAL);
+      }
+    }
+  }
+  setStruct(px + 2, hy - 4, hz - 5, B.ASTRAL_CRYSTAL);
+  setStruct(px + 2, hy - 3, hz - 5, B.ASTRAL_CRYSTAL);
+  setStruct(px + 2, hy - 4, hz + 5, B.ASTRAL_CRYSTAL);
+  setStruct(px + 2, hy - 3, hz + 5, B.ASTRAL_CRYSTAL);
+
+  /* ------------------------------------------------------------------------
+   * WONDER 5: NINE-TIER CLOUD PAGODA & VERMILION TORII PATH (0, 45..102, -64)
+   * ------------------------------------------------------------------------ */
+  const pagX = 0, pagZ = -64, pagBaseY = 45;
+  // Stone-brick citadel terrace
+  fillBox(pagX - 10, pagBaseY - 4, pagZ - 10, pagX + 10, pagBaseY, pagZ + 10, B.STONE_BRICKS);
+  fillBox(pagX - 9, pagBaseY, pagZ - 9, pagX + 9, pagBaseY, pagZ + 9, B.MARBLE);
+
+  // 5-Story Sweeping Upturned-Eaves Eastern Pagoda
+  let curY = pagBaseY + 1;
+  const tiers = [
+    { half: 6, h: 7 },
+    { half: 5, h: 6 },
+    { half: 4, h: 6 },
+    { half: 3, h: 5 },
+    { half: 2, h: 5 },
+  ];
+  for (let ti = 0; ti < tiers.length; ti++) {
+    const { half, h } = tiers[ti];
+    // Interior floor & clear headroom
+    fillBox(pagX - half, curY - 1, pagZ - half, pagX + half, curY - 1, pagZ + half, B.OAK_PLANKS);
+    fillBox(pagX - half + 1, curY, pagZ - half + 1, pagX + half - 1, curY + h - 1, pagZ + half - 1, B.AIR);
+
+    // Walls & Vermilion corner pillars
+    for (let y = curY; y < curY + h; y++) {
+      for (let i = -half; i <= half; i++) {
+        const isCorner = Math.abs(i) === half;
+        const isDoor = Math.abs(i) <= 1 && y < curY + 4;
+        const isWin = Math.abs(i) === 0 && y >= curY + 2 && y <= curY + 3;
+        const wBlock = isCorner ? B.VERMILION : (y === curY + h - 1 ? B.VERMILION : B.MARBLE);
+        if (!isDoor || ti > 0) {
+          setStruct(pagX + i, y, pagZ + half, isWin ? B.GLASS : wBlock);
+          setStruct(pagX + i, y, pagZ - half, isWin ? B.GLASS : wBlock);
+          setStruct(pagX + half, y, pagZ + i, isWin ? B.GLASS : wBlock);
+          setStruct(pagX - half, y, pagZ + i, isWin ? B.GLASS : wBlock);
+        }
+      }
+    }
+    // Sweeping Upturned Azure Roof Eaves (3 blocks overhang + upturned golden corner tips!)
+    const roofY = curY + h;
+    const eave = half + 3;
+    for (let dz = -eave; dz <= eave; dz++) {
+      for (let dx = -eave; dx <= eave; dx++) {
+        const md = Math.max(Math.abs(dx), Math.abs(dz));
+        if (md < half) continue;
+        const isCornerTip = (Math.abs(dx) === eave && Math.abs(dz) === eave);
+        const isOuter = md === eave;
+        const lift = isCornerTip ? 1 : (md === half ? 1 : 0);
+        setStruct(pagX + dx, roofY + lift, pagZ + dz, isCornerTip ? B.GOLD : B.AZURE_TILE);
+        // Hanging Celestial Lanterns at the 4 corners of every tier!
+        if (isCornerTip) {
+          setStruct(pagX + dx, roofY - 1, pagZ + dz, B.LANTERN);
+        }
+        // Subtle gold ridge trim along diagonals
+        if (!isOuter && Math.abs(dx) === Math.abs(dz)) {
+          setStruct(pagX + dx, roofY + lift + 1, pagZ + dz, B.GOLD);
+        }
+      }
+    }
+    // Interior glowing central pillar + spiral climbable stairs
+    for (let y = curY; y <= roofY; y++) {
+      setStruct(pagX, y, pagZ, (y === curY + 2) ? B.LANTERN : B.VERMILION);
+      const sx = pagX + Math.round(Math.cos(y * 1.1) * Math.max(1, half - 2));
+      const sz = pagZ + Math.round(Math.sin(y * 1.1) * Math.max(1, half - 2));
+      setStruct(sx, y, sz, B.OAK_PLANKS);
+    }
+    curY = roofY + 1;
+  }
+  // Ornate Pyramidal Crown & Tall Golden Pagoda Finial Spire
+  fillBox(pagX - 2, curY, pagZ - 2, pagX + 2, curY, pagZ + 2, B.AZURE_TILE);
+  fillBox(pagX - 1, curY + 1, pagZ - 1, pagX + 1, curY + 1, pagZ + 1, B.GOLD);
+  for (let sy = 2; sy <= 11; sy++) {
+    setStruct(pagX, curY + sy, pagZ, (sy === 6 || sy === 11) ? B.ASTRAL_CRYSTAL : B.GOLD);
+  }
+
+  // Northern Pilgrimage Staircase & Vermilion Torii Gates leading up from Mirror Lake (Z = -26 -> -53)
+  for (let z = -53; z <= -26; z++) {
+    const t = (-26 - z) / 27; // 0 at lake edge -> 1 at pagoda
+    const sy = Math.round(32 + t * 13);
+    for (let x = -2; x <= 2; x++) {
+      setStruct(x, sy, z, Math.abs(x) === 2 ? B.STONE_BRICKS : B.MARBLE);
+      for (let fy = sy - 1; fy >= Math.max(24, sy - 6); fy--) setStruct(x, fy, z, B.STONE_BRICKS);
+      for (let ay = 1; ay <= 6; ay++) setStruct(x, sy + ay, z, B.AIR);
+    }
+    if (z === -30 || z === -40 || z === -50) {
+      drawToriiGate(0, sy + 1, z, true, 7, 7);
+    }
+  }
+  // Sakura grove flanking the Cloud Pagoda peak
+  drawSakuraOrGoldTree(-14, 44, -60, B.SAKURA_LEAVES, 6);
+  drawSakuraOrGoldTree(14, 44, -60, B.SAKURA_LEAVES, 7);
+  drawSakuraOrGoldTree(-12, 43, -74, B.SAKURA_LEAVES, 6);
+  drawSakuraOrGoldTree(12, 43, -74, B.SAKURA_LEAVES, 6);
+
+  /* ------------------------------------------------------------------------
+   * WONDER 6: SUNKEN RUINS OF ATLANTIS (-30, 17..36, +56)
+   * ------------------------------------------------------------------------ */
+  const ax = -30, az = 56, aFloor = 17;
+  // Circular submerged mosaic plaza with glowing Golden Star & Astral Crystals
+  for (let dz = -14; dz <= 14; dz++) {
+    for (let dx = -14; dx <= 14; dx++) {
+      const d = Math.hypot(dx, dz);
+      if (d <= 14) {
+        let blk = (hash2i(dx, dz, 601) > 0.6) ? B.MOSSY_BRICKS : B.MARBLE;
+        if (Math.abs(d - 13) < 0.9 || Math.abs(d - 7) < 0.8) blk = B.GOLD;
+        if (Math.abs(dx) <= 1 || Math.abs(dz) <= 1) blk = B.JADE;
+        if (d < 2.8) blk = B.ASTRAL_CRYSTAL;
+        setStruct(ax + dx, aFloor, az + dz, blk);
+      }
+    }
+  }
+  // Ring of ruined broken Fluted Marble Columns (some piercing above the turquoise sea!)
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2;
+    const cx = ax + Math.round(Math.cos(ang) * 11.5);
+    const cz = az + Math.round(Math.sin(ang) * 11.5);
+    const colH = (i % 3 === 0) ? 18 : ((i % 2 === 0) ? 11 : 6);
+    for (let y = 1; y <= colH; y++) {
+      const blk = (y === colH && colH > 15) ? B.MOSSY_BRICKS :
+                  (y === 1 ? B.GOLD : B.PILLAR);
+      setStruct(cx, aFloor + y, cz, blk);
+    }
+    if (colH > 15) setStruct(cx, aFloor + colH + 1, cz, B.LANTERN);
+  }
+  // Air-Pocketed Sunken Glass & Marble Dome Sanctum at center of Atlantis
+  for (let dy = 1; dy <= 7; dy++) {
+    for (let dz = -6; dz <= 6; dz++) {
+      for (let dx = -6; dx <= 6; dx++) {
+        const d = Math.hypot(dx, dy * 1.05, dz);
+        if (d <= 6.2) {
+          if (d >= 5.1) {
+            setStruct(ax + dx, aFloor + dy, az + dz, ((dx + dz) % 3 === 0) ? B.MARBLE : B.GLASS);
+          } else {
+            setStruct(ax + dx, aFloor + dy, az + dz, B.AIR);
+          }
+        }
+      }
+    }
+  }
+  // Underwater entrance doorway into the dome & golden trident altar inside
+  fillBox(ax + 5, aFloor + 1, az - 1, ax + 7, aFloor + 3, az + 1, B.AIR);
+  setStruct(ax, aFloor + 1, az, B.GOLD);
+  setStruct(ax, aFloor + 2, az, B.GOLD);
+  setStruct(ax, aFloor + 3, az, B.ASTRAL_CRYSTAL);
+  setStruct(ax - 1, aFloor + 3, az, B.GOLD);
+  setStruct(ax + 1, aFloor + 3, az, B.GOLD);
+  setStruct(ax - 1, aFloor + 4, az, B.ASTRAL_CRYSTAL);
+  setStruct(ax + 1, aFloor + 4, az, B.ASTRAL_CRYSTAL);
+  setStruct(ax, aFloor + 5, az, B.ASTRAL_CRYSTAL);
+
+  /* ------------------------------------------------------------------------
+   * WONDER 7: CELESTIAL ASTRAL RING, SKY GAZEBO ISLE & CRYSTAL CAVERNS
+   * ------------------------------------------------------------------------ */
+  // 7a. Colossal Tilted Celestial Astral Ring floating high in the Eastern sky (+36, 76, +32)
+  const rcx = 36, rcy = 76, rcz = 32, ringR = 13;
+  for (let a = 0; a < 96; a++) {
+    const ang = (a / 96) * Math.PI * 2;
+    const lx = Math.cos(ang) * ringR;
+    const ly = Math.sin(ang) * ringR * 0.82;
+    const lz = Math.sin(ang) * ringR * 0.56;
+    for (let oy = -1; oy <= 1; oy++) {
+      for (let ox = -1; ox <= 1; ox++) {
+        if (Math.abs(ox) + Math.abs(oy) <= 1) {
+          const blk = (a % 8 === 0) ? B.ASTRAL_CRYSTAL :
+                      (ox === 0 && oy === 0 ? B.GOLD : B.MARBLE);
+          setStruct(rcx + lx + ox, rcy + ly + oy, rcz + lz, blk);
+        }
+      }
+    }
+  }
+
+  // 7b. Western Floating Sky-Gazebo Isle (-40, 65, +26)
+  const gx = -40, gy = 65, gz = 26;
+  for (let dz = -9; dz <= 9; dz++) {
+    for (let dx = -9; dx <= 9; dx++) {
+      const d = Math.hypot(dx, dz);
+      if (d > 8.8) continue;
+      const depth = Math.floor((1 - d / 9) * 8 + perlin.noise2D(dx * 0.3, dz * 0.3) * 2);
+      for (let y = gy - Math.max(1, depth); y <= gy; y++) {
+        setStruct(gx + dx, y, gz + dz, y === gy ? (d > 5.5 ? B.GRASS : B.MARBLE) :
+                  (y === gy - depth ? B.ASTRAL_CRYSTAL : B.STONE));
+      }
+    }
+  }
+  // Ornate octagonal sky gazebo
+  for (const [px, pz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) {
+    for (let y = 1; y <= 6; y++) setStruct(gx + px, gy + y, gz + pz, B.PILLAR);
+    setStruct(gx + px, gy + 6, gz + pz, B.LANTERN);
+  }
+  for (let dy = 0; dy <= 3; dy++) {
+    const r = 5 - dy;
+    fillBox(gx - r, gy + 7 + dy, gz - r, gx + r, gy + 7 + dy, gz + r, dy === 3 ? B.GOLD : B.AZURE_TILE);
+  }
+  setStruct(gx, gy + 11, gz, B.ASTRAL_CRYSTAL);
+  drawSakuraOrGoldTree(gx - 6, gy + 1, gz - 2, B.SAKURA_LEAVES, 5);
+  // Slender waterfall from Sky Gazebo down into the lake
+  for (let y = SEA_LEVEL; y <= gy; y++) setStruct(gx + 8, y, gz, B.WATER);
+
+  // 7c. Subterranean Crystalline Cavern Network beneath the Mirror Basin (-12, 13..22, 4)
+  const cvx = -12, cvy = 14, cvz = 4;
+  for (let dy = -4; dy <= 7; dy++) {
+    for (let dz = -14; dz <= 14; dz++) {
+      for (let dx = -16; dx <= 16; dx++) {
+        const d = Math.hypot(dx / 15, dy / 6.2, dz / 13);
+        const n = perlin.noise3D((cvx + dx) * 0.14, (cvy + dy) * 0.14, (cvz + dz) * 0.14) * 0.25;
+        if (d + n < 0.92) {
+          setStruct(cvx + dx, cvy + dy, cvz + dz, dy <= -3 ? B.WATER : B.AIR);
+        }
+      }
+    }
+  }
+  // Giant glowing diagonal Astral Crystal Spires & ancient arches inside the Cavern!
+  drawCrystalSpire(cvx - 8, cvy - 3, cvz - 4, 0.45, 0.85, 0.25, 11, 1.8, B.ASTRAL_CRYSTAL);
+  drawCrystalSpire(cvx + 7, cvy - 3, cvz + 5, -0.4, 0.9, -0.3, 10, 1.6, B.ASTRAL_CRYSTAL);
+  drawCrystalSpire(cvx + 2, cvy + 6, cvz - 5, -0.1, -1.0, 0.2, 7, 1.4, B.GLOWSTONE);
+  drawCrystalSpire(cvx - 5, cvy - 3, cvz + 7, 0.3, 0.9, -0.35, 9, 1.5, B.ASTRAL_CRYSTAL);
+  // Illuminated stone walkway & glowing crystal shrine in the cavern
+  fillBox(cvx - 4, cvy - 3, cvz - 2, cvx + 4, cvy - 3, cvz + 2, B.MOSSY_BRICKS);
+  setStruct(cvx, cvy - 2, cvz, B.GOLD);
+  setStruct(cvx, cvy - 1, cvz, B.ASTRAL_CRYSTAL);
+  // Illuminated entrance tunnel connecting Cavern up toward surface near (-28, 30, 8)
+  for (let i = 0; i <= 22; i++) {
+    const t = i / 22;
+    const tx2 = Math.round(cvx - 10 - i * 0.85);
+    const ty2 = Math.round(cvy - 1 + t * 18);
+    const tz2 = Math.round(cvz + Math.sin(t * Math.PI) * 5);
+    fillBox(tx2 - 1, ty2, tz2 - 1, tx2 + 1, ty2 + 3, tz2 + 1, B.AIR);
+    setStruct(tx2, ty2 - 1, tz2, B.STONE_BRICKS);
+    if (i % 5 === 0) setStruct(tx2, ty2 + 3, tz2, B.LANTERN);
+  }
+}
+
+buildMythicSanctuary();
+
+/* ============================================================================
+ * 5. LANDMARK TELEPORT BOOKMARKS
+ * ============================================================================ */
+const LANDMARKS = [
+  {
+    name: '朝圣观景台 · 初始圣景',
+    desc: '俯瞰镜湖白玉虹桥、星穹浮空神殿、天瀑、建木神树与盘龙熔岩山的全景起点。',
+    pos: [0.5, 39.2, 52.5], yaw: 0, pitch: 0.08, fly: false,
+  },
+  {
+    name: '星穹浮空神殿 · 圣殿穹顶',
+    desc: '凌空悬浮于云端的白玉金顶神殿，四道天瀑飞流直下，中央悬浮着苍穹星核。',
+    pos: [0.5, 59.5, 13.5], yaw: 0, pitch: 0.15, fly: false,
+  },
+  {
+    name: '太古建木 · 树心圣堂',
+    desc: '参天入云的神话巨树，树干中空藏有星晶螺旋梯，枝头挂满金叶与星辉灯藤。',
+    pos: [41.5, 37.5, -14.5], yaw: -Math.PI * 0.5, pitch: 0.28, fly: false,
+  },
+  {
+    name: '盘龙熔岩山 · 黑曜星界门',
+    desc: '岩浆奔涌的玄岩火山与巨龙石雕入口，龙口深处藏着神秘的黑曜星界传送门。',
+    pos: [-26.5, 48.5, -17.5], yaw: Math.PI * 0.5, pitch: 0.02, fly: true,
+  },
+  {
+    name: '九重云海宝塔 · 樱峰鸟居',
+    desc: '矗立在北方樱花雪峰之巅的五层朱红琉璃古塔，拾级穿过朱红鸟居直抵塔顶。',
+    pos: [0.5, 47.5, -49.5], yaw: 0, pitch: 0.24, fly: false,
+  },
+  {
+    name: '亚特兰蒂斯 · 沉没神庙',
+    desc: '隐藏在碧海之下的大理石星辰神庙与水下琉璃密室，可潜入海底近距离探索。',
+    pos: [-20.5, 34.5, 44.5], yaw: 0.72, pitch: -0.35, fly: true,
+  },
+  {
+    name: '星辰巨环 · 云端俯瞰',
+    desc: '悬浮高空的黄金白玉巨环，高空 360° 鸟瞰整座太虚神话圣境与无限山河。',
+    pos: [35.5, 81.0, 44.5], yaw: 0.45, pitch: -0.25, fly: true,
+  },
+  {
+    name: '水晶地脉洞窟 · 地下奇观',
+    desc: '位于镜湖地底的巨大荧光晶簇溶洞，苍穹灵晶与地下暗河交相辉映。',
+    pos: [-11.5, 13.5, 4.5], yaw: -0.6, pitch: 0.05, fly: false,
+  },
+  {
+    name: '无限柏林荒野 · 远方探索',
+    desc: '随机传送至数百格外的纯柏林噪声无限大陆，探索雪峰、沙海、樱林与野外古遗迹。',
+    randomWild: true,
+  },
+];
+
+/* ============================================================================
+ * 6. CHUNK STORAGE, INFINITE PERLIN GENERATION, LIGHTING & MESH BUILDER
+ * ============================================================================ */
+const worldChunks = new Map();       // key -> Chunk
+const persistentEdits = new Map();   // key -> Map<localIdx, blockId>
+
+function chunkKey(cx, cz) { return cx + ',' + cz; }
+
+class Chunk {
+  constructor(cx, cz) {
+    this.cx = cx;
+    this.cz = cz;
+    this.key = chunkKey(cx, cz);
+    this.blocks = new Uint8Array(CHUNK_VOL);
+    this.light = new Uint8Array(CHUNK_VOL); // high 4 bits = skyLight, low 4 bits = blockLight
+    this.dirty = true;
+    this.generated = false;
+    // WebGL buffers (opaque+cutout, translucent)
+    this.opVao = null; this.opVbo = null; this.opIbo = null; this.opCount = 0;
+    this.trVao = null; this.trVbo = null; this.trIbo = null; this.trCount = 0;
+  }
+  dispose(gl) {
+    if (this.opVao) gl.deleteVertexArray(this.opVao);
+    if (this.opVbo) gl.deleteBuffer(this.opVbo);
+    if (this.opIbo) gl.deleteBuffer(this.opIbo);
+    if (this.trVao) gl.deleteVertexArray(this.trVao);
+    if (this.trVbo) gl.deleteBuffer(this.trVbo);
+    if (this.trIbo) gl.deleteBuffer(this.trIbo);
+    this.opVao = this.opVbo = this.opIbo = null;
+    this.trVao = this.trVbo = this.trIbo = null;
+    this.opCount = this.trCount = 0;
+  }
+}
+
+function generateChunkData(chunk) {
+  const { cx, cz, blocks } = chunk;
+  const wx0 = cx * CHUNK_SIZE;
+  const wz0 = cz * CHUNK_SIZE;
+  const surfaceY = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+  const surfaceBiome = new Array(CHUNK_SIZE * CHUNK_SIZE);
+
+  // 1. Base 2D/3D Perlin Terrain + Caves
+  for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+    const wz = wz0 + lz;
+    for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+      const wx = wx0 + lx;
+      const { height, biome } = getTerrainInfo(wx, wz);
+      surfaceY[lz * CHUNK_SIZE + lx] = height;
+      surfaceBiome[lz * CHUNK_SIZE + lx] = biome;
+      const rSanct = Math.hypot(wx, wz);
+
+      for (let y = 0; y < CHUNK_HEIGHT; y++) {
+        let blk = B.AIR;
+        if (y === 0) {
+          blk = B.BASALT;
+        } else if (y <= height) {
+          // Determine soil/stone strata
+          if (y === height) {
+            if (biome === 'desert') blk = B.SAND;
+            else if (biome === 'volcanic') blk = (y > 54 ? B.BASALT : B.STONE);
+            else if (biome === 'frost') blk = (y > 46 ? B.SNOW : B.SNOW_GRASS);
+            else if (y <= SEA_LEVEL + 1) blk = B.SAND;
+            else blk = B.GRASS;
+          } else if (y >= height - 3) {
+            if (biome === 'desert') blk = (y >= height - 2 ? B.SAND : B.SANDSTONE);
+            else if (biome === 'volcanic') blk = B.BASALT;
+            else if (y <= SEA_LEVEL) blk = B.SAND;
+            else blk = B.DIRT;
+          } else {
+            blk = (biome === 'volcanic' && y > 35) ? B.BASALT : B.STONE;
+          }
+
+          // 3D Perlin underground cave carving (avoid flooding right under central lake floor)
+          if (y >= 4 && y <= height - 4 && (rSanct > 36 || y < 14)) {
+            const c1 = perlinCave.noise3D(wx * 0.055, y * 0.075, wz * 0.055);
+            const c2 = perlinCave.noise3D(wx * 0.095 + 31.2, y * 0.095, wz * 0.095 - 17.4);
+            if (c1 * c1 + c2 * c2 < 0.032) {
+              blk = B.AIR;
+            }
+          }
+        } else if (y <= SEA_LEVEL) {
+          blk = B.WATER;
+        } else if (rSanct > 110 && y >= 74 && y <= 98) {
+          // Procedural infinite floating sky-islets scattered in the distant Perlin world!
+          const skyMask = perlinBiome.noise2D(wx * 0.018 + 50, wz * 0.018 - 30);
+          if (skyMask > 0.42) {
+            const d3 = perlin.noise3D(wx * 0.06, (y - 84) * 0.11, wz * 0.06) - Math.abs(y - 84) * 0.055;
+            if (d3 > 0.16) {
+              blk = (y >= 86) ? B.GRASS : B.STONE;
+            }
+          }
+        }
+
+        if (blk !== B.AIR) {
+          blocks[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx] = blk;
+        }
+      }
+    }
+  }
+
+  // 2. Procedural Trees, Wildflowers & Wilderness Mini-Shrines (outside structure footprint)
+  for (let lz = 2; lz < CHUNK_SIZE - 2; lz++) {
+    for (let lx = 2; lx < CHUNK_SIZE - 2; lx++) {
+      const wx = wx0 + lx, wz = wz0 + lz;
+      const rSanct = Math.hypot(wx, wz);
+      const h = surfaceY[lz * CHUNK_SIZE + lx];
+      const biome = surfaceBiome[lz * CHUNK_SIZE + lx];
+      if (h <= SEA_LEVEL + 1 || h >= CHUNK_HEIGHT - 14) continue;
+      // Keep Spawn Overlook, Pagoda, World Tree & Dragon clear of random trees
+      if (rSanct < 76 && (Math.hypot(wx, wz - 52) < 16 || Math.hypot(wx - 54, wz + 14) < 20 ||
+          Math.hypot(wx + 56, wz + 18) < 26 || Math.hypot(wx, wz + 64) < 18)) continue;
+
+      const topBlk = blocks[(h * CHUNK_SIZE + lz) * CHUNK_SIZE + lx];
+      const rn = hash2i(wx, wz, 9091);
+
+      if (topBlk === B.GRASS || topBlk === B.SNOW_GRASS) {
+        if (rn > 0.985 && (biome === 'emerald' || biome === 'sakura' || biome === 'frost')) {
+          const isSakura = biome === 'sakura' || (biome === 'emerald' && hash2i(wx, wz, 9092) > 0.72);
+          const leafBlk = isSakura ? B.SAKURA_LEAVES : B.OAK_LEAVES;
+          const th = 4 + ((wx * 7 + wz * 13) & 3);
+          for (let ty = 1; ty <= th; ty++) {
+            blocks[((h + ty) * CHUNK_SIZE + lz) * CHUNK_SIZE + lx] = B.OAK_LOG;
+          }
+          for (let dy = -1; dy <= 2; dy++) {
+            const rad = dy === 2 ? 1 : 2;
+            for (let dz = -rad; dz <= rad; dz++) {
+              for (let dx = -rad; dx <= rad; dx++) {
+                if (Math.abs(dx) === rad && Math.abs(dz) === rad && (dy === 2 || hash2i(wx + dx, wz + dz, 9093) > 0.4)) continue;
+                const nx = lx + dx, nz = lz + dz, ny = h + th + dy;
+                if (nx >= 0 && nx < CHUNK_SIZE && nz >= 0 && nz < CHUNK_SIZE && ny < CHUNK_HEIGHT) {
+                  const idx = (ny * CHUNK_SIZE + nz) * CHUNK_SIZE + nx;
+                  if (blocks[idx] === B.AIR) blocks[idx] = leafBlk;
+                }
+              }
+            }
+          }
+        } else if (rn < 0.14 && topBlk === B.GRASS) {
+          const fl = rn < 0.015 ? B.MOONFLOWER : (rn < 0.035 ? B.POPPY : B.TALL_GRASS);
+          blocks[((h + 1) * CHUNK_SIZE + lz) * CHUNK_SIZE + lx] = fl;
+        }
+      }
+    }
+  }
+
+  // Procedural Ancient Wilderness Wayshrines in infinite outer world (1 per ~16 chunks)
+  if (Math.hypot(wx0 + 8, wz0 + 8) > 105 && hash2i(cx, cz, 7771) > 0.93) {
+    const sh = surfaceY[8 * CHUNK_SIZE + 8];
+    if (sh > SEA_LEVEL + 2 && sh < CHUNK_HEIGHT - 16) {
+      for (let dz = -2; dz <= 2; dz++)
+        for (let dx = -2; dx <= 2; dx++)
+          blocks[(sh * CHUNK_SIZE + (8 + dz)) * CHUNK_SIZE + (8 + dx)] = B.MARBLE;
+      for (const [ox, oz] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) {
+        for (let y = 1; y <= 4; y++)
+          blocks[((sh + y) * CHUNK_SIZE + (8 + oz)) * CHUNK_SIZE + (8 + ox)] = B.PILLAR;
+      }
+      for (let dz = -2; dz <= 2; dz++)
+        for (let dx = -2; dx <= 2; dx++)
+          blocks[((sh + 5) * CHUNK_SIZE + (8 + dz)) * CHUNK_SIZE + (8 + dx)] = B.AZURE_TILE;
+      blocks[((sh + 1) * CHUNK_SIZE + 8) * CHUNK_SIZE + 8] = B.GOLD;
+      blocks[((sh + 2) * CHUNK_SIZE + 8) * CHUNK_SIZE + 8] = B.ASTRAL_CRYSTAL;
+    }
+  }
+
+  // 3. Apply Mythic Sanctuary Architectural Blueprint Overlay (if chunk overlaps any monument)
+  const ov = structChunks.get(chunk.key);
+  if (ov) {
+    for (let i = 0; i < CHUNK_VOL; i++) {
+      const v = ov[i];
+      if (v !== 0) blocks[i] = v - 1;
+    }
+  }
+
+  // 4. Apply Persistent Player Edits
+  const edits = persistentEdits.get(chunk.key);
+  if (edits) {
+    for (const [idx, val] of edits) blocks[idx] = val;
+  }
+
+  chunk.generated = true;
+  chunk.dirty = true;
+}
+
+function getWorldBlock(wx, wy, wz) {
+  if (wy < 0) return B.BASALT;
+  if (wy >= CHUNK_HEIGHT) return B.AIR;
+  const cx = Math.floor(wx / CHUNK_SIZE);
+  const cz = Math.floor(wz / CHUNK_SIZE);
+  const ch = worldChunks.get(chunkKey(cx, cz));
+  if (!ch || !ch.generated) return B.AIR;
+  const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const lz = ((wz % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  return ch.blocks[(wy * CHUNK_SIZE + lz) * CHUNK_SIZE + lx];
+}
+
+function setWorldBlock(wx, wy, wz, blockId) {
+  if (wy < 1 || wy >= CHUNK_HEIGHT - 1) return false;
+  const cx = Math.floor(wx / CHUNK_SIZE);
+  const cz = Math.floor(wz / CHUNK_SIZE);
+  const key = chunkKey(cx, cz);
+  const ch = worldChunks.get(key);
+  if (!ch || !ch.generated) return false;
+  const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const lz = ((wz % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const idx = (wy * CHUNK_SIZE + lz) * CHUNK_SIZE + lx;
+  ch.blocks[idx] = blockId;
+
+  let edits = persistentEdits.get(key);
+  if (!edits) { edits = new Map(); persistentEdits.set(key, edits); }
+  edits.set(idx, blockId);
+
+  // Immediately rebuild affected chunk(s) so edits are instant
+  markChunkAndNeighborsDirty(cx, cz, lx, lz, true);
+  return true;
+}
+
+function markChunkAndNeighborsDirty(cx, cz, lx, lz, immediate = false) {
+  const list = [[cx, cz]];
+  if (lx <= 1) list.push([cx - 1, cz]);
+  if (lx >= CHUNK_SIZE - 2) list.push([cx + 1, cz]);
+  if (lz <= 1) list.push([cx, cz - 1]);
+  if (lz >= CHUNK_SIZE - 2) list.push([cx, cz + 1]);
+  for (const [nx, nz] of list) {
+    const ch = worldChunks.get(chunkKey(nx, nz));
+    if (ch && ch.generated) {
+      ch.dirty = true;
+      if (immediate) buildChunkMesh(ch);
+    }
+  }
+}
+
+/* Fast Dual-Channel Lighting (Sky Light + Emissive Block Light BFS) */
+const bfsQueue = new Int32Array(CHUNK_VOL * 2);
+function computeChunkLighting(chunk) {
+  const { cx, cz, blocks, light } = chunk;
+  light.fill(0);
+
+  // 1. Skylight vertical pass (sunlight drops vertically through air/cutout/water)
+  let qHead = 0, qTail = 0;
+  for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+    for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+      let sky = 15;
+      for (let y = CHUNK_HEIGHT - 1; y >= 0; y--) {
+        const idx = (y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx;
+        const b = blocks[idx];
+        if (IS_OPAQUE[b]) {
+          sky = 0;
+        } else {
+          if (b === B.WATER && sky > 2) sky = Math.max(2, sky - 1);
+          light[idx] = sky << 4;
+        }
+      }
+    }
+  }
+
+  // Seed horizontal skylight spread into shaded caves/overhangs
+  for (let y = 1; y < CHUNK_HEIGHT - 1; y++) {
+    for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        const idx = (y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx;
+        const sky = light[idx] >> 4;
+        if (sky > 1) {
+          // Only enqueue if next to a darker non-opaque block
+          if ((lx > 0 && !IS_OPAQUE[blocks[idx - 1]] && (light[idx - 1] >> 4) < sky - 1) ||
+              (lx < 15 && !IS_OPAQUE[blocks[idx + 1]] && (light[idx + 1] >> 4) < sky - 1) ||
+              (lz > 0 && !IS_OPAQUE[blocks[idx - 16]] && (light[idx - 16] >> 4) < sky - 1) ||
+              (lz < 15 && !IS_OPAQUE[blocks[idx + 16]] && (light[idx + 16] >> 4) < sky - 1)) {
+            bfsQueue[qTail++] = idx;
+          }
+        }
+      }
+    }
+  }
+  while (qHead < qTail) {
+    const idx = bfsQueue[qHead++];
+    const sky = light[idx] >> 4;
+    if (sky <= 1) continue;
+    const ns = sky - 1;
+    const lx = idx & 15;
+    const lz = (idx >> 4) & 15;
+    const y = idx >> 8;
+    const dirs = [
+      lx > 0 ? idx - 1 : -1,
+      lx < 15 ? idx + 1 : -1,
+      lz > 0 ? idx - 16 : -1,
+      lz < 15 ? idx + 16 : -1,
+      y > 0 ? idx - 256 : -1,
+      y < CHUNK_HEIGHT - 1 ? idx + 256 : -1,
+    ];
+    for (let d = 0; d < 6; d++) {
+      const ni = dirs[d];
+      if (ni < 0 || IS_OPAQUE[blocks[ni]]) continue;
+      if ((light[ni] >> 4) < ns) {
+        light[ni] = (ns << 4) | (light[ni] & 15);
+        if (qTail < bfsQueue.length) bfsQueue[qTail++] = ni;
+      }
+    }
+  }
+
+  // 2. Emissive Block Light pass (Lanterns, Glowstone, Astral Crystal, Magma, Portal, Moonflower)
+  qHead = 0; qTail = 0;
+  for (let i = 0; i < CHUNK_VOL; i++) {
+    const emit = BLOCK_LIGHT_EMIT[blocks[i]];
+    if (emit > 0) {
+      light[i] = (light[i] & 0xF0) | emit;
+      bfsQueue[qTail++] = i;
+    }
+  }
+  // Also pull border light bleeding from adjacent chunks' emissive blocks within 2 blocks
+  const wx0 = cx * CHUNK_SIZE, wz0 = cz * CHUNK_SIZE;
+  for (let y = 1; y < CHUNK_HEIGHT - 1; y++) {
+    for (let i = 0; i < CHUNK_SIZE; i++) {
+      const checks = [
+        [0, i, wx0 - 1, wz0 + i],
+        [15, i, wx0 + 16, wz0 + i],
+        [i, 0, wx0 + i, wz0 - 1],
+        [i, 15, wx0 + i, wz0 + 16],
+      ];
+      for (const [lx, lz, nwx, nwz] of checks) {
+        const nb = getWorldBlock(nwx, y, nwz);
+        const emit = BLOCK_LIGHT_EMIT[nb];
+        if (emit > 1) {
+          const idx = (y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx;
+          if (!IS_OPAQUE[blocks[idx]] && (light[idx] & 15) < emit - 1) {
+            light[idx] = (light[idx] & 0xF0) | (emit - 1);
+            if (qTail < bfsQueue.length) bfsQueue[qTail++] = idx;
+          }
+        }
+      }
+    }
+  }
+
+  while (qHead < qTail) {
+    const idx = bfsQueue[qHead++];
+    const bl = light[idx] & 15;
+    if (bl <= 1) continue;
+    const nb = bl - 1;
+    const lx = idx & 15;
+    const lz = (idx >> 4) & 15;
+    const y = idx >> 8;
+    const dirs = [
+      lx > 0 ? idx - 1 : -1,
+      lx < 15 ? idx + 1 : -1,
+      lz > 0 ? idx - 16 : -1,
+      lz < 15 ? idx + 16 : -1,
+      y > 0 ? idx - 256 : -1,
+      y < CHUNK_HEIGHT - 1 ? idx + 256 : -1,
+    ];
+    for (let d = 0; d < 6; d++) {
+      const ni = dirs[d];
+      if (ni < 0 || IS_OPAQUE[blocks[ni]]) continue;
+      if ((light[ni] & 15) < nb) {
+        light[ni] = (light[ni] & 0xF0) | nb;
+        if (qTail < bfsQueue.length) bfsQueue[qTail++] = ni;
+      }
+    }
+  }
+}
+
+function getWorldLight(chunk, lx, y, lz) {
+  if (y < 0) return 0;
+  if (y >= CHUNK_HEIGHT) return 0xF0;
+  if (lx >= 0 && lx < CHUNK_SIZE && lz >= 0 && lz < CHUNK_SIZE) {
+    return chunk.light[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx];
+  }
+  const wx = chunk.cx * CHUNK_SIZE + lx;
+  const wz = chunk.cz * CHUNK_SIZE + lz;
+  const ncx = Math.floor(wx / CHUNK_SIZE);
+  const ncz = Math.floor(wz / CHUNK_SIZE);
+  const nch = worldChunks.get(chunkKey(ncx, ncz));
+  if (!nch || !nch.generated) return 0xF0;
+  const nlx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const nlz = ((wz % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  return nch.light[(y * CHUNK_SIZE + nlz) * CHUNK_SIZE + nlx];
+}
+
+function isOpaqueAt(chunk, lx, y, lz) {
+  if (y < 0) return 1;
+  if (y >= CHUNK_HEIGHT) return 0;
+  if (lx >= 0 && lx < CHUNK_SIZE && lz >= 0 && lz < CHUNK_SIZE) {
+    return IS_OPAQUE[chunk.blocks[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx]];
+  }
+  return IS_OPAQUE[getWorldBlock(chunk.cx * CHUNK_SIZE + lx, y, chunk.cz * CHUNK_SIZE + lz)];
+}
+
+function getBlockLocalOrNeighbor(chunk, lx, y, lz) {
+  if (y < 0) return B.BASALT;
+  if (y >= CHUNK_HEIGHT) return B.AIR;
+  if (lx >= 0 && lx < CHUNK_SIZE && lz >= 0 && lz < CHUNK_SIZE) {
+    return chunk.blocks[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx];
+  }
+  return getWorldBlock(chunk.cx * CHUNK_SIZE + lx, y, chunk.cz * CHUNK_SIZE + lz);
+}
+
+/* Pre-allocated dynamic mesh builder scratch buffers (16-byte compact vertex format!) */
+class MeshBuilder {
+  constructor(initialVerts = 16384) {
+    this.capV = initialVerts;
+    this.buf = new ArrayBuffer(this.capV * 16);
+    this.f32 = new Float32Array(this.buf);
+    this.u8 = new Uint8Array(this.buf);
+    this.idx = new Uint32Array(this.capV * 2);
+    this.vCount = 0;
+    this.iCount = 0;
+  }
+  reset() { this.vCount = 0; this.iCount = 0; }
+  ensure(addV, addI) {
+    if (this.vCount + addV > this.capV) {
+      const nextCap = Math.max(this.capV * 2, this.vCount + addV + 1024);
+      const nb = new ArrayBuffer(nextCap * 16);
+      new Uint8Array(nb).set(new Uint8Array(this.buf, 0, this.vCount * 16));
+      this.buf = nb;
+      this.f32 = new Float32Array(nb);
+      this.u8 = new Uint8Array(nb);
+      this.capV = nextCap;
+    }
+    if (this.iCount + addI > this.idx.length) {
+      const ni = new Uint32Array(Math.max(this.idx.length * 2, this.iCount + addI + 2048));
+      ni.set(this.idx.subarray(0, this.iCount));
+      this.idx = ni;
+    }
+  }
+  pushQuad(v0, v1, v2, v3, texLayer, flags, ao0, ao1, ao2, ao3, light0, light1, light2, light3, faceShade) {
+    this.ensure(4, 6);
+    const base = this.vCount;
+    const verts = [
+      [v0, 0, 1, ao0, light0],
+      [v1, 1, 1, ao1, light1],
+      [v2, 1, 0, ao2, light2],
+      [v3, 0, 0, ao3, light3],
+    ];
+    for (let i = 0; i < 4; i++) {
+      const [p, u, v, ao, lByte] = verts[i];
+      const vi = base + i;
+      const fi = vi * 4;
+      this.f32[fi]     = p[0];
+      this.f32[fi + 1] = p[1];
+      this.f32[fi + 2] = p[2];
+      const bi = vi * 16 + 12;
+      this.u8[bi]     = u | (v << 1) | (flags << 2);
+      this.u8[bi + 1] = texLayer;
+      this.u8[bi + 2] = Math.max(0, Math.min(255, Math.round(ao * faceShade * 255)));
+      this.u8[bi + 3] = lByte;
+    }
+    this.vCount += 4;
+    // Flip quad diagonal to eliminate Minecraft AO triangulation artifacts!
+    if (ao0 + ao2 < ao1 + ao3) {
+      this.idx[this.iCount++] = base + 1;
+      this.idx[this.iCount++] = base + 2;
+      this.idx[this.iCount++] = base + 3;
+      this.idx[this.iCount++] = base + 1;
+      this.idx[this.iCount++] = base + 3;
+      this.idx[this.iCount++] = base + 0;
+    } else {
+      this.idx[this.iCount++] = base + 0;
+      this.idx[this.iCount++] = base + 1;
+      this.idx[this.iCount++] = base + 2;
+      this.idx[this.iCount++] = base + 0;
+      this.idx[this.iCount++] = base + 2;
+      this.idx[this.iCount++] = base + 3;
+    }
+  }
+}
+
+const opBuilder = new MeshBuilder(32768);
+const trBuilder = new MeshBuilder(8192);
+const AO_CURVE = [0.46, 0.68, 0.85, 1.0];
+
+// 6 Face Definitions (verified CCW outward winding + tangent axes for Minecraft AO!)
+const FACES = [
+  // +Y Top
+  { dir: [0, 1, 0],  shade: 1.00, tex: 'texTop',
+    corners: [[0,1,1], [1,1,1], [1,1,0], [0,1,0]],
+    aoAxes: [[[-1,1,0],[0,1,1],[-1,1,1]], [[1,1,0],[0,1,1],[1,1,1]], [[1,1,0],[0,1,-1],[1,1,-1]], [[-1,1,0],[0,1,-1],[-1,1,-1]]] },
+  // -Y Bottom
+  { dir: [0, -1, 0], shade: 0.56, tex: 'texBottom',
+    corners: [[0,0,0], [1,0,0], [1,0,1], [0,0,1]],
+    aoAxes: [[[-1,-1,0],[0,-1,-1],[-1,-1,-1]], [[1,-1,0],[0,-1,-1],[1,-1,-1]], [[1,-1,0],[0,-1,1],[1,-1,1]], [[-1,-1,0],[0,-1,1],[-1,-1,1]]] },
+  // +Z South
+  { dir: [0, 0, 1],  shade: 0.84, tex: 'texSide',
+    corners: [[0,0,1], [1,0,1], [1,1,1], [0,1,1]],
+    aoAxes: [[[-1,0,1],[0,-1,1],[-1,-1,1]], [[1,0,1],[0,-1,1],[1,-1,1]], [[1,0,1],[0,1,1],[1,1,1]], [[-1,0,1],[0,1,1],[-1,1,1]]] },
+  // -Z North
+  { dir: [0, 0, -1], shade: 0.84, tex: 'texSide',
+    corners: [[1,0,0], [0,0,0], [0,1,0], [1,1,0]],
+    aoAxes: [[[1,0,-1],[0,-1,-1],[1,-1,-1]], [[-1,0,-1],[0,-1,-1],[-1,-1,-1]], [[-1,0,-1],[0,1,-1],[-1,1,-1]], [[1,0,-1],[0,1,-1],[1,1,-1]]] },
+  // +X East
+  { dir: [1, 0, 0],  shade: 0.74, tex: 'texSide',
+    corners: [[1,0,1], [1,0,0], [1,1,0], [1,1,1]],
+    aoAxes: [[[1,0,1],[1,-1,0],[1,-1,1]], [[1,0,-1],[1,-1,0],[1,-1,-1]], [[1,0,-1],[1,1,0],[1,1,-1]], [[1,0,1],[1,1,0],[1,1,1]]] },
+  // -X West
+  { dir: [-1, 0, 0], shade: 0.74, tex: 'texSide',
+    corners: [[0,0,0], [0,0,1], [0,1,1], [0,1,0]],
+    aoAxes: [[[-1,0,-1],[-1,-1,0],[-1,-1,-1]], [[-1,0,1],[-1,-1,0],[-1,-1,1]], [[-1,0,1],[-1,1,0],[-1,1,1]], [[-1,0,-1],[-1,1,0],[-1,1,-1]]] },
+];
+
+/* ============================================================================
+ * 7. WEBGL2 ENGINE, SHADERS, SKY DOME, CLOUDS, PARTICLES & VIEWMODEL
+ * ============================================================================ */
+const canvas = document.getElementById('game-canvas');
+const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, powerPreference: 'high-performance' });
+if (!gl) {
+  document.body.innerHTML = '<div style="padding:40px;font-size:18px;color:#fff;">您的浏览器不支持 WebGL2，请使用最新版 Chrome / Edge / Firefox / Safari。</div>';
+  throw new Error('WebGL2 unsupported');
+}
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    throw new Error('Shader error: ' + gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+function createProgram(vsSrc, fsSrc) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    throw new Error('Program link error: ' + gl.getProgramInfoLog(p));
+  }
+  return p;
+}
+
+/* Upload 16x16xN Texture Array */
+const texArray = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D_ARRAY, texArray);
+const packedTex = new Uint8Array(16 * 16 * 4 * TEXTURES.count);
+for (let i = 0; i < TEXTURES.count; i++) {
+  packedTex.set(TEXTURES.buffers[i], i * 16 * 16 * 4);
+}
+gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8, 16, 16, TEXTURES.count, 0, gl.RGBA, gl.UNSIGNED_BYTE, packedTex);
+gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
+gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+/* --- Shader 1: Voxel World Shader (Opaque + Cutout + Translucent Water/Portal) --- */
+const VOXEL_VS = `#version 300 es
+precision highp float;
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in uvec4 aMeta; // x: u|(v<<1)|(flags<<2), y: texLayer, z: shadeAO(0..255), w: (sky<<4)|block
+
+uniform mat4 uViewProj;
+uniform vec3 uChunkOrigin;
+uniform vec3 uCamPos;
+uniform float uTime;
+
+out vec2 vUv;
+flat out float vLayer;
+out float vShadeAO;
+out float vSkyLight;
+out float vBlockLight;
+out float vDist;
+out vec3 vWorldPos;
+flat out uint vFlags;
+
+void main() {
+  uint packed0 = aMeta.x;
+  float u = float(packed0 & 1u);
+  float v = float((packed0 >> 1u) & 1u);
+  uint flags = packed0 >> 2u;
+
+  vec3 wp = aPos + uChunkOrigin;
+
+  // Flag bit 0 (1): water gentle surface wave
+  if ((flags & 1u) != 0u) {
+    wp.y += sin(wp.x * 0.9 + uTime * 2.1) * 0.045 + cos(wp.z * 0.85 + uTime * 1.7) * 0.045;
+  }
+  // Flag bit 1 (2): foliage / wildflower gentle wind sway
+  if ((flags & 2u) != 0u) {
+    float sway = sin(uTime * 1.9 + wp.x * 0.65 + wp.z * 0.55) * 0.055;
+    wp.x += sway;
+    wp.z += cos(uTime * 1.5 + wp.z * 0.7) * 0.035;
+  }
+
+  vUv = vec2(u, v);
+  vLayer = float(aMeta.y);
+  vShadeAO = float(aMeta.z) / 255.0;
+  vSkyLight = float(aMeta.w >> 4u) / 15.0;
+  vBlockLight = float(aMeta.w & 15u) / 15.0;
+  vFlags = flags;
+  vWorldPos = wp;
+  vDist = length(wp - uCamPos);
+
+  gl_Position = uViewProj * vec4(wp, 1.0);
+}
+`;
+
+const VOXEL_FS = `#version 300 es
+precision highp float;
+precision highp sampler2DArray;
+
+uniform sampler2DArray uTex;
+uniform vec3 uSunColor;
+uniform vec3 uAmbientColor;
+uniform vec3 uFogColor;
+uniform float uFogStart;
+uniform float uFogEnd;
+uniform float uTime;
+uniform vec3 uCamPos;
+uniform float uIsWaterPass;
+uniform float uUnderwater;
+
+in vec2 vUv;
+flat in float vLayer;
+in float vShadeAO;
+in float vSkyLight;
+in float vBlockLight;
+in float vDist;
+in vec3 vWorldPos;
+flat in uint vFlags;
+
+out vec4 fragColor;
+
+void main() {
+  vec2 uv = vUv;
+  // Animated shimmer UV for water & astral portal
+  if ((vFlags & 1u) != 0u) {
+    uv = fract(uv + vec2(uTime * 0.07, uTime * 0.045));
+  } else if ((vFlags & 8u) != 0u) {
+    uv = fract(uv + vec2(sin(uTime * 0.8) * 0.12, uTime * 0.18));
+  }
+
+  vec4 tex = texture(uTex, vec3(uv, vLayer));
+  if (uIsWaterPass < 0.5 && tex.a < 0.45) discard;
+
+  // Dual-channel Sky + Warm/Mystic Block Lighting
+  float skyPow = pow(vSkyLight, 1.25);
+  float blkPow = pow(vBlockLight, 1.35);
+
+  vec3 skyCol = uSunColor * skyPow + uAmbientColor * (0.28 + 0.72 * skyPow);
+  vec3 blockCol = vec3(1.18, 0.92, 0.58) * blkPow;
+  vec3 light = max(skyCol, blockCol) + vec3(0.055, 0.065, 0.085);
+
+  vec3 col = tex.rgb * light * vShadeAO;
+
+  // Flag bit 2 (4): Emissive self-illumination
+  if ((vFlags & 4u) != 0u) {
+    float pulse = ((vFlags & 8u) != 0u) ? (0.88 + 0.18 * sin(uTime * 2.8 + vWorldPos.x * 0.4 + vWorldPos.z * 0.4)) : 1.0;
+    col = mix(col, tex.rgb * (1.28 * pulse), 0.78);
+  }
+
+  float alpha = tex.a;
+  // Water Fresnel reflection sheen
+  if ((vFlags & 1u) != 0u) {
+    vec3 V = normalize(uCamPos - vWorldPos);
+    float fresnel = pow(1.0 - clamp(abs(V.y), 0.0, 1.0), 2.5);
+    col = mix(col, uFogColor * 1.15 + vec3(0.12, 0.22, 0.28), fresnel * 0.45);
+    alpha = mix(0.70, 0.92, fresnel);
+  }
+
+  // Distance & underwater atmospheric fog
+  float fogStart = uUnderwater > 0.5 ? 2.0 : uFogStart;
+  float fogEnd   = uUnderwater > 0.5 ? 32.0 : uFogEnd;
+  vec3 fogCol    = uUnderwater > 0.5 ? vec3(0.05, 0.28, 0.42) : uFogColor;
+  float fogF = smoothstep(fogStart, fogEnd, vDist);
+  col = mix(col, fogCol, fogF);
+
+  // Filmic gentle tone boost & crisp saturation
+  col = col / (col + vec3(0.14)) * 1.12;
+  fragColor = vec4(col, alpha);
+}
+`;
+
+/* --- Shader 2: Procedural Atmospheric Sky Dome (Sun, Moon, Twinkling Stars, Aurora) --- */
+const SKY_VS = `#version 300 es
+precision highp float;
+const vec2 POS[3] = vec2[](vec2(-1.0,-1.0), vec2(3.0,-1.0), vec2(-1.0,3.0));
+out vec2 vNdc;
+void main() {
+  vNdc = POS[gl_VertexID];
+  gl_Position = vec4(vNdc, 0.9999, 1.0);
+}
+`;
+const SKY_FS = `#version 300 es
+precision highp float;
+uniform mat4 uInvViewProj;
+uniform vec3 uCamPos;
+uniform vec3 uSunDir;
+uniform vec3 uZenithColor;
+uniform vec3 uHorizonColor;
+uniform float uNightFactor;
+uniform float uTime;
+
+in vec2 vNdc;
+out vec4 fragColor;
+
+float hash31(vec3 p) {
+  p = fract(p * vec3(443.897, 441.423, 437.195));
+  p += dot(p, p.yzx + 19.19);
+  return fract((p.x + p.y) * p.z);
+}
+
+void main() {
+  vec4 farW = uInvViewProj * vec4(vNdc, 1.0, 1.0);
+  vec3 dir = normalize(farW.xyz / farW.w - uCamPos);
+
+  float h = clamp(dir.y, -0.25, 1.0);
+  float grad = pow(clamp(h, 0.0, 1.0), 0.52);
+  vec3 sky = mix(uHorizonColor, uZenithColor, grad);
+
+  // Warm atmospheric horizon band near sun
+  float sunDot = dot(dir, normalize(uSunDir));
+  float sunHalo = pow(max(sunDot, 0.0), 10.0) * (1.0 - uNightFactor * 0.8);
+  sky += vec3(1.0, 0.65, 0.32) * sunHalo * 0.45;
+
+  // Crisp Minecraft-style square glowing Sun!
+  vec3 sunRight = normalize(cross(vec3(0.0, 1.0, 0.0), uSunDir));
+  vec3 sunUp = cross(uSunDir, sunRight);
+  if (sunDot > 0.96) {
+    float sx = abs(dot(dir, sunRight));
+    float sy = abs(dot(dir, sunUp));
+    float box = max(sx, sy);
+    if (box < 0.068) sky = vec3(1.0, 0.97, 0.82);
+    else if (box < 0.095) sky = mix(sky, vec3(1.0, 0.85, 0.52), 0.55);
+  }
+
+  // Crisp glowing Moon opposite the sun
+  vec3 moonDir = -uSunDir;
+  float moonDot = dot(dir, moonDir);
+  if (moonDot > 0.97) {
+    float mx = abs(dot(dir, sunRight));
+    float my = abs(dot(dir, sunUp));
+    float mbox = max(mx, my);
+    if (mbox < 0.052) sky = vec3(0.92, 0.96, 1.0);
+    else if (mbox < 0.085) sky = mix(sky, vec3(0.55, 0.72, 0.95), 0.45);
+  }
+
+  // Twinkling Starfield & ethereal turquoise Mythic Aurora at twilight/night!
+  if (uNightFactor > 0.05 && dir.y > 0.02) {
+    vec3 starGrid = floor(dir * 165.0);
+    float s = hash31(starGrid);
+    if (s > 0.992) {
+      float tw = 0.55 + 0.45 * sin(uTime * 3.0 + s * 200.0);
+      sky += vec3(0.85, 0.92, 1.0) * tw * uNightFactor * smoothstep(0.02, 0.25, dir.y);
+    }
+    // Ethereal soft aurora ribbon across the northern sky
+    float aur = sin(dir.x * 4.5 + uTime * 0.22) * 0.5 + 0.5;
+    float band = exp(-pow((dir.y - 0.34 - sin(dir.x * 3.0 + uTime * 0.15) * 0.08) * 9.0, 2.0));
+    sky += mix(vec3(0.12, 0.78, 0.72), vec3(0.45, 0.28, 0.88), aur) * band * uNightFactor * 0.28;
+  }
+
+  fragColor = vec4(sky, 1.0);
+}
+`;
+
+/* --- Shader 3: Simple Colored Geometry (Wireframe Selection Box & Drifting Clouds) --- */
+const COLOR_VS = `#version 300 es
+precision highp float;
+layout(location = 0) in vec3 aPos;
+uniform mat4 uViewProj;
+uniform mat4 uModel;
+void main() {
+  gl_Position = uViewProj * uModel * vec4(aPos, 1.0);
+}
+`;
+const COLOR_FS = `#version 300 es
+precision highp float;
+uniform vec4 uColor;
+out vec4 fragColor;
+void main() { fragColor = uColor; }
+`;
+
+/* --- Shader 4: Textured Mini-Cubes (3D Break Particles & First-Person Held Block) --- */
+const MINI_VS = `#version 300 es
+precision highp float;
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aUv;
+layout(location = 2) in float aFaceIdx; // 0:top, 1:bottom, 2:side
+uniform mat4 uMVP;
+uniform vec3 uLayers; // x:top, y:bottom, z:side
+out vec2 vUv;
+flat out float vLayer;
+out float vShade;
+void main() {
+  vUv = aUv;
+  if (aFaceIdx < 0.5) { vLayer = uLayers.x; vShade = 1.0; }
+  else if (aFaceIdx < 1.5) { vLayer = uLayers.y; vShade = 0.62; }
+  else if (aFaceIdx < 2.5) { vLayer = uLayers.z; vShade = 0.84; }
+  else { vLayer = uLayers.z; vShade = 0.72; }
+  gl_Position = uMVP * vec4(aPos, 1.0);
+}
+`;
+const MINI_FS = `#version 300 es
+precision highp float;
+precision highp sampler2DArray;
+uniform sampler2DArray uTex;
+uniform vec3 uTint;
+in vec2 vUv;
+flat in float vLayer;
+in float vShade;
+out vec4 fragColor;
+void main() {
+  vec4 t = texture(uTex, vec3(vUv, vLayer));
+  if (t.a < 0.35) discard;
+  fragColor = vec4(t.rgb * vShade * uTint, t.a);
+}
+`;
+
+const voxelProg = createProgram(VOXEL_VS, VOXEL_FS);
+const skyProg   = createProgram(SKY_VS, SKY_FS);
+const colorProg = createProgram(COLOR_VS, COLOR_FS);
+const miniProg  = createProgram(MINI_VS, MINI_FS);
+
+const uLoc = {
+  vox: {
+    vp: gl.getUniformLocation(voxelProg, 'uViewProj'),
+    orig: gl.getUniformLocation(voxelProg, 'uChunkOrigin'),
+    cam: gl.getUniformLocation(voxelProg, 'uCamPos'),
+    time: gl.getUniformLocation(voxelProg, 'uTime'),
+    tex: gl.getUniformLocation(voxelProg, 'uTex'),
+    sunCol: gl.getUniformLocation(voxelProg, 'uSunColor'),
+    ambCol: gl.getUniformLocation(voxelProg, 'uAmbientColor'),
+    fogCol: gl.getUniformLocation(voxelProg, 'uFogColor'),
+    fogS: gl.getUniformLocation(voxelProg, 'uFogStart'),
+    fogE: gl.getUniformLocation(voxelProg, 'uFogEnd'),
+    waterPass: gl.getUniformLocation(voxelProg, 'uIsWaterPass'),
+    underwater: gl.getUniformLocation(voxelProg, 'uUnderwater'),
+  },
+  sky: {
+    invVP: gl.getUniformLocation(skyProg, 'uInvViewProj'),
+    cam: gl.getUniformLocation(skyProg, 'uCamPos'),
+    sunDir: gl.getUniformLocation(skyProg, 'uSunDir'),
+    zenith: gl.getUniformLocation(skyProg, 'uZenithColor'),
+    horizon: gl.getUniformLocation(skyProg, 'uHorizonColor'),
+    night: gl.getUniformLocation(skyProg, 'uNightFactor'),
+    time: gl.getUniformLocation(skyProg, 'uTime'),
+  },
+  col: {
+    vp: gl.getUniformLocation(colorProg, 'uViewProj'),
+    model: gl.getUniformLocation(colorProg, 'uModel'),
+    color: gl.getUniformLocation(colorProg, 'uColor'),
+  },
+  mini: {
+    mvp: gl.getUniformLocation(miniProg, 'uMVP'),
+    layers: gl.getUniformLocation(miniProg, 'uLayers'),
+    tex: gl.getUniformLocation(miniProg, 'uTex'),
+    tint: gl.getUniformLocation(miniProg, 'uTint'),
+  },
+};
+
+/* Setup Wireframe Selection Box VAO */
+const wireVao = gl.createVertexArray();
+gl.bindVertexArray(wireVao);
+const wireVbo = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, wireVbo);
+const e = 0.004;
+const p0 = -e, p1 = 1 + e;
+const wireVerts = new Float32Array([
+  p0,p0,p0, p1,p0,p0,  p1,p0,p0, p1,p0,p1,  p1,p0,p1, p0,p0,p1,  p0,p0,p1, p0,p0,p0,
+  p0,p1,p0, p1,p1,p0,  p1,p1,p0, p1,p1,p1,  p1,p1,p1, p0,p1,p1,  p0,p1,p1, p0,p1,p0,
+  p0,p0,p0, p0,p1,p0,  p1,p0,p0, p1,p1,p0,  p1,p0,p1, p1,p1,p1,  p0,p0,p1, p0,p1,p1,
+]);
+gl.bufferData(gl.ARRAY_BUFFER, wireVerts, gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+/* Setup Textured Unit Cube VAO (for Held Block & 3D Break Particles) */
+const miniCubeVao = gl.createVertexArray();
+gl.bindVertexArray(miniCubeVao);
+const miniCubeVbo = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, miniCubeVbo);
+// pos(3), uv(2), faceIdx(1): 0=top, 1=bottom, 2=N/S side, 3=E/W side
+const miniData = [];
+function pushMiniFace(c0, c1, c2, c3, fIdx) {
+  const quad = [[c0,0,1],[c1,1,1],[c2,1,0],[c0,0,1],[c2,1,0],[c3,0,0]];
+  for (const [p, u, v] of quad) miniData.push(p[0]-0.5, p[1]-0.5, p[2]-0.5, u, v, fIdx);
+}
+pushMiniFace([0,1,1],[1,1,1],[1,1,0],[0,1,0], 0);
+pushMiniFace([0,0,0],[1,0,0],[1,0,1],[0,0,1], 1);
+pushMiniFace([0,0,1],[1,0,1],[1,1,1],[0,1,1], 2);
+pushMiniFace([1,0,0],[0,0,0],[0,1,0],[1,1,0], 2);
+pushMiniFace([1,0,1],[1,0,0],[1,1,0],[1,1,1], 3);
+pushMiniFace([0,0,0],[0,0,1],[0,1,1],[0,1,0], 3);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(miniData), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 24, 12);
+gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 24, 20);
+
+/* Setup Blocky Sky Clouds VAO */
+const cloudVao = gl.createVertexArray();
+gl.bindVertexArray(cloudVao);
+const cloudVbo = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, cloudVbo);
+const cloudTris = [];
+const CLOUD_GRID = 36, CLOUD_CELL = 10;
+for (let cz = -CLOUD_GRID; cz < CLOUD_GRID; cz++) {
+  for (let cx = -CLOUD_GRID; cx < CLOUD_GRID; cx++) {
+    const n = perlinBiome.fbm2D(cx * 0.14 + 7.2, cz * 0.14 - 4.1, 3);
+    if (n > 0.18) {
+      const x0 = cx * CLOUD_CELL, z0 = cz * CLOUD_CELL, x1 = x0 + CLOUD_CELL, z1 = z0 + CLOUD_CELL;
+      const y0 = 114, y1 = 117.2;
+      // Top & bottom & sides
+      cloudTris.push(x0,y0,z0, x1,y0,z0, x1,y0,z1, x0,y0,z0, x1,y0,z1, x0,y0,z1);
+      cloudTris.push(x0,y1,z1, x1,y1,z1, x1,y1,z0, x0,y1,z1, x1,y1,z0, x0,y1,z0);
+      cloudTris.push(x0,y0,z1, x1,y0,z1, x1,y1,z1, x0,y0,z1, x1,y1,z1, x0,y1,z1);
+      cloudTris.push(x1,y0,z0, x0,y0,z0, x0,y1,z0, x1,y0,z0, x0,y1,z0, x1,y1,z0);
+      cloudTris.push(x1,y0,z1, x1,y0,z0, x1,y1,z0, x1,y0,z1, x1,y1,z0, x1,y1,z1);
+      cloudTris.push(x0,y0,z0, x0,y0,z1, x0,y1,z1, x0,y0,z0, x0,y1,z1, x0,y1,z0);
+    }
+  }
+}
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cloudTris), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+const cloudVertCount = cloudTris.length / 3;
+
+const skyVao = gl.createVertexArray();
+gl.bindVertexArray(null);
+
+/* Upload a MeshBuilder into Chunk VAO */
+function uploadMesh(gl, vao, vbo, ibo, builder) {
+  if (builder.iCount === 0) return { vao, vbo, ibo, count: 0 };
+  if (!vao) vao = gl.createVertexArray();
+  if (!vbo) vbo = gl.createBuffer();
+  if (!ibo) ibo = gl.createBuffer();
+
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(builder.buf, 0, builder.vCount * 16), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 16, 0);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribIPointer(1, 4, gl.UNSIGNED_BYTE, 16, 12);
+
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, builder.idx.subarray(0, builder.iCount), gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+  return { vao, vbo, ibo, count: builder.iCount };
+}
+
+/* Build Chunk Mesh with Minecraft AO + Cross-Flora + Water Lowering */
+function buildChunkMesh(chunk) {
+  computeChunkLighting(chunk);
+  opBuilder.reset();
+  trBuilder.reset();
+
+  const { blocks } = chunk;
+  for (let y = 0; y < CHUNK_HEIGHT; y++) {
+    for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        const b = blocks[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx];
+        if (b === B.AIR) continue;
+        const def = BLOCKS[b];
+
+        // Cross-mesh flora (Tall Grass, Poppy, Moonflower)
+        if (def.cross) {
+          const lByte = getWorldLight(chunk, lx, y, lz);
+          const flags = 2 | (def.emissive ? 4 : 0);
+          const pad = 0.14;
+          const x0 = lx + pad, x1 = lx + 1 - pad, z0 = lz + pad, z1 = lz + 1 - pad;
+          const y0 = y, y1 = y + 0.92;
+          // Two intersecting double-sided diagonals
+          opBuilder.pushQuad([x0,y0,z0],[x1,y0,z1],[x1,y1,z1],[x0,y1,z0], def.texSide, flags, 1,1,1,1, lByte,lByte,lByte,lByte, 0.94);
+          opBuilder.pushQuad([x1,y0,z1],[x0,y0,z0],[x0,y1,z0],[x1,y1,z1], def.texSide, flags, 1,1,1,1, lByte,lByte,lByte,lByte, 0.94);
+          opBuilder.pushQuad([x1,y0,z0],[x0,y0,z1],[x0,y1,z1],[x1,y1,z0], def.texSide, flags, 1,1,1,1, lByte,lByte,lByte,lByte, 0.90);
+          opBuilder.pushQuad([x0,y0,z1],[x1,y0,z0],[x1,y1,z0],[x0,y1,z1], def.texSide, flags, 1,1,1,1, lByte,lByte,lByte,lByte, 0.90);
+          continue;
+        }
+
+        const isTr = def.translucent;
+        const builder = isTr ? trBuilder : opBuilder;
+        const isWater = b === B.WATER;
+        const aboveBlock = isWater ? getBlockLocalOrNeighbor(chunk, lx, y + 1, lz) : B.AIR;
+        const waterTopY = (isWater && aboveBlock !== B.WATER) ? 0.86 : 1.0;
+
+        let baseFlags = 0;
+        if (isWater) baseFlags |= 1;
+        if (def.sway) baseFlags |= 2;
+        if (def.emissive) baseFlags |= 4;
+        if (def.pulse) baseFlags |= 8;
+
+        for (let f = 0; f < 6; f++) {
+          const face = FACES[f];
+          const nx = lx + face.dir[0], ny = y + face.dir[1], nz = lz + face.dir[2];
+          const nb = getBlockLocalOrNeighbor(chunk, nx, ny, nz);
+
+          // Face culling rules
+          if (isTr) {
+            if (nb === b || IS_OPAQUE[nb]) continue;
+          } else if (def.cutout && b === B.GLASS) {
+            if (nb === B.GLASS || IS_OPAQUE[nb]) continue;
+          } else {
+            if (IS_OPAQUE[nb]) continue;
+          }
+
+          const texLayer = def[face.tex];
+          const c = face.corners;
+          const v0 = [lx + c[0][0], y + (c[0][1] ? waterTopY : 0), lz + c[0][2]];
+          const v1 = [lx + c[1][0], y + (c[1][1] ? waterTopY : 0), lz + c[1][2]];
+          const v2 = [lx + c[2][0], y + (c[2][1] ? waterTopY : 0), lz + c[2][2]];
+          const v3 = [lx + c[3][0], y + (c[3][1] ? waterTopY : 0), lz + c[3][2]];
+
+          // Light value at adjacent air cell (emissive blocks shine fully)
+          let nLight = getWorldLight(chunk, nx, ny, nz);
+          if (def.emissive) nLight = (nLight & 0xF0) | Math.max(nLight & 15, def.light || 14);
+
+          // Per-vertex Minecraft Ambient Occlusion
+          let ao0 = 1, ao1 = 1, ao2 = 1, ao3 = 1;
+          if (!isTr && !def.emissive) {
+            const ax = face.aoAxes;
+            const calcAO = (k) => {
+              const s1 = isOpaqueAt(chunk, lx + ax[k][0][0], y + ax[k][0][1], lz + ax[k][0][2]);
+              const s2 = isOpaqueAt(chunk, lx + ax[k][1][0], y + ax[k][1][1], lz + ax[k][1][2]);
+              const cr = isOpaqueAt(chunk, lx + ax[k][2][0], y + ax[k][2][1], lz + ax[k][2][2]);
+              return AO_CURVE[(s1 && s2) ? 0 : (3 - (s1 + s2 + cr))];
+            };
+            ao0 = calcAO(0); ao1 = calcAO(1); ao2 = calcAO(2); ao3 = calcAO(3);
+          }
+
+          // Water waves only displace top vertices of exposed water surface
+          const faceFlags = isWater ? ((f === 0 && waterTopY < 0.99) ? baseFlags : (baseFlags & ~1)) : baseFlags;
+          builder.pushQuad(v0, v1, v2, v3, texLayer, faceFlags, ao0, ao1, ao2, ao3, nLight, nLight, nLight, nLight, face.shade);
+        }
+      }
+    }
+  }
+
+  const op = uploadMesh(gl, chunk.opVao, chunk.opVbo, chunk.opIbo, opBuilder);
+  chunk.opVao = op.vao; chunk.opVbo = op.vbo; chunk.opIbo = op.ibo; chunk.opCount = op.count;
+  const tr = uploadMesh(gl, chunk.trVao, chunk.trVbo, chunk.trIbo, trBuilder);
+  chunk.trVao = tr.vao; chunk.trVbo = tr.vbo; chunk.trIbo = tr.ibo; chunk.trCount = tr.count;
+  chunk.dirty = false;
+}
+
+/* ============================================================================
+ * 8. MATRIX MATH UTILITIES (Zero-Allocation Hot Path)
+ * ============================================================================ */
+function mat4Perspective(out, fovRad, aspect, near, far) {
+  const f = 1.0 / Math.tan(fovRad * 0.5);
+  const nf = 1 / (near - far);
+  out.fill(0);
+  out[0] = f / aspect;
+  out[5] = f;
+  out[10] = (far + near) * nf;
+  out[11] = -1;
+  out[14] = 2 * far * near * nf;
+  return out;
+}
+function mat4LookAt(out, eye, center, up) {
+  let zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
+  let len = Math.hypot(zx, zy, zz) || 1; zx /= len; zy /= len; zz /= len;
+  let xx = up[1]*zz - up[2]*zy, xy = up[2]*zx - up[0]*zz, xz = up[0]*zy - up[1]*zx;
+  len = Math.hypot(xx, xy, xz) || 1; xx /= len; xy /= len; xz /= len;
+  const yx = zy*xz - zz*xy, yy = zz*xx - zx*xz, yz = zx*xy - zy*xx;
+  out[0]=xx; out[1]=yx; out[2]=zx; out[3]=0;
+  out[4]=xy; out[5]=yy; out[6]=zy; out[7]=0;
+  out[8]=xz; out[9]=yz; out[10]=zz; out[11]=0;
+  out[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]);
+  out[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]);
+  out[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]);
+  out[15]=1;
+  return out;
+}
+function mat4Mul(out, a, b) {
+  for (let c = 0; c < 4; c++) {
+    const b0 = b[c*4], b1 = b[c*4+1], b2 = b[c*4+2], b3 = b[c*4+3];
+    out[c*4+0] = a[0]*b0 + a[4]*b1 + a[8]*b2 + a[12]*b3;
+    out[c*4+1] = a[1]*b0 + a[5]*b1 + a[9]*b2 + a[13]*b3;
+    out[c*4+2] = a[2]*b0 + a[6]*b1 + a[10]*b2 + a[14]*b3;
+    out[c*4+3] = a[3]*b0 + a[7]*b1 + a[11]*b2 + a[15]*b3;
+  }
+  return out;
+}
+function mat4Invert(out, m) {
+  const a00=m[0],a01=m[1],a02=m[2],a03=m[3],a10=m[4],a11=m[5],a12=m[6],a13=m[7],
+        a20=m[8],a21=m[9],a22=m[10],a23=m[11],a30=m[12],a31=m[13],a32=m[14],a33=m[15];
+  const b00=a00*a11-a01*a10, b01=a00*a12-a02*a10, b02=a00*a13-a03*a10,
+        b03=a01*a12-a02*a11, b04=a01*a13-a03*a11, b05=a02*a13-a03*a12,
+        b06=a20*a31-a21*a30, b07=a20*a32-a22*a30, b08=a20*a33-a23*a30,
+        b09=a21*a32-a22*a31, b10=a21*a33-a23*a31, b11=a22*a33-a23*a32;
+  let det = b00*b11 - b01*b10 + b02*b09 + b03*b08 - b04*b07 + b05*b06;
+  if (!det) return out;
+  det = 1 / det;
+  out[0]=(a11*b11-a12*b10+a13*b09)*det; out[1]=(a02*b10-a01*b11-a03*b09)*det;
+  out[2]=(a31*b05-a32*b04+a33*b03)*det; out[3]=(a22*b04-a21*b05-a23*b03)*det;
+  out[4]=(a12*b08-a10*b11-a13*b07)*det; out[5]=(a00*b11-a02*b08+a03*b07)*det;
+  out[6]=(a32*b02-a30*b05-a33*b01)*det; out[7]=(a20*b05-a22*b02+a23*b01)*det;
+  out[8]=(a10*b10-a11*b08+a13*b06)*det; out[9]=(a01*b08-a00*b10-a03*b06)*det;
+  out[10]=(a30*b04-a31*b02+a33*b00)*det; out[11]=(a21*b02-a20*b04-a23*b00)*det;
+  out[12]=(a11*b07-a10*b09-a12*b06)*det; out[13]=(a00*b09-a01*b07+a02*b06)*det;
+  out[14]=(a31*b01-a30*b03-a32*b00)*det; out[15]=(a20*b03-a21*b01+a22*b00)*det;
+  return out;
+}
+function mat4Translation(out, x, y, z) {
+  out.fill(0); out[0]=1; out[5]=1; out[10]=1; out[15]=1;
+  out[12]=x; out[13]=y; out[14]=z; return out;
+}
+function mat4TRS(out, x, y, z, rx, ry, rz, sx, sy, sz) {
+  const cx=Math.cos(rx), sxr=Math.sin(rx), cy=Math.cos(ry), syr=Math.sin(ry), cz=Math.cos(rz), szr=Math.sin(rz);
+  out[0] = (cy*cz)*sx; out[1] = (cy*szr)*sx; out[2] = (-syr)*sx; out[3] = 0;
+  out[4] = (sxr*syr*cz - cx*szr)*sy; out[5] = (sxr*syr*szr + cx*cz)*sy; out[6] = (sxr*cy)*sy; out[7] = 0;
+  out[8] = (cx*syr*cz + sxr*szr)*sz; out[9] = (cx*syr*szr - sxr*cz)*sz; out[10] = (cx*cy)*sz; out[11] = 0;
+  out[12] = x; out[13] = y; out[14] = z; out[15] = 1;
+  return out;
+}
+
+/* ============================================================================
+ * 9. PROCEDURAL WEB AUDIO SOUND SYNTHESIZER
+ * ============================================================================ */
+class SoundFX {
+  constructor() {
+    this.ctx = null;
+    this.enabled = true;
+  }
+  unlock() {
+    if (!this.enabled) return;
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) this.ctx = new AC();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  }
+  playBlock(soundType, isBreak = true) {
+    if (!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const noiseBuf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.11, this.ctx.sampleRate);
+    const ch = noiseBuf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ch.length * 0.35));
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+    const filter = this.ctx.createBiquadFilter();
+    const nGain = this.ctx.createGain();
+
+    const pitchVar = 0.88 + Math.random() * 0.24;
+    if (soundType === 'crystal') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime((isBreak ? 880 : 660) * pitchVar, now);
+      osc.frequency.exponentialRampToValueAtTime((isBreak ? 1420 : 980) * pitchVar, now + 0.12);
+      gain.gain.setValueAtTime(0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      filter.type = 'highpass'; filter.frequency.value = 1800;
+      nGain.gain.setValueAtTime(0.06, now); nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    } else if (soundType === 'stone') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime((isBreak ? 165 : 210) * pitchVar, now);
+      osc.frequency.exponentialRampToValueAtTime(75, now + 0.07);
+      gain.gain.setValueAtTime(0.11, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      filter.type = 'bandpass'; filter.frequency.value = 950 * pitchVar; filter.Q.value = 1.4;
+      nGain.gain.setValueAtTime(0.16, now); nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+    } else if (soundType === 'wood') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime((isBreak ? 240 : 290) * pitchVar, now);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.08);
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      filter.type = 'bandpass'; filter.frequency.value = 600;
+      nGain.gain.setValueAtTime(0.09, now); nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    } else if (soundType === 'water') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320 * pitchVar, now);
+      osc.frequency.exponentialRampToValueAtTime(520 * pitchVar, now + 0.1);
+      gain.gain.setValueAtTime(0.07, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+      filter.type = 'lowpass'; filter.frequency.value = 700;
+      nGain.gain.setValueAtTime(0.12, now); nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+    } else {
+      // grass / dirt / sand
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime((isBreak ? 120 : 155) * pitchVar, now);
+      osc.frequency.exponentialRampToValueAtTime(55, now + 0.07);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      filter.type = 'lowpass'; filter.frequency.value = 1100 * pitchVar;
+      nGain.gain.setValueAtTime(0.18, now); nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.10);
+    }
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    noise.connect(filter); filter.connect(nGain); nGain.connect(this.ctx.destination);
+    osc.start(now); osc.stop(now + 0.2);
+    noise.start(now); noise.stop(now + 0.12);
+  }
+  playStep(soundType) {
+    if (!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.055, this.ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ch.length * 0.3));
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const flt = this.ctx.createBiquadFilter();
+    flt.type = 'bandpass';
+    flt.frequency.value = soundType === 'stone' ? 800 : (soundType === 'wood' ? 420 : 560);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.065, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+    src.connect(flt); flt.connect(g); g.connect(this.ctx.destination);
+    src.start(now); src.stop(now + 0.06);
+  }
+  playChime() {
+    if (!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const freqs = [523.25, 659.25, 783.99, 1046.5];
+    freqs.forEach((f, idx) => {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.001, now + idx * 0.05);
+      g.gain.linearRampToValueAtTime(0.07, now + idx * 0.05 + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.55);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(now + idx * 0.05); o.stop(now + idx * 0.05 + 0.6);
+    });
+  }
+}
+const sfx = new SoundFX();
+
+/* ============================================================================
+ * 10. PLAYER STATE, PHYSICS, 3D DDA RAYCASTING & 3D BREAK PARTICLES
+ * ============================================================================ */
+const state = {
+  started: false,
+  paused: false,
+  modal: null, // null | 'pause' | 'inventory' | 'teleport'
+  pointerLocked: false,
+  renderDist: 6,
+  fov: 72,
+  sensitivity: 4.0,
+  timeOfDay: 0.285, // 0..1 (0.25 = sunrise, 0.285 = golden morning, 0.5 = noon, 0.75 = sunset, 0.0 = midnight)
+  dayCycle: true,
+  showControls: true,
+  timeSec: 0,
+  fps: 60,
+};
+
+const player = {
+  x: 0.5, y: 39.2, z: 52.5,
+  vx: 0, vy: 0, vz: 0,
+  yaw: 0, pitch: 0.08,
+  halfW: 0.30, height: 1.80, eyeH: 1.62,
+  onGround: false,
+  inWater: false,
+  eyeUnderwater: false,
+  flying: false,
+  sprinting: false,
+  sneaking: false,
+  bobPhase: 0,
+  bobAmt: 0,
+  swingAnim: 0,
+  stepAccum: 0,
+  lastSpaceTime: 0,
+  lastWTime: 0,
+};
+
+const hotbar = [
+  B.GRASS, B.DIRT, B.STONE, B.OAK_LOG, B.OAK_PLANKS,
+  B.MARBLE, B.AZURE_TILE, B.LANTERN, B.ASTRAL_CRYSTAL,
+];
+let activeSlot = 0;
+
+const keys = new Set();
+let mouseButtons = 0;
+let lastActionTime = 0;
+let isDraggingLook = false;
+let lastMouseX = 0, lastMouseY = 0;
+
+// Break particles pool
+const particles = [];
+function spawnBreakParticles(wx, wy, wz, blockId) {
+  const def = BLOCKS[blockId];
+  if (!def) return;
+  for (let i = 0; i < 14; i++) {
+    particles.push({
+      x: wx + 0.15 + Math.random() * 0.7,
+      y: wy + 0.15 + Math.random() * 0.7,
+      z: wz + 0.15 + Math.random() * 0.7,
+      vx: (Math.random() - 0.5) * 4.5,
+      vy: 1.8 + Math.random() * 3.8,
+      vz: (Math.random() - 0.5) * 4.5,
+      rx: Math.random() * 6, ry: Math.random() * 6,
+      vrx: (Math.random() - 0.5) * 10, vry: (Math.random() - 0.5) * 10,
+      size: 0.11 + Math.random() * 0.09,
+      life: 0.48 + Math.random() * 0.32,
+      maxLife: 0.8,
+      def,
+    });
+  }
+}
+
+/* Exact 3D DDA Voxel Raycast (Amanatides & Woo) */
+function raycastVoxel(ox, oy, oz, dx, dy, dz, maxDist = 7.5) {
+  let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
+  const stepX = dx > 0 ? 1 : (dx < 0 ? -1 : 0);
+  const stepY = dy > 0 ? 1 : (dy < 0 ? -1 : 0);
+  const stepZ = dz > 0 ? 1 : (dz < 0 ? -1 : 0);
+
+  const tDeltaX = dx !== 0 ? Math.abs(1 / dx) : 1e9;
+  const tDeltaY = dy !== 0 ? Math.abs(1 / dy) : 1e9;
+  const tDeltaZ = dz !== 0 ? Math.abs(1 / dz) : 1e9;
+
+  let tMaxX = dx > 0 ? ((x + 1 - ox) * tDeltaX) : (dx < 0 ? ((ox - x) * tDeltaX) : 1e9);
+  let tMaxY = dy > 0 ? ((y + 1 - oy) * tDeltaY) : (dy < 0 ? ((oy - y) * tDeltaY) : 1e9);
+  let tMaxZ = dz > 0 ? ((z + 1 - oz) * tDeltaZ) : (dz < 0 ? ((oz - z) * tDeltaZ) : 1e9);
+
+  let dist = 0;
+  let nx = 0, ny = 0, nz = 0;
+
+  for (let iter = 0; iter < 64 && dist <= maxDist; iter++) {
+    const b = getWorldBlock(x, y, z);
+    if (b !== B.AIR && b !== B.WATER && b !== B.ASTRAL_PORTAL) {
+      return { x, y, z, nx, ny, nz, block: b, dist };
+    }
+    if (tMaxX < tMaxY && tMaxX < tMaxZ) {
+      dist = tMaxX; tMaxX += tDeltaX; x += stepX; nx = -stepX; ny = 0; nz = 0;
+    } else if (tMaxY < tMaxZ) {
+      dist = tMaxY; tMaxY += tDeltaY; y += stepY; nx = 0; ny = -stepY; nz = 0;
+    } else {
+      dist = tMaxZ; tMaxZ += tDeltaZ; z += stepZ; nx = 0; ny = 0; nz = -stepZ;
+    }
+  }
+  return null;
+}
+
+/* Axis-Separated AABB Collision */
+function collidesSolid(x, y, z) {
+  const hw = player.halfW;
+  const x0 = Math.floor(x - hw), x1 = Math.floor(x + hw);
+  const y0 = Math.floor(y), y1 = Math.floor(y + player.height - 0.01);
+  const z0 = Math.floor(z - hw), z1 = Math.floor(z + hw);
+  for (let by = y0; by <= y1; by++) {
+    for (let bz = z0; bz <= z1; bz++) {
+      for (let bx = x0; bx <= x1; bx++) {
+        if (IS_SOLID[getWorldBlock(bx, by, bz)]) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function updatePhysics(dt) {
+  const feetBlk = getWorldBlock(Math.floor(player.x), Math.floor(player.y + 0.15), Math.floor(player.z));
+  const eyeBlk  = getWorldBlock(Math.floor(player.x), Math.floor(player.y + player.eyeH), Math.floor(player.z));
+  player.inWater = (feetBlk === B.WATER || eyeBlk === B.WATER);
+  player.eyeUnderwater = (eyeBlk === B.WATER);
+  document.getElementById('underwater-overlay').classList.toggle('active', player.eyeUnderwater);
+
+  let moveF = 0, moveR = 0;
+  if (keys.has('KeyW')) moveF += 1;
+  if (keys.has('KeyS')) moveF -= 1;
+  if (keys.has('KeyD')) moveR += 1;
+  if (keys.has('KeyA')) moveR -= 1;
+  const mag = Math.hypot(moveF, moveR);
+  if (mag > 0) { moveF /= mag; moveR /= mag; }
+
+  const fwdX = -Math.sin(player.yaw), fwdZ = -Math.cos(player.yaw);
+  const rgtX =  Math.cos(player.yaw), rgtZ = -Math.sin(player.yaw);
+
+  player.sneaking = keys.has('ShiftLeft') || keys.has('ShiftRight');
+  if (keys.has('ControlLeft') || keys.has('ControlRight')) player.sprinting = moveF > 0;
+  if (moveF <= 0) player.sprinting = false;
+
+  if (player.flying) {
+    const speed = player.sprinting ? 22.0 : 12.5;
+    let targetVx = (fwdX * moveF + rgtX * moveR) * speed;
+    let targetVz = (fwdZ * moveF + rgtZ * moveR) * speed;
+    let targetVy = 0;
+    if (keys.has('Space')) targetVy += 10.5;
+    if (player.sneaking) targetVy -= 10.5;
+
+    const blend = Math.min(1, dt * 11);
+    player.vx += (targetVx - player.vx) * blend;
+    player.vy += (targetVy - player.vy) * blend;
+    player.vz += (targetVz - player.vz) * blend;
+    player.onGround = false;
+  } else {
+    let baseSpeed = player.sneaking ? 2.6 : (player.sprinting ? 8.2 : 5.4);
+    if (player.inWater) baseSpeed *= 0.62;
+    const wishX = (fwdX * moveF + rgtX * moveR) * baseSpeed;
+    const wishZ = (fwdZ * moveF + rgtZ * moveR) * baseSpeed;
+    const accel = player.onGround ? 18.0 : (player.inWater ? 8.0 : 5.5);
+    const blend = Math.min(1, dt * accel);
+    player.vx += (wishX - player.vx) * blend;
+    player.vz += (wishZ - player.vz) * blend;
+
+    if (player.inWater) {
+      player.vy -= 8.0 * dt;
+      if (keys.has('Space')) player.vy = Math.min(4.8, player.vy + 22.0 * dt);
+      player.vy *= Math.pow(0.25, dt);
+    } else {
+      player.vy -= 26.5 * dt;
+      if (player.vy < -42) player.vy = -42;
+      if (keys.has('Space') && player.onGround) {
+        player.vy = 8.9;
+        player.onGround = false;
+      }
+    }
+  }
+
+  // Axis-separated collision with sneak ledge-protection!
+  const nextX = player.x + player.vx * dt;
+  if (!collidesSolid(nextX, player.y, player.z)) {
+    if (!player.flying && player.onGround && player.sneaking && !collidesSolid(nextX, player.y - 0.18, player.z)) {
+      player.vx = 0;
+    } else {
+      player.x = nextX;
+    }
+  } else {
+    player.vx = 0;
+  }
+
+  const nextZ = player.z + player.vz * dt;
+  if (!collidesSolid(player.x, player.y, nextZ)) {
+    if (!player.flying && player.onGround && player.sneaking && !collidesSolid(player.x, player.y - 0.18, nextZ)) {
+      player.vz = 0;
+    } else {
+      player.z = nextZ;
+    }
+  } else {
+    player.vz = 0;
+  }
+
+  const nextY = player.y + player.vy * dt;
+  if (!collidesSolid(player.x, nextY, player.z)) {
+    player.y = nextY;
+    player.onGround = false;
+  } else {
+    if (player.vy < 0) {
+      player.onGround = true;
+      player.y = Math.floor(nextY) + 1.0001;
+      if (collidesSolid(player.x, player.y, player.z)) player.y = Math.ceil(nextY);
+    } else if (player.vy > 0) {
+      player.y = Math.ceil(nextY + player.height) - 1 - player.height - 0.001;
+    }
+    player.vy = 0;
+  }
+
+  // Safety floor
+  if (player.y < 1.5) { player.y = 42; player.vy = 0; }
+
+  // Walk bobbing & procedural footsteps
+  const horizSpd = Math.hypot(player.vx, player.vz);
+  if (player.onGround && !player.flying && horizSpd > 0.4) {
+    player.bobPhase += dt * horizSpd * 1.95;
+    player.bobAmt += (Math.min(1, horizSpd / 5.4) - player.bobAmt) * Math.min(1, dt * 10);
+    player.stepAccum += horizSpd * dt;
+    if (player.stepAccum > 2.25) {
+      player.stepAccum = 0;
+      const below = getWorldBlock(Math.floor(player.x), Math.floor(player.y - 0.2), Math.floor(player.z));
+      const sType = BLOCKS[below]?.sound || 'grass';
+      sfx.playStep(sType);
+    }
+  } else {
+    player.bobAmt *= Math.pow(0.01, dt);
+  }
+
+  if (player.swingAnim > 0) player.swingAnim = Math.max(0, player.swingAnim - dt * 4.5);
+}
+
+/* ============================================================================
+ * 11. BLOCK INTERACTION (LMB Break, RMB Place, MMB/Q Pick Block)
+ * ============================================================================ */
+let currentTarget = null;
+
+function getLookDir() {
+  const cp = Math.cos(player.pitch);
+  return [-Math.sin(player.yaw) * cp, Math.sin(player.pitch), -Math.cos(player.yaw) * cp];
+}
+
+function handleBreakBlock() {
+  if (!currentTarget) return;
+  const { x, y, z, block } = currentTarget;
+  if (y <= 1) return;
+  const def = BLOCKS[block];
+  if (setWorldBlock(x, y, z, B.AIR)) {
+    player.swingAnim = 1.0;
+    spawnBreakParticles(x, y, z, block);
+    sfx.playBlock(def?.sound || 'stone', true);
+  }
+}
+
+function handlePlaceBlock() {
+  if (!currentTarget) return;
+  const tx = currentTarget.x + currentTarget.nx;
+  const ty = currentTarget.y + currentTarget.ny;
+  const tz = currentTarget.z + currentTarget.nz;
+  const placeId = hotbar[activeSlot];
+  if (!placeId) return;
+
+  // Prevent suffocating player inside newly placed solid block
+  if (IS_SOLID[placeId]) {
+    const hw = player.halfW;
+    const overlapX = (tx < player.x + hw) && (tx + 1 > player.x - hw);
+    const overlapY = (ty < player.y + player.height) && (ty + 1 > player.y);
+    const overlapZ = (tz < player.z + hw) && (tz + 1 > player.z - hw);
+    if (overlapX && overlapY && overlapZ) return;
+  }
+
+  if (setWorldBlock(tx, ty, tz, placeId)) {
+    player.swingAnim = 1.0;
+    sfx.playBlock(BLOCKS[placeId]?.sound || 'stone', false);
+  }
+}
+
+function handlePickBlock() {
+  if (!currentTarget) return;
+  const b = currentTarget.block;
+  if (!BLOCKS[b]) return;
+  const existing = hotbar.indexOf(b);
+  if (existing !== -1) {
+    selectSlot(existing);
+  } else {
+    hotbar[activeSlot] = b;
+    renderHotbar();
+    showBlockToast(BLOCKS[b].name + ' · ' + BLOCKS[b].en);
+  }
+}
+
+/* ============================================================================
+ * 12. DYNAMIC INFINITE CHUNK STREAMING MANAGER
+ * ============================================================================ */
+function updateChunkStreaming(budgetGen = 6, budgetMesh = 3) {
+  const pcx = Math.floor(player.x / CHUNK_SIZE);
+  const pcz = Math.floor(player.z / CHUNK_SIZE);
+  const R = state.renderDist;
+  const unloadR = R + 2;
+
+  // Unload distant chunks to keep memory & draw calls bounded forever
+  for (const [key, ch] of worldChunks) {
+    const dx = ch.cx - pcx, dz = ch.cz - pcz;
+    if (dx * dx + dz * dz > unloadR * unloadR) {
+      ch.dispose(gl);
+      worldChunks.delete(key);
+    }
+  }
+
+  // Collect missing chunks inside circular radius (R + 1 for neighbor border data)
+  const toGen = [];
+  const dataR = R + 1;
+  for (let dz = -dataR; dz <= dataR; dz++) {
+    for (let dx = -dataR; dx <= dataR; dx++) {
+      const d2 = dx * dx + dz * dz;
+      if (d2 > (dataR + 0.5) * (dataR + 0.5)) continue;
+      const cx = pcx + dx, cz = pcz + dz;
+      const key = chunkKey(cx, cz);
+      if (!worldChunks.has(key)) {
+        toGen.push([d2, cx, cz, key]);
+      }
+    }
+  }
+  toGen.sort((a, b) => a[0] - b[0]);
+  for (let i = 0; i < Math.min(budgetGen, toGen.length); i++) {
+    const [, cx, cz, key] = toGen[i];
+    const ch = new Chunk(cx, cz);
+    generateChunkData(ch);
+    worldChunks.set(key, ch);
+  }
+
+  // Build meshes for dirty chunks within visible radius R (once 4 cardinal neighbors exist)
+  const toMesh = [];
+  for (const ch of worldChunks.values()) {
+    if (!ch.dirty || !ch.generated) continue;
+    const dx = ch.cx - pcx, dz = ch.cz - pcz;
+    const d2 = dx * dx + dz * dz;
+    if (d2 > (R + 0.5) * (R + 0.5)) continue;
+    if (worldChunks.has(chunkKey(ch.cx + 1, ch.cz)) &&
+        worldChunks.has(chunkKey(ch.cx - 1, ch.cz)) &&
+        worldChunks.has(chunkKey(ch.cx, ch.cz + 1)) &&
+        worldChunks.has(chunkKey(ch.cx, ch.cz - 1))) {
+      toMesh.push([d2, ch]);
+    }
+  }
+  toMesh.sort((a, b) => a[0] - b[0]);
+  for (let i = 0; i < Math.min(budgetMesh, toMesh.length); i++) {
+    buildChunkMesh(toMesh[i][1]);
+  }
+}
+
+/* Pre-load core chunks around player synchronously on startup/teleport so frame 1 is breathtaking! */
+function preloadAroundPlayer(radius = 5) {
+  const pcx = Math.floor(player.x / CHUNK_SIZE);
+  const pcz = Math.floor(player.z / CHUNK_SIZE);
+  for (let dz = -radius - 1; dz <= radius + 1; dz++) {
+    for (let dx = -radius - 1; dx <= radius + 1; dx++) {
+      if (dx * dx + dz * dz > (radius + 1.5) * (radius + 1.5)) continue;
+      const cx = pcx + dx, cz = pcz + dz;
+      const key = chunkKey(cx, cz);
+      if (!worldChunks.has(key)) {
+        const ch = new Chunk(cx, cz);
+        generateChunkData(ch);
+        worldChunks.set(key, ch);
+      }
+    }
+  }
+  for (let dz = -radius; dz <= radius; dz++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dz * dz > (radius + 0.5) * (radius + 0.5)) continue;
+      const ch = worldChunks.get(chunkKey(pcx + dx, pcz + dz));
+      if (ch && ch.dirty) buildChunkMesh(ch);
+    }
+  }
+}
+
+/* ============================================================================
+ * 13. ATMOSPHERIC DAY/NIGHT LIGHTING PALETTE
+ * ============================================================================ */
+function getAtmosphere(tod) {
+  // tod: 0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset
+  const angle = (tod - 0.25) * Math.PI * 2;
+  const sunY = Math.sin(angle);
+  const sunX = Math.cos(angle) * 0.85;
+  const sunZ = -Math.cos(angle) * 0.42 - 0.28;
+  const len = Math.hypot(sunX, sunY, sunZ) || 1;
+  const sunDir = [sunX / len, sunY / len, sunZ / len];
+
+  const day = smoothstep(-0.12, 0.28, sunY);
+  const sunset = Math.exp(-Math.pow((sunY - 0.04) * 5.2, 2));
+  const night = 1.0 - smoothstep(-0.22, 0.14, sunY);
+
+  const lerp3 = (a, b, t) => [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t];
+
+  let zenith = lerp3([0.03, 0.05, 0.14], [0.22, 0.52, 0.92], day);
+  zenith = lerp3(zenith, [0.26, 0.24, 0.54], sunset * 0.6);
+
+  let horizon = lerp3([0.06, 0.09, 0.20], [0.70, 0.86, 0.98], day);
+  horizon = lerp3(horizon, [0.98, 0.56, 0.34], sunset * 0.85);
+
+  let sunColor = lerp3([0.14, 0.20, 0.36], [1.06, 1.02, 0.94], day);
+  sunColor = lerp3(sunColor, [1.18, 0.68, 0.38], sunset * 0.72);
+
+  let ambientColor = lerp3([0.10, 0.14, 0.28], [0.36, 0.44, 0.56], day);
+  ambientColor = lerp3(ambientColor, [0.46, 0.30, 0.34], sunset * 0.5);
+
+  const fogColor = lerp3(horizon, zenith, 0.16);
+  return { sunDir, zenith, horizon, sunColor, ambientColor, fogColor, night, day };
+}
+
+/* ============================================================================
+ * 14. MAIN RENDER PIPELINE
+ * ============================================================================ */
+const projMat = new Float32Array(16);
+const viewMat = new Float32Array(16);
+const vpMat   = new Float32Array(16);
+const invVpMat = new Float32Array(16);
+const modelMat = new Float32Array(16);
+const mvpMat  = new Float32Array(16);
+
+function resizeCanvas() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.floor(window.innerWidth * dpr);
+  const h = Math.floor(window.innerHeight * dpr);
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+    gl.viewport(0, 0, w, h);
+  }
+}
+
+function renderScene() {
+  resizeCanvas();
+  const aspect = canvas.width / Math.max(1, canvas.height);
+  const dynFov = state.fov + (player.sprinting ? 6 : 0);
+  mat4Perspective(projMat, dynFov * Math.PI / 180, aspect, 0.08, 420);
+
+  let camX, camY, camZ, lookX, lookY, lookZ;
+  if (!state.started) {
+    // Live cinematic slow gaze across the Mythic Sanctuary behind the Start Menu!
+    const t = state.timeSec * 0.14;
+    camX = Math.sin(t) * 16;
+    camY = 48 + Math.sin(t * 0.7) * 3;
+    camZ = 56 + Math.cos(t) * 6;
+    lookX = 0; lookY = 58; lookZ = -2;
+  } else {
+    const bobY = Math.sin(player.bobPhase * 2) * 0.045 * player.bobAmt;
+    const bobX = Math.cos(player.bobPhase) * 0.035 * player.bobAmt;
+    const rgtX = Math.cos(player.yaw), rgtZ = -Math.sin(player.yaw);
+    const crouchOff = (!player.flying && player.sneaking) ? -0.18 : 0;
+    camX = player.x + rgtX * bobX;
+    camY = player.y + player.eyeH + crouchOff + bobY;
+    camZ = player.z + rgtZ * bobX;
+    const dir = getLookDir();
+    lookX = camX + dir[0]; lookY = camY + dir[1]; lookZ = camZ + dir[2];
+  }
+
+  mat4LookAt(viewMat, [camX, camY, camZ], [lookX, lookY, lookZ], [0, 1, 0]);
+  mat4Mul(vpMat, projMat, viewMat);
+  mat4Invert(invVpMat, vpMat);
+
+  const atm = getAtmosphere(state.timeOfDay);
+
+  gl.clearColor(atm.fogColor[0], atm.fogColor[1], atm.fogColor[2], 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  // 1. Atmospheric Sky Dome
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.CULL_FACE);
+  gl.useProgram(skyProg);
+  gl.uniformMatrix4fv(uLoc.sky.invVP, false, invVpMat);
+  gl.uniform3f(uLoc.sky.cam, camX, camY, camZ);
+  gl.uniform3fv(uLoc.sky.sunDir, atm.sunDir);
+  gl.uniform3fv(uLoc.sky.zenith, atm.zenith);
+  gl.uniform3fv(uLoc.sky.horizon, atm.horizon);
+  gl.uniform1f(uLoc.sky.night, atm.night);
+  gl.uniform1f(uLoc.sky.time, state.timeSec);
+  gl.bindVertexArray(skyVao);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  // 2. Opaque & Cutout Voxel Chunks
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LESS);
+  gl.depthMask(true);
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+  gl.disable(gl.BLEND);
+
+  gl.useProgram(voxelProg);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D_ARRAY, texArray);
+  gl.uniform1i(uLoc.vox.tex, 0);
+  gl.uniformMatrix4fv(uLoc.vox.vp, false, vpMat);
+  gl.uniform3f(uLoc.vox.cam, camX, camY, camZ);
+  gl.uniform1f(uLoc.vox.time, state.timeSec);
+  gl.uniform3fv(uLoc.vox.sunCol, atm.sunColor);
+  gl.uniform3fv(uLoc.vox.ambCol, atm.ambientColor);
+  gl.uniform3fv(uLoc.vox.fogCol, atm.fogColor);
+  const fogEnd = state.renderDist * CHUNK_SIZE * 0.98;
+  gl.uniform1f(uLoc.vox.fogS, fogEnd * 0.56);
+  gl.uniform1f(uLoc.vox.fogE, fogEnd);
+  gl.uniform1f(uLoc.vox.waterPass, 0.0);
+  gl.uniform1f(uLoc.vox.underwater, player.eyeUnderwater ? 1.0 : 0.0);
+
+  // Frustum-friendly simple horizontal dot cull + draw
+  const fdx = lookX - camX, fdz = lookZ - camZ;
+  const fLen = Math.hypot(fdx, fdz) || 1;
+  const fnx = fdx / fLen, fnz = fdz / fLen;
+  const visibleChunks = [];
+
+  for (const ch of worldChunks.values()) {
+    if (ch.opCount === 0 && ch.trCount === 0) continue;
+    const cxw = ch.cx * CHUNK_SIZE + 8;
+    const czw = ch.cz * CHUNK_SIZE + 8;
+    const vx = cxw - camX, vz = czw - camZ;
+    const d2 = vx * vx + vz * vz;
+    // Always keep nearby chunks; cull chunks strictly behind camera beyond 28 blocks
+    if (d2 > 28 * 28 && (vx * fnx + vz * fnz) < -22) continue;
+    visibleChunks.push(ch);
+
+    if (ch.opCount > 0 && ch.opVao) {
+      gl.uniform3f(uLoc.vox.orig, ch.cx * CHUNK_SIZE, 0, ch.cz * CHUNK_SIZE);
+      gl.bindVertexArray(ch.opVao);
+      gl.drawElements(gl.TRIANGLES, ch.opCount, gl.UNSIGNED_INT, 0);
+    }
+  }
+
+  // 3. Drifting 3D Blocky Clouds Layer
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.useProgram(colorProg);
+  gl.uniformMatrix4fv(uLoc.col.vp, false, vpMat);
+  const cloudDrift = (state.timeSec * 1.4) % (CLOUD_GRID * CLOUD_CELL);
+  const cloudSnapX = Math.floor(camX / 60) * 60 + cloudDrift;
+  const cloudSnapZ = Math.floor(camZ / 60) * 60;
+  mat4Translation(modelMat, cloudSnapX, 0, cloudSnapZ);
+  gl.uniformMatrix4fv(uLoc.col.model, false, modelMat);
+  const cBright = 0.25 + atm.day * 0.75;
+  gl.uniform4f(uLoc.col.color, atm.sunColor[0] * 0.55 + cBright * 0.45, atm.sunColor[1] * 0.5 + cBright * 0.5, atm.sunColor[2] * 0.48 + cBright * 0.52, 0.52);
+  gl.bindVertexArray(cloudVao);
+  gl.drawArrays(gl.TRIANGLES, 0, cloudVertCount);
+
+  // 4. Translucent Pass (Water & Astral Portal)
+  gl.useProgram(voxelProg);
+  gl.disable(gl.CULL_FACE);
+  gl.uniform1f(uLoc.vox.waterPass, 1.0);
+  for (const ch of visibleChunks) {
+    if (ch.trCount > 0 && ch.trVao) {
+      gl.uniform3f(uLoc.vox.orig, ch.cx * CHUNK_SIZE, 0, ch.cz * CHUNK_SIZE);
+      gl.bindVertexArray(ch.trVao);
+      gl.drawElements(gl.TRIANGLES, ch.trCount, gl.UNSIGNED_INT, 0);
+    }
+  }
+  gl.depthMask(true);
+  gl.enable(gl.CULL_FACE);
+
+  // 5. 3D Textured Break Particles
+  if (particles.length > 0) {
+    gl.useProgram(miniProg);
+    gl.bindVertexArray(miniCubeVao);
+    gl.uniform1i(uLoc.mini.tex, 0);
+    gl.uniform3f(uLoc.mini.tint, atm.sunColor[0] * 0.85 + 0.25, atm.sunColor[1] * 0.85 + 0.25, atm.sunColor[2] * 0.85 + 0.25);
+    for (const p of particles) {
+      mat4TRS(modelMat, p.x, p.y, p.z, p.rx, p.ry, 0, p.size, p.size, p.size);
+      mat4Mul(mvpMat, vpMat, modelMat);
+      gl.uniformMatrix4fv(uLoc.mini.mvp, false, mvpMat);
+      gl.uniform3f(uLoc.mini.layers, p.def.texTop, p.def.texBottom, p.def.texSide);
+      gl.drawArrays(gl.TRIANGLES, 0, 36);
+    }
+  }
+
+  // 6. Targeted Block Wireframe Highlight
+  if (state.started && currentTarget) {
+    gl.useProgram(colorProg);
+    gl.uniformMatrix4fv(uLoc.col.vp, false, vpMat);
+    mat4Translation(modelMat, currentTarget.x, currentTarget.y, currentTarget.z);
+    gl.uniformMatrix4fv(uLoc.col.model, false, modelMat);
+    gl.uniform4f(uLoc.col.color, 0.05, 0.07, 0.12, 0.78);
+    gl.bindVertexArray(wireVao);
+    gl.drawArrays(gl.LINES, 0, 24);
+  }
+
+  // 7. First-Person Held Block Viewmodel (bottom-right hand with bobbing & swing!)
+  if (state.started) {
+    const heldDef = BLOCKS[hotbar[activeSlot]];
+    if (heldDef) {
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.disable(gl.BLEND);
+      gl.useProgram(miniProg);
+      gl.bindVertexArray(miniCubeVao);
+      gl.uniform1i(uLoc.mini.tex, 0);
+
+      const vmProj = new Float32Array(16);
+      mat4Perspective(vmProj, 55 * Math.PI / 180, aspect, 0.05, 20);
+      const sw = Math.sin(player.swingAnim * Math.PI);
+      const bx = Math.cos(player.bobPhase) * 0.03 * player.bobAmt;
+      const by = Math.abs(Math.sin(player.bobPhase)) * 0.03 * player.bobAmt;
+
+      mat4TRS(
+        modelMat,
+        0.58 + bx - sw * 0.18,
+        -0.50 - by - sw * 0.12,
+        -1.15 - sw * 0.18,
+        0.22 - sw * 0.78,
+        -0.62 - sw * 0.45,
+        0.08 + sw * 0.25,
+        0.36, 0.36, 0.36
+      );
+      mat4Mul(mvpMat, vmProj, modelMat);
+      gl.uniformMatrix4fv(uLoc.mini.mvp, false, mvpMat);
+      gl.uniform3f(uLoc.mini.layers, heldDef.texTop, heldDef.texBottom, heldDef.texSide);
+      const tintB = heldDef.emissive ? 1.15 : (0.42 + atm.day * 0.65);
+      gl.uniform3f(uLoc.mini.tint, tintB * Math.min(1.1, atm.sunColor[0] * 0.5 + 0.55), tintB * Math.min(1.1, atm.sunColor[1] * 0.5 + 0.55), tintB * Math.min(1.1, atm.sunColor[2] * 0.5 + 0.55));
+      gl.drawArrays(gl.TRIANGLES, 0, 36);
+    }
+  }
+
+  gl.bindVertexArray(null);
+}
+
+/* ============================================================================
+ * 15. UI, HOTBAR, INVENTORY, TELEPORT & INPUT CONTROLS
+ * ============================================================================ */
+const elStart = document.getElementById('start-screen');
+const elPause = document.getElementById('pause-menu');
+const elInv   = document.getElementById('inventory-modal');
+const elTp    = document.getElementById('teleport-modal');
+const elCross = document.getElementById('crosshair');
+const elHudTL = document.getElementById('hud-top-left');
+const elHudCtrl = document.getElementById('hud-controls');
+const elHotbar = document.getElementById('hotbar');
+const elQuick = document.getElementById('quick-buttons');
+const elToast = document.getElementById('block-toast');
+
+let toastTimer = null;
+function showBlockToast(text) {
+  elToast.textContent = text;
+  elToast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => elToast.classList.remove('show'), 1800);
+}
+
+function renderHotbar() {
+  elHotbar.innerHTML = '';
+  hotbar.forEach((blkId, idx) => {
+    const slot = document.createElement('div');
+    slot.className = 'hotbar-slot' + (idx === activeSlot ? ' active' : '');
+    slot.innerHTML = `<span class="slot-num">${idx + 1}</span>`;
+    const ic = document.createElement('canvas');
+    ic.width = 48; ic.height = 48;
+    drawBlockIconToCanvas(ic, blkId);
+    slot.appendChild(ic);
+    slot.addEventListener('mousedown', (e) => { e.stopPropagation(); selectSlot(idx); });
+    elHotbar.appendChild(slot);
+  });
+}
+
+function selectSlot(idx) {
+  activeSlot = ((idx % 9) + 9) % 9;
+  const slots = elHotbar.querySelectorAll('.hotbar-slot');
+  slots.forEach((s, i) => s.classList.toggle('active', i === activeSlot));
+  const def = BLOCKS[hotbar[activeSlot]];
+  if (def) showBlockToast(`${def.name} · ${def.en}`);
+}
+
+function buildInventoryUI() {
+  const container = document.getElementById('inventory-content');
+  container.innerHTML = '';
+  const cats = ['自然地形', '建筑木石', '神话圣材', '光源晶石', '植物灵花'];
+  for (const cat of cats) {
+    const title = document.createElement('div');
+    title.className = 'inv-cat-title';
+    title.textContent = '◈ ' + cat;
+    container.appendChild(title);
+    const grid = document.createElement('div');
+    grid.className = 'inv-grid';
+    for (const def of BLOCK_LIST.filter(b => b.cat === cat)) {
+      const card = document.createElement('div');
+      card.className = 'inv-item';
+      const ic = document.createElement('canvas');
+      ic.width = 48; ic.height = 48;
+      drawBlockIconToCanvas(ic, def.id);
+      const label = document.createElement('span');
+      label.textContent = def.name;
+      card.appendChild(ic);
+      card.appendChild(label);
+      card.addEventListener('click', () => {
+        hotbar[activeSlot] = def.id;
+        renderHotbar();
+        showBlockToast(`已装备：${def.name}`);
+        closeModalsAndResume();
+      });
+      grid.appendChild(card);
+    }
+    container.appendChild(grid);
+  }
+}
+
+function teleportToLandmark(lm) {
+  sfx.unlock();
+  sfx.playChime();
+  if (lm.randomWild) {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 260 + Math.random() * 520;
+    const wx = Math.floor(Math.cos(ang) * dist);
+    const wz = Math.floor(Math.sin(ang) * dist);
+    const info = getTerrainInfo(wx, wz);
+    player.x = wx + 0.5;
+    player.y = Math.max(SEA_LEVEL + 3, info.height + 4);
+    player.z = wz + 0.5;
+    player.yaw = Math.random() * Math.PI * 2;
+    player.pitch = -0.1;
+    player.flying = true;
+    showBlockToast(`已传送至无限柏林荒野 (${wx}, ${wz})`);
+  } else {
+    player.x = lm.pos[0]; player.y = lm.pos[1]; player.z = lm.pos[2];
+    player.yaw = lm.yaw; player.pitch = lm.pitch;
+    player.flying = !!lm.fly;
+    showBlockToast(`已传送：${lm.name}`);
+  }
+  player.vx = player.vy = player.vz = 0;
+  preloadAroundPlayer(Math.min(state.renderDist, 5));
+  closeModalsAndResume();
+}
+
+function buildTeleportUI() {
+  const grid = document.getElementById('teleport-grid');
+  grid.innerHTML = '';
+  for (const lm of LANDMARKS) {
+    const card = document.createElement('button');
+    card.className = 'tp-card';
+    card.innerHTML = `<div class="tp-card-title">✦ ${lm.name}</div><div class="tp-card-desc">${lm.desc}</div>`;
+    card.addEventListener('click', () => teleportToLandmark(lm));
+    grid.appendChild(card);
+  }
+}
+
+function openModal(name) {
+  state.modal = name;
+  state.paused = true;
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+  elPause.classList.toggle('hidden', name !== 'pause');
+  elInv.classList.toggle('hidden', name !== 'inventory');
+  elTp.classList.toggle('hidden', name !== 'teleport');
+  elCross.classList.remove('visible');
+}
+
+function closeModalsAndResume(requestLock = true) {
+  state.modal = null;
+  state.paused = false;
+  elPause.classList.add('hidden');
+  elInv.classList.add('hidden');
+  elTp.classList.add('hidden');
+  elCross.classList.add('visible');
+  if (requestLock && canvas.requestPointerLock) {
+    try { canvas.requestPointerLock(); } catch (_) {}
+  }
+}
+
+function startGame() {
+  sfx.unlock();
+  state.started = true;
+  elStart.classList.add('hidden');
+  elHudTL.classList.add('visible');
+  elHudCtrl.classList.add('visible');
+  elHotbar.classList.add('visible');
+  elQuick.classList.add('visible');
+  closeModalsAndResume(true);
+  sfx.playChime();
+  showBlockToast('欢迎来到太虚圣境 · 双击空格可自由飞行');
+}
+
+/* Event Wiring */
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-resume').addEventListener('click', () => closeModalsAndResume(true));
+document.getElementById('btn-resume-2').addEventListener('click', () => closeModalsAndResume(true));
+document.getElementById('btn-close-inv').addEventListener('click', () => closeModalsAndResume(true));
+document.getElementById('btn-close-tp').addEventListener('click', () => closeModalsAndResume(true));
+document.getElementById('btn-open-inv').addEventListener('click', () => openModal('inventory'));
+document.getElementById('btn-open-tp').addEventListener('click', () => openModal('teleport'));
+document.getElementById('btn-pause-inv').addEventListener('click', () => openModal('inventory'));
+document.getElementById('btn-pause-tp').addEventListener('click', () => openModal('teleport'));
+document.getElementById('btn-toggle-fly').addEventListener('click', () => {
+  player.flying = !player.flying; player.vy = 0;
+  showBlockToast(player.flying ? '已开启：御风飞行模式' : '已切换：重力行走模式');
+});
+document.getElementById('btn-cycle-time').addEventListener('click', cycleTimePreset);
+
+// Settings sliders
+const optRender = document.getElementById('opt-render-dist');
+optRender.addEventListener('input', () => {
+  state.renderDist = parseInt(optRender.value, 10);
+  document.getElementById('val-render-dist').textContent = state.renderDist + ' 区块';
+});
+const optTime = document.getElementById('opt-time');
+optTime.addEventListener('input', () => {
+  state.timeOfDay = parseInt(optTime.value, 10) / 100;
+  document.getElementById('val-time').textContent = formatClock(state.timeOfDay);
+});
+document.getElementById('opt-cycle').addEventListener('change', (e) => { state.dayCycle = e.target.checked; });
+const optFov = document.getElementById('opt-fov');
+optFov.addEventListener('input', () => {
+  state.fov = parseInt(optFov.value, 10);
+  document.getElementById('val-fov').textContent = state.fov + '°';
+});
+const optSens = document.getElementById('opt-sens');
+optSens.addEventListener('input', () => {
+  state.sensitivity = parseFloat(optSens.value);
+  document.getElementById('val-sens').textContent = state.sensitivity.toFixed(1);
+});
+document.getElementById('opt-sound').addEventListener('change', (e) => { sfx.enabled = e.target.checked; });
+
+function cycleTimePreset() {
+  const presets = [
+    { t: 0.285, label: '晨曦金辉 (Dawn)' },
+    { t: 0.50,  label: '碧空正午 (Noon)' },
+    { t: 0.745, label: '落霞暮光 (Golden Sunset)' },
+    { t: 0.02,  label: '星河极光夜 (Starry Mythic Night)' },
+  ];
+  let best = 0;
+  for (let i = 0; i < presets.length; i++) {
+    if (Math.abs(state.timeOfDay - presets[i].t) < 0.08) { best = (i + 1) % presets.length; break; }
+    if (i === presets.length - 1) best = 2;
+  }
+  state.timeOfDay = presets[best].t;
+  optTime.value = Math.round(state.timeOfDay * 100);
+  document.getElementById('val-time').textContent = formatClock(state.timeOfDay);
+  showBlockToast('天时切换：' + presets[best].label);
+}
+
+document.addEventListener('pointerlockchange', () => {
+  state.pointerLocked = (document.pointerLockElement === canvas);
+  if (state.started && !state.pointerLocked && !state.modal) {
+    // Allow pausing cleanly when ESC releases pointer lock
+    openModal('pause');
+  }
+});
+
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+canvas.addEventListener('mousedown', (e) => {
+  if (!state.started || state.modal) return;
+  sfx.unlock();
+  if (!state.pointerLocked) {
+    try { canvas.requestPointerLock(); } catch (_) {}
+    // Also support drag-look fallback if pointer lock is unavailable
+    isDraggingLook = true; lastMouseX = e.clientX; lastMouseY = e.clientY;
+  }
+  mouseButtons |= (1 << e.button);
+  if (e.button === 0) {
+    handleBreakBlock();
+    lastActionTime = performance.now();
+  } else if (e.button === 2) {
+    handlePlaceBlock();
+    lastActionTime = performance.now();
+  } else if (e.button === 1) {
+    e.preventDefault();
+    handlePickBlock();
+  }
+});
+
+window.addEventListener('mouseup', (e) => {
+  mouseButtons &= ~(1 << e.button);
+  isDraggingLook = false;
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!state.started || state.paused) return;
+  const sens = state.sensitivity * 0.00058;
+  if (state.pointerLocked) {
+    player.yaw -= e.movementX * sens;
+    player.pitch = Math.max(-1.54, Math.min(1.54, player.pitch - e.movementY * sens));
+  } else if (isDraggingLook) {
+    const dx = e.clientX - lastMouseX, dy = e.clientY - lastMouseY;
+    lastMouseX = e.clientX; lastMouseY = e.clientY;
+    player.yaw -= dx * sens * 1.4;
+    player.pitch = Math.max(-1.54, Math.min(1.54, player.pitch - dy * sens * 1.4));
+  }
+});
+
+window.addEventListener('wheel', (e) => {
+  if (!state.started || state.paused) return;
+  selectSlot(activeSlot + (e.deltaY > 0 ? 1 : -1));
+}, { passive: true });
+
+window.addEventListener('keydown', (e) => {
+  if (!state.started) {
+    if (e.code === 'Enter' || e.code === 'Space') startGame();
+    return;
+  }
+  if (e.code === 'Escape') {
+    if (state.modal) closeModalsAndResume(true);
+    else openModal('pause');
+    return;
+  }
+  if (e.code === 'KeyE') {
+    e.preventDefault();
+    if (state.modal === 'inventory') closeModalsAndResume(true);
+    else openModal('inventory');
+    return;
+  }
+  if (e.code === 'KeyG') {
+    e.preventDefault();
+    if (state.modal === 'teleport') closeModalsAndResume(true);
+    else openModal('teleport');
+    return;
+  }
+  if (state.modal) return;
+
+  // Digit 1..9 selects hotbar slot
+  if (e.code.startsWith('Digit')) {
+    const num = parseInt(e.code.slice(5), 10);
+    if (num >= 1 && num <= 9) selectSlot(num - 1);
+  }
+  if (e.code === 'KeyF') {
+    player.flying = !player.flying; player.vy = 0;
+    showBlockToast(player.flying ? '御风飞行模式' : '重力行走模式');
+  }
+  if (e.code === 'KeyT') cycleTimePreset();
+  if (e.code === 'KeyQ') handlePickBlock();
+  if (e.code === 'KeyH') {
+    state.showControls = !state.showControls;
+    elHudCtrl.classList.toggle('collapsed', !state.showControls);
+  }
+  if (e.code === 'KeyM') {
+    sfx.enabled = !sfx.enabled;
+    document.getElementById('opt-sound').checked = sfx.enabled;
+    showBlockToast(sfx.enabled ? '音效：已开启' : '音效：已静音');
+  }
+
+  // Double-tap Space to toggle flight; double-tap W to sprint
+  if (!e.repeat) {
+    const now = performance.now();
+    if (e.code === 'Space') {
+      if (now - player.lastSpaceTime < 300) {
+        player.flying = !player.flying;
+        player.vy = 0;
+        showBlockToast(player.flying ? '御风飞行模式' : '重力行走模式');
+      }
+      player.lastSpaceTime = now;
+    }
+    if (e.code === 'KeyW') {
+      if (now - player.lastWTime < 280) player.sprinting = true;
+      player.lastWTime = now;
+    }
+  }
+  keys.add(e.code);
+});
+
+window.addEventListener('keyup', (e) => { keys.delete(e.code); });
+window.addEventListener('blur', () => { keys.clear(); mouseButtons = 0; });
+
+/* ============================================================================
+ * 16. HUD LOCATION DETECTION & MAIN GAME LOOP
+ * ============================================================================ */
+function formatClock(tod) {
+  const hrs = Math.floor(tod * 24) % 24;
+  const mins = Math.floor((tod * 24 - hrs) * 60);
+  return String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
+}
+
+function getTimePhaseLabel(tod) {
+  if (tod >= 0.21 && tod < 0.34) return '晨曦';
+  if (tod >= 0.34 && tod < 0.68) return '白昼';
+  if (tod >= 0.68 && tod < 0.80) return '暮光';
+  return '星夜';
+}
+
+function getLocationLabel(x, y, z) {
+  if (y < 24 && Math.hypot(x + 12, z - 4) < 26) return '💎 水晶地脉洞窟';
+  if (Math.hypot(x, z) < 25 && y > 45) return '✦ 星穹浮空神殿';
+  if (Math.hypot(x - 54, z + 14) < 25) return '🌳 太古建木神树';
+  if (Math.hypot(x + 56, z + 18) < 28) return '🐉 盘龙熔岩山';
+  if (Math.hypot(x, z + 64) < 22) return '🏯 九重云海宝塔';
+  if (Math.hypot(x + 30, z - 56) < 22) return '🔱 亚特兰蒂斯沉没神庙';
+  if (Math.hypot(x - 36, z - 32) < 22 && y > 58) return '💫 星辰巨环';
+  if (Math.hypot(x, z - 52) < 16) return '✦ 朝圣观景台 · 镜湖';
+  if (Math.hypot(x, z) < 42) return '🌊 太虚镜湖圣池';
+  const info = getTerrainInfo(x, z);
+  const biomeNames = {
+    emerald: '🌿 无限大陆 · 翡翠草甸',
+    sakura:  '🌸 无限大陆 · 樱花灵林',
+    desert:  '🏜 无限大陆 · 赤金沙海',
+    frost:   '❄ 无限大陆 · 霜雪极峰',
+    volcanic:'🌋 熔岩玄崖',
+  };
+  return biomeNames[info.biome] || '无限大陆';
+}
+
+// Expose minimal debug/testing hook on window for automated verification
+window.__AETHERIA = {
+  state, player, hotbar, worldChunks, LANDMARKS, BLOCKS, B,
+  startGame, teleportToLandmark, getTerrainInfo, getWorldBlock, setWorldBlock,
+  handleBreakBlock, handlePlaceBlock, selectSlot, cycleTimePreset,
+  preloadAroundPlayer,
+  setCamera(x, y, z, yaw, pitch, tod) {
+    player.x = x; player.y = y; player.z = z;
+    player.yaw = yaw; player.pitch = pitch;
+    player.flying = true;
+    if (tod !== undefined) state.timeOfDay = tod;
+    preloadAroundPlayer(Math.min(state.renderDist, 5));
+  },
+};
+
+/* Initialize UI & Preload Sanctuary Chunks */
+renderHotbar();
+buildInventoryUI();
+buildTeleportUI();
+preloadAroundPlayer(5);
+
+let lastTime = performance.now();
+let fpsFrames = 0, fpsLast = performance.now();
+let hudTick = 0;
+
+function gameLoop(now) {
+  requestAnimationFrame(gameLoop);
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  state.timeSec += dt;
+
+  // Dynamic day/night cycle (~10 min full day)
+  if (state.dayCycle && !state.paused) {
+    state.timeOfDay = (state.timeOfDay + dt / 600) % 1.0;
+  }
+
+  // Infinite chunk streaming (time-budgeted per frame)
+  updateChunkStreaming(4, 2);
+
+  if (state.started && !state.paused) {
+    updatePhysics(dt);
+
+    // Update target block raycast
+    const dir = getLookDir();
+    const crouchOff = (!player.flying && player.sneaking) ? -0.18 : 0;
+    currentTarget = raycastVoxel(player.x, player.y + player.eyeH + crouchOff, player.z, dir[0], dir[1], dir[2], 7.5);
+
+    // Continuous hold-to-break / hold-to-place
+    if ((mouseButtons & 1) && now - lastActionTime > 210) {
+      handleBreakBlock();
+      lastActionTime = now;
+    } else if ((mouseButtons & 4) && now - lastActionTime > 210) {
+      handlePlaceBlock();
+      lastActionTime = now;
+    }
+  }
+
+  // Update 3D break particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    p.vy -= 18 * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    p.rx += p.vrx * dt; p.ry += p.vry * dt;
+  }
+
+  renderScene();
+
+  // FPS & HUD updates (~6 Hz)
+  fpsFrames++;
+  if (now - fpsLast >= 500) {
+    state.fps = Math.round((fpsFrames * 1000) / (now - fpsLast));
+    fpsFrames = 0;
+    fpsLast = now;
+  }
+  hudTick += dt;
+  if (hudTick > 0.16 && state.started) {
+    hudTick = 0;
+    document.getElementById('hud-location').textContent = getLocationLabel(player.x, player.y, player.z);
+    document.getElementById('hud-coords').textContent =
+      `X: ${Math.floor(player.x)}  Y: ${Math.floor(player.y)}  Z: ${Math.floor(player.z)}  |  FPS: ${state.fps}`;
+    document.getElementById('hud-mode').textContent = player.flying ? '🕊 御风飞行' : (player.inWater ? '🌊 潜泳中' : '🥾 行走模式');
+    document.getElementById('hud-time').textContent = `${getTimePhaseLabel(state.timeOfDay)} ${formatClock(state.timeOfDay)}`;
+    document.getElementById('hud-chunks').textContent = `已加载区块: ${worldChunks.size}`;
+  }
+}
+
+requestAnimationFrame(gameLoop);
+})();
+</script>
+</body>
+</html>
