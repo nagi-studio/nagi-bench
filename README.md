@@ -130,7 +130,7 @@ NAGI STUDIO 的 LLM 测评案例集：把「模型 × Harness × 思考配额」
 | Claude Opus 4.5<br><sub>Anthropic</sub> | 02 | Cursor · Thinking |
 | Claude Haiku 4.5<br><sub>Anthropic</sub> | 02 | Claude Code · Default |
 | Gemini 4 Argon<br><sub>Google</sub> | 06 | Gemini Web · High |
-| Gemini 4 Neon<br><sub>Google</sub> | 06 | AntiGravity · High |
+| Gemini 4 Neon<br><sub>Google</sub> | 13 | AntiGravity · High / xhigh |
 | Gemini 3.8 Flash<br><sub>Google</sub> | 11 | Gemini Web · Thinking<br>AntiGravity · High |
 | Gemini 3.7 Flash<br><sub>Google</sub> | 08 | AntiGravity · Low / Medium / High |
 | Gemini 3.6 Flash<br><sub>Google</sub> | 05 | AntiGravity · High |
